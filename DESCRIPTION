@@ -1,0 +1,20 @@
+Package: SparseArray
+Title: In-memory sparse representation of arrays of arbitrary dimensions
+Description: Implements the SparseArray container for representing sparse
+	arrays and perform common array operations on them.
+biocViews: Infrastructure, DataRepresentation, Annotation, GenomeAnnotation
+URL: https://bioconductor.org/packages/SparseArray
+BugReports: https://github.com/Bioconductor/SparseArray/issues
+Version: 0.0.0
+License: Artistic-2.0
+Encoding: UTF-8
+Author: Hervé Pagès <hpages.on.github@gmail.com>
+Maintainer: Hervé Pagès <hpages.on.github@gmail.com>
+Depends: R (>= 4.0.0), methods,
+	BiocGenerics (>= 0.37.0), MatrixGenerics (>= 1.1.3),
+	S4Vectors (>= 0.27.2), IRanges (>= 2.17.3)
+Imports: stats
+Suggests: BiocParallel, DelayedArray, knitr, rmarkdown, BiocStyle, RUnit
+VignetteBuilder: knitr
+Collate: utils.R
+	zzz.R

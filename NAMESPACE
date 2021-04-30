@@ -1,0 +1,8 @@
+import(methods)
+importFrom(stats, setNames)
+
+import(BiocGenerics)
+import(MatrixGenerics)
+import(S4Vectors)
+import(IRanges)
+
