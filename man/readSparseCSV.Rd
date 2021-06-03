@@ -1,5 +1,6 @@
-\name{readSparseTable}
+\name{readSparseCSV}
   
+\alias{readSparseCSV}
 \alias{readSparseTable}
 
 \title{An alternative to \code{scuttle::readSparseCounts}}
@@ -9,7 +10,7 @@
 }
 
 \usage{
-readSparseTable(filepath, sep="\t")
+readSparseCSV(filepath, sep="\t", transpose=FALSE)
 }
 
 \arguments{
@@ -17,6 +18,9 @@ readSparseTable(filepath, sep="\t")
     COMING SOON...
   }
   \item{sep}{
+    COMING SOON...
+  }
+  \item{transpose}{
     COMING SOON...
   }
 }
@@ -37,9 +41,9 @@ readSparseTable(filepath, sep="\t")
 
 \examples{
 library(scuttle)
-
 example(readSparseCounts)  # to create 'outfile'
 
-readSparseTable(outfile)
+readSparseCSV(outfile, sep="\t")
+readSparseCSV(outfile, sep="\t", transpose=TRUE)
 }
 \keyword{utilities}

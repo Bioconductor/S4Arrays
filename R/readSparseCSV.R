@@ -1,5 +1,5 @@
 ### =========================================================================
-### readSparseTable()
+### readSparseCSV()
 ### -------------------------------------------------------------------------
 
 
@@ -70,10 +70,10 @@ CsparseMatrix <- function(dim, i, j, nzdata, dimnames=NULL)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### readSparseTable()
+### readSparseCSV()
 ###
 
-.scan_first_two_lines <- function(filepath, sep="\t")
+.scan_first_two_lines <- function(filepath, sep=",")
 {
     con <- file(filepath, "r")
     on.exit(close(con))
@@ -144,17 +144,20 @@ CsparseMatrix <- function(dim, i, j, nzdata, dimnames=NULL)
     c(TRUE, FALSE)
 }
 
-readSparseTable <- function(filepath, sep="\t")
+readSparseCSV <- function(filepath, sep=",", transpose=FALSE)
 {
     if (!isSingleString(filepath))
         stop(wmsg("'filepath' must be a single string"))
+    if (!isTRUEorFALSE(transpose))
+        stop(wmsg("'transpose' must be TRUE or FALSE"))
     first_two_lines <- .scan_first_two_lines(filepath, sep=sep)
     line1 <- first_two_lines[[1L]]
     line2 <- first_two_lines[[2L]]
     n1 <- length(line1)
     n2 <- length(line2)
     if (n1 < 2L)
-        stop(wmsg("first line in the file must contain at least 2 items"))
+        stop(wmsg("first line in the file must contain ",
+                  "at least 2 items (found ", n1, ")"))
     if (n1 != n2)
         stop(wmsg("first two lines in the file must contain ",
                   "the same number of items"))
@@ -168,13 +171,18 @@ readSparseTable <- function(filepath, sep="\t")
     con <- file(filepath, "r")
     on.exit(close(con))
 
-    C_ans <- .Call2("C_read_sparse_table", con, sep,
-                                           PACKAGE="SparseArray")
-
-    ans_rownames <- C_ans[[1L]]
-    ans_colnames <- line1[-1L]
-    ans_nzindex1 <- C_ans[[2L]]
-    ans_nzindex2 <- C_ans[[3L]]
+    C_ans <- .Call2("C_readSparseCSV", con, sep, PACKAGE="SparseArray")
+    if (transpose) {
+        ans_rownames <- line1[-1L]
+        ans_colnames <- C_ans[[1L]]
+        ans_nzindex1 <- C_ans[[3L]]
+        ans_nzindex2 <- C_ans[[2L]]
+    } else {
+        ans_rownames <- C_ans[[1L]]
+        ans_colnames <- line1[-1L]
+        ans_nzindex1 <- C_ans[[2L]]
+        ans_nzindex2 <- C_ans[[3L]]
+    }
     ans_nzdata <- C_ans[[4L]]
     ans_dim <- c(length(ans_rownames), length(ans_colnames))
     ans_dimnames <- list(ans_rownames, ans_colnames)
@@ -182,5 +190,11 @@ readSparseTable <- function(filepath, sep="\t")
     ## Construct dgCMatrix object.
     CsparseMatrix(ans_dim, ans_nzindex1, ans_nzindex2, ans_nzdata,
                   dimnames=ans_dimnames)
+}
+
+readSparseTable <- function(...)
+{
+    .Deprecated("readSparseCSV")
+    readSparseCSV(...)
 }
 

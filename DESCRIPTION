@@ -5,7 +5,7 @@ Description: Implements the SparseArray container for representing sparse
 biocViews: Infrastructure, DataRepresentation, Annotation, GenomeAnnotation
 URL: https://bioconductor.org/packages/SparseArray
 BugReports: https://github.com/Bioconductor/SparseArray/issues
-Version: 0.0.1
+Version: 0.0.2
 License: Artistic-2.0
 Encoding: UTF-8
 Author: Hervé Pagès <hpages.on.github@gmail.com>
@@ -18,5 +18,5 @@ Suggests: BiocParallel, DelayedArray, scuttle, knitr, rmarkdown, BiocStyle,
 	RUnit
 VignetteBuilder: knitr
 Collate: utils.R
-	readSparseTable.R
+	readSparseCSV.R
 	zzz.R

@@ -27,7 +27,7 @@ import(XVector)
 ###
 
 export(
-    readSparseTable
+    readSparseCSV, readSparseTable
 )
 
 

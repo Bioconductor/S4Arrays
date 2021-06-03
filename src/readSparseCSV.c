@@ -1,8 +1,8 @@
 /****************************************************************************
- *                    Workhorse behind readSparseTable()                    *
+ *                     Workhorse behind readSparseCSV()                     *
  *                            Author: H. Pag\`es                            *
  ****************************************************************************/
-#include "read_sparse_table.h"
+#include "readSparseCSV.h"
 
 #include "S4Vectors_interface.h"
 #include "XVector_interface.h"
@@ -66,7 +66,7 @@ static int filexp_gets2(SEXP filexp, char *buf, int buf_size, int *EOL_in_buf)
 
 
 /****************************************************************************
- * C_read_sparse_table()
+ * C_readSparseCSV()
  */
 
 static char errmsg_buf[200];
@@ -150,7 +150,7 @@ static void load_table_row(const char *line, char sep, int row_idx,
 	return;
 }
 
-static const char *read_sparse_table(SEXP filexp, char sep,
+static const char *read_sparse_csv(SEXP filexp, char sep,
 		CharAEAE *rownames_buf,
 		IntAE *nzindex1_buf, IntAE *nzindex2_buf,
 		IntAE *nzdata_buf)
@@ -205,7 +205,7 @@ static char get_sep_char(SEXP sep)
  *           rtracklayer package for how to do that).
  * Return 'list(rownames, nzindex1, nzindex2, nzdata)'.
  */
-SEXP C_read_sparse_table(SEXP filexp, SEXP sep)
+SEXP C_readSparseCSV(SEXP filexp, SEXP sep)
 {
 	CharAEAE *rownames_buf;
 	IntAE *nzindex1_buf;
@@ -219,10 +219,10 @@ SEXP C_read_sparse_table(SEXP filexp, SEXP sep)
 	nzindex2_buf = new_IntAE(0, 0, 0);
 	nzdata_buf = new_IntAE(0, 0, 0);
 
-	errmsg = read_sparse_table(filexp, get_sep_char(sep),
-				   rownames_buf,
-				   nzindex1_buf, nzindex2_buf,
-				   nzdata_buf);
+	errmsg = read_sparse_csv(filexp, get_sep_char(sep),
+				 rownames_buf,
+				 nzindex1_buf, nzindex2_buf,
+				 nzdata_buf);
 	if (errmsg != NULL)
 		error("reading file: %s", errmsg);
 
