@@ -10,7 +10,7 @@
 }
 
 \usage{
-readSparseCSV(filepath, sep="\t", transpose=FALSE)
+readSparseCSV(filepath, sep=",", transpose=FALSE)
 }
 
 \arguments{
