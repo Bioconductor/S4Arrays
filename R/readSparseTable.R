@@ -1,0 +1,186 @@
+### =========================================================================
+### readSparseTable()
+### -------------------------------------------------------------------------
+
+
+normarg_dimnames <- function(dimnames, dim)
+{
+    ndim <- length(dim)
+    if (missing(dimnames) || is.null(dimnames))
+        return(vector("list", length=ndim))
+    if (!is.list(dimnames))
+        stop(wmsg("the supplied 'dimnames' must be NULL or a list"))
+    if (length(dimnames) < ndim) {
+        ## Append NULLs to the list.
+        length(dimnames) <- ndim
+    } else if (length(dimnames) > ndim) {
+        stop(wmsg("the supplied 'dimnames' must have one list element ",
+                  "per dimension"))
+    }
+    lapply(setNames(seq_len(ndim), names(dimnames)),
+        function(along) {
+            dn <- dimnames[[along]]
+            if (is.null(dn))
+                return(dn)
+            if (!(is.vector(dn) && is.atomic(dn) || is.factor(dn)))
+                stop(wmsg("each list element in the supplied 'dimnames' ",
+                          "must be NULL or a character vector"))
+            if (!is.character(dn))
+                dn <- as.character(dn)
+            if (length(dn) != dim[[along]])
+                stop(wmsg("length of 'dimnames[[", along, "]]' ",
+                          "(", length(dn), ") must equal the ",
+                          "array extent (", dim[[along]], ")"))
+            dn
+        }
+    )
+}
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### CsparseMatrix() -- NOT exported
+###
+### A replacement for Matrix::sparseMatrix() that is typically 50%-60% faster
+### and more memory efficient. Like Matrix::sparseMatrix(), it only supports
+### numeric or logical input data at the moment. If 'is.numeric(nzdata)' is
+### TRUE, it returns a dgCMatrix object. If 'is.logical(nzdata)' is TRUE, it
+### returns a lgCMatrix object. Any other type of input triggers an error.
+
+### 'i', 'j', 'nzdata' must be **parallel** atomic vectors (integer vectors
+### with no NAs for 'i' and 'j', and integer, double or logical vector for
+### 'nzdata', possibly with NAs).
+CsparseMatrix <- function(dim, i, j, nzdata, dimnames=NULL)
+{
+    stopifnot(is.integer(dim), length(dim) == 2L,
+              is.integer(i), is.integer(j))
+    nzdata_type <- typeof(nzdata)
+    ans_class <- switch(nzdata_type,
+                        'integer'=, 'double'="dgCMatrix",
+                        'logical'="lgCMatrix",
+                        stop(wmsg("unsupported data type: ", nzdata_type)))
+    dimnames <- normarg_dimnames(dimnames, dim)
+    oo <- order(j, i)
+    ans_i <- i[oo] - 1L  # dgCMatrix and lgCMatrix objects want this zero-based
+    ans_p <- c(0L, cumsum(tabulate(j[oo], nbins=dim[[2L]])))
+    ans_x <- nzdata[oo]
+    if (is.integer(ans_x))
+        ans_x <- as.double(ans_x)
+    new(ans_class, Dim=dim, i=ans_i, p=ans_p, x=ans_x, Dimnames=dimnames)
+}
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### readSparseTable()
+###
+
+.scan_first_two_lines <- function(filepath, sep="\t")
+{
+    con <- file(filepath, "r")
+    on.exit(close(con))
+    line1 <- scan(con, what=character(), sep=sep, nlines=1L, quiet=TRUE)
+    line2 <- scan(con, what=character(), sep=sep, nlines=1L, quiet=TRUE)
+    list(line1, line2)
+}
+
+.looks_like_a_name <- function(x)
+    nzchar(x) & is.na(suppressWarnings(as.numeric(x)))
+
+### Guess by looking at the first 2 lines in the file.
+### Not ready (this is a mess!)
+.guess_dimnames_and_ncol <- function(line1, line2, rownames=NA, colnames=NA)
+{
+    if (!(is.logical(rownames) && length(rownames) == 1L))
+        stop(wmsg("'rownames' must be a single logical value"))
+    if (!(is.logical(colnames) && length(colnames) == 1L))
+        stop(wmsg("'colnames' must be a single logical value"))
+    n1 <- length(line1)
+    n2 <- length(line2)
+    if (n2 == 0L) {
+        if (n1 == 0L)
+            stop(wmsg("invalid file: first two lines are empty"))
+        if (isTRUE(rownames) && isTRUE(colnames))
+            stop(wmsg("file does not seem to contain both rownames and ",
+                      "colnames (2nd line is empty)"))
+        if (isTRUE(rownames))
+            return(list(c(TRUE, FALSE), n1 - 1L))
+        if (isTRUE(colnames))
+            return(list(c(FALSE, TRUE), n1))
+        return(list(c(FALSE, FALSE), n1))
+    }
+    if (n1 == n2 - 1L) {
+        if (isFALSE(rownames) || isFALSE(colnames))
+            stop(wmsg("file seems to contain both rownames and colnames ",
+                      "(1st line contains one less item than 2nd line)"))
+        return(list(c(TRUE, TRUE), n1))
+    }
+    if (n1 != n2)
+        stop(wmsg("invalid file: nb of items in 2nd line is not equal to ",
+                  "n2 or to n2-1 where n2 is the nb of items in 1st line"))
+    item1_looks_like_a_name <- .looks_like_a_name(line1[[1L]])
+    if (!item1_looks_like_a_name) {
+        if (is.na(colnames))
+            colnames <- any(.looks_like_a_name(line1[-1L]))
+        if (is.na(rownames))
+            rownames <- .looks_like_a_name(line2[[1L]])
+        return(list(c(rownames, colnames), n2))
+    }
+    ## File contains either rownames or colnames, but not both.
+    if (isTRUE(rownames) && isTRUE(colnames))
+        stop(wmsg("file does not seem to contain both rownames and colnames ",
+                  "(1st item in the file looks like a name)"))
+    if (isFALSE(rownames) && isFALSE(colnames))
+        stop(wmsg("file seems to contain either rownames or colnames ",
+                  "(1st item in the file looks like a name)"))
+    if (!is.na(rownames))
+        return(c(rownames, !rownames))
+    if (!is.na(colnames))
+        return(c(!colnames, colnames))
+    if (.looks_like_a_name(line2[[1L]]))
+        return(c(TRUE, FALSE))
+    if (any(.looks_like_a_name(line1[-1L])))
+        return(c(FALSE, TRUE))
+    ## File maybe is more likely to have rownames than colnames but who knows,
+    ## this is just a random guess.
+    c(TRUE, FALSE)
+}
+
+readSparseTable <- function(filepath, sep="\t")
+{
+    if (!isSingleString(filepath))
+        stop(wmsg("'filepath' must be a single string"))
+    first_two_lines <- .scan_first_two_lines(filepath, sep=sep)
+    line1 <- first_two_lines[[1L]]
+    line2 <- first_two_lines[[2L]]
+    n1 <- length(line1)
+    n2 <- length(line2)
+    if (n1 < 2L)
+        stop(wmsg("first line in the file must contain at least 2 items"))
+    if (n1 != n2)
+        stop(wmsg("first two lines in the file must contain ",
+                  "the same number of items"))
+    #dimnames_and_ncol <- .guess_dimnames_and_ncol(line1, line2,
+    #                                              rownames, colnames)
+    #rownames <- dimnames_and_ncol[[1L]][1L]
+    #colnames <- dimnames_and_ncol[[1L]][2L]
+    #ncol <- dimnames_and_ncol[[2L]]
+
+    #filexp <- open_input_files(filepath)[[1L]]
+    con <- file(filepath, "r")
+    on.exit(close(con))
+
+    C_ans <- .Call2("C_read_sparse_table", con, sep,
+                                           PACKAGE="SparseArray")
+
+    ans_rownames <- C_ans[[1L]]
+    ans_colnames <- line1[-1L]
+    ans_nzindex1 <- C_ans[[2L]]
+    ans_nzindex2 <- C_ans[[3L]]
+    ans_nzdata <- C_ans[[4L]]
+    ans_dim <- c(length(ans_rownames), length(ans_colnames))
+    ans_dimnames <- list(ans_rownames, ans_colnames)
+
+    ## Construct dgCMatrix object.
+    CsparseMatrix(ans_dim, ans_nzindex1, ans_nzindex2, ans_nzdata,
+                  dimnames=ans_dimnames)
+}
+

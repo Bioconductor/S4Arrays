@@ -1,8 +1,38 @@
+useDynLib(SparseArray)
+
 import(methods)
 importFrom(stats, setNames)
+importClassFrom(Matrix, dgCMatrix, dgRMatrix, lgCMatrix, lgRMatrix)
+importFrom(Matrix, sparseMatrix, crossprod, tcrossprod)
 
 import(BiocGenerics)
 import(MatrixGenerics)
 import(S4Vectors)
 import(IRanges)
+import(XVector)
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### Export S4 classes
+###
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### Export S4 methods for generics not defined in SparseArray
+###
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### Export non-generic functions
+###
+
+export(
+    readSparseTable
+)
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### Export S4 generics defined in SparseArray, and corresponding methods
+###
+
 
