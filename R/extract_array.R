@@ -76,7 +76,7 @@
     if (!is.null(class_package))
         msg <- c(msg, " (defined in the ", class_package, " package)")
     c(msg, " about this and point them to the man page for ",
-           "extract_array() in the SparseArray package (?extract_array).")
+           "extract_array() in the S4Arrays package (?extract_array).")
 }
 
 check_returned_array <- function(ans, expected_dim, .Generic, x_class)
@@ -222,7 +222,7 @@ setMethod("type", "ANY",
         if (is.null(x_dim))
             stop(wmsg("type() only supports array-like objects ",
                       "and ordinary vectors. See ?type in the ",
-                      "SparseArray package."))
+                      "S4Arrays package."))
         type(extract_empty_array(x))
     }
 )

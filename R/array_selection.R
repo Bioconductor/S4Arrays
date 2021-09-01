@@ -15,7 +15,7 @@ Lindex2Mindex <- function(Lindex, dim, use.names=FALSE)
     if (storage.mode(dim) == "double")
         storage.mode(dim) <- "integer"
     ## 'Lindex' and 'dim' will be fully checked at the C level.
-    .Call2("C_Lindex2Mindex", Lindex, dim, use.names, PACKAGE="SparseArray")
+    .Call2("C_Lindex2Mindex", Lindex, dim, use.names, PACKAGE="S4Arrays")
 }
 
 Mindex2Lindex <- function(Mindex, dim, use.names=FALSE, as.integer=FALSE)
@@ -33,7 +33,7 @@ Mindex2Lindex <- function(Mindex, dim, use.names=FALSE, as.integer=FALSE)
         storage.mode(Mindex) <- "integer"
     ## 'Mindex' and 'dim' will be fully checked at the C level.
     .Call2("C_Mindex2Lindex", Mindex, dim, use.names,
-                              as.integer, PACKAGE="SparseArray")
+                              as.integer, PACKAGE="S4Arrays")
 }
 
 ### 'aind' must be an integer matrix or vector (a vector is treated like

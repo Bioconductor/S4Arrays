@@ -1,4 +1,4 @@
-useDynLib(SparseArray)
+useDynLib(S4Arrays)
 
 import(methods)
 importFrom(stats, setNames)
@@ -113,7 +113,7 @@ export(
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Export S4 methods for generics not defined in SparseArray
+### Export S4 methods for generics not defined in S4Arrays
 ###
 
 exportMethods(
@@ -167,7 +167,7 @@ export(
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Export S4 generics defined in SparseArray, and corresponding methods
+### Export S4 generics defined in S4Arrays, and corresponding methods
 ###
 
 export(

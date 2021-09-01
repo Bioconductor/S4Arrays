@@ -4,6 +4,6 @@
 
 .onUnload <- function(libpath)
 {
-    library.dynam.unload("SparseArray", libpath)
+    library.dynam.unload("S4Arrays", libpath)
 }
 

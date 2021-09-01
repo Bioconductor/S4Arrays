@@ -457,7 +457,7 @@ if (FALSE) {  # ------------ BEGIN DISABLED CODE ------------
 
 ### Name of the environment variable that contains the path to the RDS file
 ### containing the serialized options.
-.env_var_name <- "SparseArray_OPTIONS_FILEPATH"
+.env_var_name <- "S4Arrays_OPTIONS_FILEPATH"
 
 .get_user_options_filepath <- function() Sys.getenv(.env_var_name)
 
@@ -517,7 +517,7 @@ get_user_option <- function(name)
     ## 'user_options' should be a list.
     idx <- match(name, names(user_options))
     if (is.na(idx))
-        stop(wmsg("Unkown SparseArray user-controlled global option: ", name))
+        stop(wmsg("Unkown S4Arrays user-controlled global option: ", name))
     user_options[[idx]]
 }
 }             # ------------- END DISABLED CODE -------------
@@ -525,7 +525,7 @@ get_user_option <- function(name)
 set_user_option <- function(name, value)
 {
     stopifnot(isSingleString(name))
-    name <- paste0("SparseArray.", name)
+    name <- paste0("S4Arrays.", name)
     options(setNames(list(value), name))
     invisible(value)
 }
@@ -533,14 +533,14 @@ set_user_option <- function(name, value)
 get_user_option <- function(name)
 {
     stopifnot(isSingleString(name))
-    name <- paste0("SparseArray.", name)
+    name <- paste0("S4Arrays.", name)
     getOption(name)
 }
 
 user_option_is_set <- function(name)
 {
     stopifnot(isSingleString(name))
-    name <- paste0("SparseArray.", name)
+    name <- paste0("S4Arrays.", name)
     name %in% names(.Options)
 }
 

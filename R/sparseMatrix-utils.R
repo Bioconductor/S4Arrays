@@ -89,7 +89,7 @@ compute_ugroup <- function(group, expected_group_len, reorder=TRUE)
         stop(wmsg("'na.rm' must be TRUE or FALSE"))
     group <- match(group, ugroup)
     ans <- .Call2("C_rowsum_dgCMatrix", x, group, length(ugroup), na.rm,
-                                        PACKAGE="SparseArray")
+                                        PACKAGE="S4Arrays")
     dimnames(ans) <- list(as.character(ugroup), colnames(x))
     ans
 }
@@ -133,7 +133,7 @@ colMins_dgCMatrix <- function (x, na.rm=FALSE)
     stopifnot(is(x, "dgCMatrix"))
     if (!isTRUEorFALSE(na.rm))
         stop(wmsg("'na.rm' must be TRUE or FALSE"))
-    .Call2("C_colMins_dgCMatrix", x, na.rm, PACKAGE="SparseArray")
+    .Call2("C_colMins_dgCMatrix", x, na.rm, PACKAGE="S4Arrays")
 }
 
 colMaxs_dgCMatrix <- function (x, na.rm=FALSE)
@@ -141,7 +141,7 @@ colMaxs_dgCMatrix <- function (x, na.rm=FALSE)
     stopifnot(is(x, "dgCMatrix"))
     if (!isTRUEorFALSE(na.rm))
         stop(wmsg("'na.rm' must be TRUE or FALSE"))
-    .Call2("C_colMaxs_dgCMatrix", x, na.rm, PACKAGE="SparseArray")
+    .Call2("C_colMaxs_dgCMatrix", x, na.rm, PACKAGE="S4Arrays")
 }
 
 ### About 2x faster than the method for dgCMatrix objects defined
@@ -151,7 +151,7 @@ colRanges_dgCMatrix <- function (x, na.rm=FALSE)
     stopifnot(is(x, "dgCMatrix"))
     if (!isTRUEorFALSE(na.rm))
         stop(wmsg("'na.rm' must be TRUE or FALSE"))
-    .Call2("C_colRanges_dgCMatrix", x, na.rm, PACKAGE="SparseArray")
+    .Call2("C_colRanges_dgCMatrix", x, na.rm, PACKAGE="S4Arrays")
 }
 
 ### About 2.5x faster than the method for dgCMatrix objects defined
@@ -161,6 +161,6 @@ colVars_dgCMatrix <- function(x, na.rm=FALSE)
     stopifnot(is(x, "dgCMatrix"))
     if (!isTRUEorFALSE(na.rm))
         stop(wmsg("'na.rm' must be TRUE or FALSE"))
-    .Call2("C_colVars_dgCMatrix", x, na.rm, PACKAGE="SparseArray")
+    .Call2("C_colVars_dgCMatrix", x, na.rm, PACKAGE="S4Arrays")
 }
 

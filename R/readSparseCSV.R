@@ -105,7 +105,7 @@ readSparseCSV <- function(filepath, sep=",", transpose=FALSE)
     con <- file(filepath, "r")
     on.exit(close(con))
 
-    C_ans <- .Call2("C_readSparseCSV", con, sep, PACKAGE="SparseArray")
+    C_ans <- .Call2("C_readSparseCSV", con, sep, PACKAGE="S4Arrays")
     if (transpose) {
         ans_rownames <- line1[-1L]
         ans_colnames <- C_ans[[1L]]

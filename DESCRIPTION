@@ -1,11 +1,15 @@
-Package: SparseArray
-Title: In-memory sparse representation of arrays of arbitrary dimensions
-Description: Implements the SparseArray container for representing sparse
-	arrays and perform common array operations on them.
-biocViews: Infrastructure, DataRepresentation, Annotation, GenomeAnnotation
-URL: https://bioconductor.org/packages/SparseArray
-BugReports: https://github.com/Bioconductor/SparseArray/issues
-Version: 0.0.2
+Package: S4Arrays
+Title: Foundation of array-like containers in Bioconductor
+Description: The S4Arrays package defines the Array virtual class to be
+	extended by other S4 classes that wish to implement a container with
+	an array-like semantic, as well as the following Array derivatives:
+	SparseArray for in-memory sparse representation of multi-dimentional
+	arrays, and ArrayGrid for defining a grid of viewports on an array-like
+	object (useful in the context of block processing).
+biocViews: Infrastructure, DataRepresentation
+URL: https://bioconductor.org/packages/S4Arrays
+BugReports: https://github.com/Bioconductor/S4Arrays/issues
+Version: 0.0.3
 License: Artistic-2.0
 Encoding: UTF-8
 Author: Hervé Pagès <hpages.on.github@gmail.com>
