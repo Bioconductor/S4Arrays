@@ -18,5 +18,15 @@ Suggests: BiocParallel, DelayedArray, scuttle, knitr, rmarkdown, BiocStyle,
 	RUnit
 VignetteBuilder: knitr
 Collate: utils.R
+	sparseMatrix-utils.R
+	ArrayIndex-class.R
+	array_selection.R
+	Nindex-utils.R
+	Array-class.R
+	extract_array.R
+	ArrayGrid-class.R
+	show-utils.R
+	SparseArray-class.R
+	SparseArray-utils.R
 	readSparseCSV.R
 	zzz.R

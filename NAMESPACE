@@ -16,10 +16,134 @@ import(XVector)
 ### Export S4 classes
 ###
 
+exportClasses(
+    ## Array-class.R:
+    Array,
+
+    ## ArrayGrid-class.R:
+    ArrayViewport, DummyArrayViewport, SafeArrayViewport,
+    ArrayGrid, DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid,
+
+    ## SparseArray-class.R:
+    SparseArray
+)
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### Export S3 methods
+###
+
+S3method(aperm, DummyArrayGrid)
+S3method(aperm, ArbitraryArrayGrid)
+S3method(aperm, RegularArrayGrid)
+S3method(aperm, SparseArray)
+
+S3method(as.array, Array)
+S3method(as.array, SparseArray)
+
+S3method(as.character, Array)
+S3method(as.character, ArrayGrid)
+
+S3method(as.complex, Array)
+
+S3method(as.data.frame, Array)
+
+S3method(as.integer, Array)
+
+S3method(as.logical, Array)
+
+S3method(as.matrix, Array)
+S3method(as.matrix, SparseArray)
+
+S3method(as.numeric, Array)
+
+S3method(as.raw, Array)
+
+S3method(as.vector, Array)
+
+S3method(mean, SparseArray)
+
+S3method(range, SparseArray)
+
+S3method(rowsum, dgCMatrix)
+
+S3method(t, Array)
+
+### We also export them thru the export() directive so that (a) they can be
+### called directly, (b) tab-completion on the name of the generic shows them,
+### and (c) methods() doesn't asterisk them.
+
+export(
+    aperm.DummyArrayGrid,
+    aperm.ArbitraryArrayGrid,
+    aperm.RegularArrayGrid,
+    aperm.SparseArray,
+
+    as.array.Array,
+    as.array.SparseArray,
+
+    as.character.ArrayGrid,
+    as.character.Array,
+
+    as.complex.Array,
+
+    as.data.frame.Array,
+
+    as.integer.Array,
+
+    as.logical.Array,
+
+    as.matrix.Array,
+    as.matrix.SparseArray,
+
+    as.numeric.Array,
+
+    as.raw.Array,
+
+    as.vector.Array,
+
+    mean.SparseArray,
+
+    range.SparseArray,
+
+    rowsum.dgCMatrix,
+
+    t.Array
+)
+
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### Export S4 methods for generics not defined in SparseArray
 ###
+
+exportMethods(
+    ## Methods for generics defined in the base package:
+    length,
+    dim, dimnames,
+    "[[",
+    lengths,
+    as.array, as.matrix, as.data.frame, as.vector,
+    as.logical, as.integer, as.numeric, as.complex, as.character, as.raw,
+    t,
+    anyNA, which,
+    max, min, range, sum, prod, any, all,   # "Summary" group generic
+    mean,
+    nchar,
+
+    ## Methods for generics defined in the methods package:
+    coerce, show,
+
+    ## Methods for generics defined in the BiocGenerics package:
+    cbind, rbind,
+    dims,
+    type,
+
+    ## Methods for generics defined in the S4Vectors package:
+    showAsCell, isEmpty,
+
+    ## Methods for generics defined in the IRanges package:
+    ranges, start, end, width
+)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -27,6 +151,17 @@ import(XVector)
 ###
 
 export(
+    ## array_selection.R:
+    Lindex2Mindex, Mindex2Lindex, linearInd,
+
+    ## ArrayGrid-class.R:
+    DummyArrayViewport, ArrayViewport, makeNindexFromArrayViewport,
+    DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid,
+
+    ## SparseArray-class.R:
+    SparseArray, dense2sparse, sparse2dense,
+
+    ## readSparseCSV.R:
     readSparseCSV, readSparseTable
 )
 
@@ -35,4 +170,26 @@ export(
 ### Export S4 generics defined in SparseArray, and corresponding methods
 ###
 
+export(
+    ## sparseMatrix-utils.R:
+    rowsum, colsum,
+
+    ## extract_array.R:
+    extract_array,
+
+    ## ArrayGrid-class.R:
+    refdim, maxlength, aperm, downsample,
+
+    ## SparseArray-class.R:
+    nzindex, nzdata, sparsity,
+    is_sparse, "is_sparse<-", extract_sparse_array
+)
+
+### Same list as above.
+exportMethods(
+    rowsum, colsum,
+    extract_array,
+    refdim, maxlength, aperm, downsample,
+    nzindex, nzdata, sparsity, is_sparse, extract_sparse_array
+)
 
