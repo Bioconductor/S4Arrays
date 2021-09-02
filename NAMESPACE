@@ -17,6 +17,10 @@ import(XVector)
 ###
 
 exportClasses(
+    ## ArraySelection-class.R:
+    ArraySelection, Mindex, LongMindex,
+    NULL_OR_integer_OR_list, SelectionTree,
+
     ## Array-class.R:
     Array,
 
@@ -53,6 +57,7 @@ S3method(as.integer, Array)
 S3method(as.logical, Array)
 
 S3method(as.matrix, Array)
+S3method(as.matrix, SelectionTree)
 S3method(as.matrix, SparseArray)
 
 S3method(as.numeric, Array)
@@ -94,6 +99,7 @@ export(
     as.logical.Array,
 
     as.matrix.Array,
+    as.matrix.SelectionTree,
     as.matrix.SparseArray,
 
     as.numeric.Array,
