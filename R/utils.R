@@ -90,19 +90,19 @@ LCM <- function(x, y)
 ### normarg_dim() and normarg_dimnames()
 ###
 
-normarg_dim <- function(dim)
+normarg_dim <- function(dim, argname="dim")
 {
     if (!is.numeric(dim))
-        stop(wmsg("'dim' must be an integer vector"))
+        stop(wmsg("'", argname, "' must be an integer vector"))
     if (length(dim) == 0L)
-        stop(wmsg("'dim' cannot be an empty vector"))
+        stop(wmsg("'", argname, "' cannot be an empty vector"))
     if (any(is.na(dim)))
-        stop(wmsg("'dim' cannot contain NAs"))
+        stop(wmsg("'", argname, "' cannot contain NAs"))
     if (any(dim < 0))
-        stop(wmsg("'dim' cannot contain negative values"))
+        stop(wmsg("'", argname, "' cannot contain negative values"))
     if (!is.integer(dim)) {
         if (any(dim > .Machine$integer.max))
-            stop(wmsg("'dim' cannot contain values greater ",
+            stop(wmsg("'", argname, "' cannot contain values greater ",
                       "than '.Machine$integer.max' (= 2^31-1 = ",
                       .Machine$integer.max, ")"))
         dim <- as.integer(dim)

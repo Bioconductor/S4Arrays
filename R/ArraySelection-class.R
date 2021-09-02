@@ -87,11 +87,31 @@ setClass("SelectionTree",
 
 setMethod("length", "SelectionTree", .get_SelectionTree_length)
 
-### S3/S4 combo for as.matrix.SelectionTree
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### Going back and forth between SelectionTree and matrix objects
+###
+
 .from_SelectionTree_to_matrix <- function(x)
     .Call2("C_from_SelectionTree_to_matrix", x@refdim, x@selection,
                                              PACKAGE="S4Arrays")
+
+.from_matrix_to_SelectionTree <- function(m, refdim)
+{
+    stopifnot(is.matrix(m), ncol(m) >= 1L, is.integer(m))
+    refdim <- normarg_dim(refdim, "refdim")
+    stopifnot(length(refdim) == ncol(m))
+
+    ans_selection <- .Call2("C_from_matrix_to_SelectionTree", m, refdim,
+                            PACKAGE="S4Arrays")
+    new2("SelectionTree", refdim=refdim, selection=ans_selection)
+}
+
+### S3/S4 combo for as.matrix.SelectionTree
 as.matrix.SelectionTree <-
     function(x, ...) .from_SelectionTree_to_matrix(x, ...)
 setMethod("as.matrix", "SelectionTree", .from_SelectionTree_to_matrix)
+
+### SelectionTree constructor.
+SelectionTree <- function(refdim, m) .from_matrix_to_SelectionTree(m, refdim)
 

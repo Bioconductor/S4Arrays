@@ -157,6 +157,9 @@ exportMethods(
 ###
 
 export(
+    ## ArraySelection-class.R:
+    SelectionTree,
+
     ## array_selection.R:
     Lindex2Mindex, Mindex2Lindex, linearInd,
 

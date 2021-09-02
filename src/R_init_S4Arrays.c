@@ -10,6 +10,7 @@ static const R_CallMethodDef callMethods[] = {
 /* ArraySelection_class.c */
 	CALLMETHOD_DEF(C_get_SelectionTree_length, 2),
 	CALLMETHOD_DEF(C_from_SelectionTree_to_matrix, 2),
+	CALLMETHOD_DEF(C_from_matrix_to_SelectionTree, 2),
 
 /* readSparseCSV.c */
 	CALLMETHOD_DEF(C_readSparseCSV, 2),
