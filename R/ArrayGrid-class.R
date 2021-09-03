@@ -232,7 +232,7 @@ makeNindexFromArrayViewport <- function(viewport, expand.RangeNSBS=FALSE)
 ###      overlapping with each others):
 ###      - dim(x): Return the number of grid elements (i.e. viewports) along
 ###        each dimension of the reference array.
-###      - x[[i_1, i_2, ..., i_n]]: Multi-dimensional double bracket
+###      - x[[i_1, i_2, ..., i_n]]: Multidimensional double bracket
 ###        subsetting. Return an ArrayViewport object.
 ###   3) Methods from the list API:
 ###      - length(): Return the total number of grid elements.
@@ -240,7 +240,7 @@ makeNindexFromArrayViewport <- function(viewport, expand.RangeNSBS=FALSE)
 ###        object.
 ### Groups 2) and 3) give these objects 2 semantics: array-like and list-like.
 ### Note that length() and "linear double bracket subsetting" are consistent
-### with dim() and "multi-dimensional double bracket subsetting", respectively.
+### with dim() and "multidimensional double bracket subsetting", respectively.
 ### So the array-like and list-like semantics are compatible.
 ###
 

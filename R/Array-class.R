@@ -31,8 +31,8 @@ setGeneric("getArrayElement", signature="x",
     function(x, subscripts) standardGeneric("getArrayElement")
 )
 
-### Support multi-dimensional and linear subsetting.
-### TODO: Multi-dimensional subsetting should support things like
+### Support multidimensional and linear subsetting.
+### TODO: Multidimensional subsetting should support things like
 ###       x[[5, 15, 2]] and x[["E", 15, "b"]].
 ### TODO: Linear subsetting should support a single *numeric* subscript.
 setMethod("[[", "Array",
@@ -51,15 +51,15 @@ setMethod("[[", "Array",
             stop(wmsg("each subscript must be a single integer ",
                       "when subsetting an ", class(x), " object with [["))
         if (nsubscript == x_ndim) {
-            ## Multi-dimensional subsetting.
+            ## Multidimensional subsetting.
             subscripts <- unlist(Nindex, use.names=FALSE)
             if (!(all(subscripts >= 1L) && all(subscripts <= x_dim)))
                 stop("some subscripts are out of bounds")
         } else {
             ## Linear subsetting.
-            ## We turn this into a multi-dimensional subsetting by
+            ## We turn this into a multidimensional subsetting by
             ## transforming the user-supplied linear index into an array
-            ## (i.e. multi-dimensional) index.
+            ## (i.e. multidimensional) index.
             i <- Nindex[[1L]]
             if (i < 1L || i > prod(x_dim))
                 stop("subscript is out of bounds")
@@ -82,26 +82,26 @@ setMethod("t", "Array", t.Array)
 
 ### Any Array derivative will be coercible to a sparseMatrix subclass (e.g.
 ### dg[C|R]Matrix or lg[C|R]Matrix) as long as there is a method for coercing
-### it to SparseArray.
+### it to COOArray.
 setAs("Array", "dgCMatrix",
-    function(from) as(as(from, "SparseArray"), "dgCMatrix")
+    function(from) as(as(from, "COOArray"), "dgCMatrix")
 )
 setAs("Array", "dgRMatrix",
-    function(from) as(as(from, "SparseArray"), "dgRMatrix")
+    function(from) as(as(from, "COOArray"), "dgRMatrix")
 )
 setAs("Array", "lgCMatrix",
-    function(from) as(as(from, "SparseArray"), "lgCMatrix")
+    function(from) as(as(from, "COOArray"), "lgCMatrix")
 )
 setAs("Array", "lgRMatrix",
-    function(from) as(as(from, "SparseArray"), "lgRMatrix")
+    function(from) as(as(from, "COOArray"), "lgRMatrix")
 )
 setAs("Array", "CsparseMatrix",
-    function(from) as(as(from, "SparseArray"), "CsparseMatrix")
+    function(from) as(as(from, "COOArray"), "CsparseMatrix")
 )
 setAs("Array", "RsparseMatrix",
-    function(from) as(as(from, "SparseArray"), "RsparseMatrix")
+    function(from) as(as(from, "COOArray"), "RsparseMatrix")
 )
 setAs("Array", "sparseMatrix",
-    function(from) as(as(from, "SparseArray"), "sparseMatrix")
+    function(from) as(as(from, "COOArray"), "sparseMatrix")
 )
 

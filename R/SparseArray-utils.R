@@ -8,8 +8,8 @@
 ###
 
 ### Similar to simple_abind() (see bind-arrays.R) but works on
-### SparseArray objects.
-abind_SparseArray_objects <- function(objects, along)
+### COOArray objects.
+abind_COOArray_objects <- function(objects, along)
 {
     stopifnot(is.list(objects))
     if (length(objects) == 0L)
@@ -43,20 +43,20 @@ abind_SparseArray_objects <- function(objects, along)
     ## Combine the "nzdata" slots.
     ans_nzdata <- unlist(lapply(objects, slot, "nzdata"), use.names=FALSE)
 
-    SparseArray(ans_dim, ans_nzindex, ans_nzdata, ans_dimnames, check=FALSE)
+    COOArray(ans_dim, ans_nzindex, ans_nzdata, ans_dimnames, check=FALSE)
 }
 
-setMethod("rbind", "SparseArray",
+setMethod("rbind", "COOArray",
     function(...)
     {
-        abind_SparseArray_objects(list(...), along=1L)
+        abind_COOArray_objects(list(...), along=1L)
     }
 )
 
-setMethod("cbind", "SparseArray",
+setMethod("cbind", "COOArray",
     function(...)
     {
-        abind_SparseArray_objects(list(...), along=2L)
+        abind_COOArray_objects(list(...), along=2L)
     }
 )
 
@@ -74,14 +74,14 @@ setMethod("cbind", "SparseArray",
 ### (e.g. is.finite(), !, log(), etc..). We only implement the former.
 ###
 ### All the "unary isometric" array transformations implemented in this
-### section return a SparseArray object of the same dimensions as the
-### input SparseArray object.
+### section return a COOArray object of the same dimensions as the
+### input COOArray object.
 ###
 
 .UNARY_ISO_OPS <- c("is.na", "is.infinite", "is.nan", "tolower", "toupper")
 
 for (.Generic in .UNARY_ISO_OPS) {
-    setMethod(.Generic, "SparseArray",
+    setMethod(.Generic, "COOArray",
         function(x)
         {
             GENERIC <- match.fun(.Generic)
@@ -91,7 +91,7 @@ for (.Generic in .UNARY_ISO_OPS) {
     )
 }
 
-setMethod("nchar", "SparseArray",
+setMethod("nchar", "COOArray",
     function(x, type="chars", allowNA=FALSE, keepNA=NA)
     {
         new_nzdata <- nchar(x@nzdata, type=type, allowNA=allowNA, keepNA=keepNA)
@@ -104,7 +104,7 @@ setMethod("nchar", "SparseArray",
 ### anyNA()
 ###
 
-setMethod("anyNA", "SparseArray",
+setMethod("anyNA", "COOArray",
     function(x, recursive=FALSE) anyNA(x@nzdata, recursive=recursive)
 )
 
@@ -116,12 +116,12 @@ setMethod("anyNA", "SparseArray",
 .nzindex_order <- function(nzindex)
     do.call(order, lapply(ncol(nzindex):1L, function(along) nzindex[ , along]))
 
-setMethod("which", "SparseArray",
+setMethod("which", "COOArray",
     function(x, arr.ind=FALSE, useNames=TRUE)
     {
         if (!identical(useNames, TRUE))
             warning(wmsg("'useNames' is ignored when 'x' is ",
-                         "a SparseArray object or derivative"))
+                         "a COOArray object or derivative"))
         if (!isTRUEorFALSE(arr.ind))
             stop(wmsg("'arr.ind' must be TRUE or FALSE"))
         idx1 <- which(x@nzdata)
@@ -141,18 +141,18 @@ setMethod("which", "SparseArray",
 ### Members: max(), min(), range(), sum(), prod(), any(), all()
 ###
 
-setMethod("Summary", "SparseArray",
+setMethod("Summary", "COOArray",
     function(x, ..., na.rm=FALSE)
     {
         GENERIC <- match.fun(.Generic)
         if (length(list(...)) != 0L)
-            stop(wmsg(.Generic, "() method for SparseArray objects ",
+            stop(wmsg(.Generic, "() method for COOArray objects ",
                       "only accepts a single object"))
         ## Whether 'x' contains zeros or not doesn't make a difference for
         ## sum() and any().
         if (.Generic %in% c("sum", "any"))
             return(GENERIC(x@nzdata, na.rm=na.rm))
-        ## Of course a typical SparseArray object "contains" zeros
+        ## Of course a typical COOArray object "contains" zeros
         ## (i.e. it would contain zeros if we converted it to a dense
         ## representation with sparse2dense()). However, this is not
         ## guaranteed so we need to make sure to properly handle the case
@@ -173,16 +173,16 @@ setMethod("Summary", "SparseArray",
     }
 )
 
-### We override the "range" method defined above via the "Summary" method
+### We override the range() method defined above via the Summary() method
 ### because we want to support the 'finite' argument like S3 method
 ### base::range.default() does.
 
-### S3/S4 combo for range.SparseArray
-range.SparseArray <- function(..., na.rm=FALSE, finite=FALSE)
+### S3/S4 combo for range.COOArray
+range.COOArray <- function(..., na.rm=FALSE, finite=FALSE)
 {
     objects <- list(...)
     if (length(objects) != 1L)
-        stop(wmsg("range() method for SparseArray objects ",
+        stop(wmsg("range() method for COOArray objects ",
                   "only accepts a single object"))
     x <- objects[[1L]]
     x_has_zeros <- length(x@nzdata) < length(x)
@@ -194,9 +194,9 @@ range.SparseArray <- function(..., na.rm=FALSE, finite=FALSE)
 ### The signature of all the members of the S4 "Summary" group generic is
 ### 'x, ..., na.rm' (see getGeneric("range")) which means that the S4 methods
 ### cannot add arguments after 'na.rm'. So we add the 'finite' argument before.
-setMethod("range", "SparseArray",
+setMethod("range", "COOArray",
     function(x, ..., finite=FALSE, na.rm=FALSE)
-        range.SparseArray(x, ..., na.rm=na.rm, finite=finite)
+        range.COOArray(x, ..., na.rm=na.rm, finite=finite)
 
 )
 
@@ -205,7 +205,7 @@ setMethod("range", "SparseArray",
 ### mean()
 ###
 
-.mean_SparseArray <- function(x, na.rm=FALSE)
+.mean_COOArray <- function(x, na.rm=FALSE)
 {
     s <- sum(x@nzdata, na.rm=na.rm)
     nval <- length(x)
@@ -214,8 +214,8 @@ setMethod("range", "SparseArray",
     s / nval
 }
 
-### S3/S4 combo for mean.SparseArray
-mean.SparseArray <- function(x, na.rm=FALSE, ...)
-    .mean_SparseArray(x, na.rm=na.rm, ...)
-setMethod("mean", "SparseArray", .mean_SparseArray)
+### S3/S4 combo for mean.COOArray
+mean.COOArray <- function(x, na.rm=FALSE, ...)
+    .mean_COOArray(x, na.rm=na.rm, ...)
+setMethod("mean", "COOArray", .mean_COOArray)
 

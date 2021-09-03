@@ -6,33 +6,102 @@
 setClass("SparseArray",
     contains="Array",
     representation(
+        "VIRTUAL",
         dim="integer",     # This gives us dim() for free!
-        nzindex="matrix",  # M-index of the nonzero data.
-        nzdata="vector",   # A vector (atomic or list) of length
-                           # 'nrow(nzindex)' containing the nonzero data.
         dimnames="list"    # List with one list element per dimension. Each
                            # list element must be NULL or a character vector.
     ),
     prototype(
         dim=0L,
-        nzindex=matrix(integer(0), ncol=1L),
         dimnames=list(NULL)
     )
 )
 
-### API:
-### - Getters/setters: dim(), length(), nzindex(), nzdata(),
-###                    dimnames(), dimnames<-()
-### - sparsity().
-### - dense2sparse(), sparse2dense().
-### - Based on sparse2dense(): extract_array(), as.array(), as.matrix().
-### - Based on dense2sparse(): coercion to SparseArray.
-### - Back and forth coercion between SparseArray and dg[C|R]Matrix or
-###   lg[C|R]Matrix objects from the Matrix package.
+.validate_SparseArray <- function(x)
+{
+    msg <- validate_dim_slot(x, "dim")
+    if (!isTRUE(msg))
+        return(msg)
+    msg <- validate_dimnames_slot(x, x@dim)
+    if (!isTRUE(msg))
+        return(msg)
+    TRUE
+}
+
+setValidity2("SparseArray", .validate_SparseArray)
+
+### SparseArray API:
+### - Getters: dim(), length(), dimnames().
+### - Setter: dimnames<-().
+### - is_sparse().
+
+setMethod("dimnames", "SparseArray",
+    function(x) simplify_NULL_dimnames(x@dimnames)
+)
+
+setReplaceMethod("dimnames", "SparseArray",
+    function(x, value)
+    {
+        x@dimnames <- normarg_dimnames(value, dim(x))
+        x
+    }
+)
+
+### is_sparse() detects **structural** sparsity which is a global qualitative
+### property of array-like object 'x' rather than a quantitative one.
+### In other words it doesn't look at the data in 'x' to decide whether 'x'
+### should be considered sparse or not. Said otherwise, it is NOT about
+### quantitative sparsity measured by sparsity().
+### IMPORTANT: Seeds for which is_sparse() returns TRUE **must** support
+### extract_sparse_array().
+setGeneric("is_sparse", function(x) standardGeneric("is_sparse"))
+
+setGeneric("is_sparse<-", signature="x",
+    function(x, value) standardGeneric("is_sparse<-")
+)
+
+### By default, nothing is considered sparse.
+setMethod("is_sparse", "ANY", function(x) FALSE)
+
+setMethod("is_sparse", "SparseArray", function(x) TRUE)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Validity
+### COOArray objects
+###
+### Same as SparseArraySeed objects in the DelayedArray package.
+### Extends the Coordinate List (COO) layout used for sparse matrices to
+### multiple dimensions.
+### See https://en.wikipedia.org/wiki/Sparse_matrix#Coordinate_list_(COO)
+### This layout is also used by https://sparse.pydata.org/
+###
+### COOArray API:
+### - The SparseArray API.
+### - Getters: nzindex(), nzdata().
+### - sparsity().
+### - dense2sparse(), sparse2dense().
+### - Based on sparse2dense(): extract_array(), as.array(), as.matrix().
+### - Based on dense2sparse(): coercion to COOArray.
+### - Back and forth coercion between COOArray and dg[C|R]Matrix or
+###   lg[C|R]Matrix objects from the Matrix package.
+###
+
+setClass("COOArray",
+    contains="SparseArray",
+    representation(
+        nzindex="matrix",  # M-index of the nonzero data.
+        nzdata="vector"    # A vector (atomic or list) of length
+                           # 'nrow(nzindex)' containing the nonzero data.
+    ),
+    prototype(
+        nzindex=matrix(integer(0), ncol=1L),
+        nzdata=logical(0)
+    )
+)
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### COOArray validity
 ###
 
 .validate_nzindex_slot <- function(x)
@@ -64,24 +133,18 @@ setClass("SparseArray",
     TRUE
 }
 
-.validate_SparseArray <- function(x)
+.validate_COOArray <- function(x)
 {
-    msg <- validate_dim_slot(x, "dim")
-    if (!isTRUE(msg))
-        return(msg)
     msg <- .validate_nzindex_slot(x)
     if (!isTRUE(msg))
         return(msg)
     msg <- .validate_nzdata_slot(x)
     if (!isTRUE(msg))
         return(msg)
-    msg <- validate_dimnames_slot(x, x@dim)
-    if (!isTRUE(msg))
-        return(msg)
     TRUE
 }
 
-setValidity2("SparseArray", .validate_SparseArray)
+setValidity2("COOArray", .validate_COOArray)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -89,22 +152,10 @@ setValidity2("SparseArray", .validate_SparseArray)
 ###
 
 setGeneric("nzindex", function(x) standardGeneric("nzindex"))
-setMethod("nzindex", "SparseArray", function(x) x@nzindex)
+setMethod("nzindex", "COOArray", function(x) x@nzindex)
 
 setGeneric("nzdata", function(x) standardGeneric("nzdata"))
-setMethod("nzdata", "SparseArray", function(x) x@nzdata)
-
-setMethod("dimnames", "SparseArray",
-    function(x) simplify_NULL_dimnames(x@dimnames)
-)
-
-setReplaceMethod("dimnames", "SparseArray",
-    function(x, value)
-    {
-        x@dimnames <- normarg_dimnames(value, dim(x))
-        x
-    }
-)
+setMethod("nzdata", "COOArray", function(x) x@nzdata)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -113,7 +164,7 @@ setReplaceMethod("dimnames", "SparseArray",
 
 setGeneric("sparsity", function(x) standardGeneric("sparsity"))
 
-setMethod("sparsity", "SparseArray",
+setMethod("sparsity", "COOArray",
     function(x) { 1 - length(nzdata(x)) / length(x) }
 )
 
@@ -141,8 +192,8 @@ setMethod("sparsity", "SparseArray",
     rep(nzdata, length.out=length.out)
 }
 
-SparseArray <- function(dim, nzindex=NULL, nzdata=NULL, dimnames=NULL,
-                            check=TRUE)
+COOArray <- function(dim, nzindex=NULL, nzdata=NULL, dimnames=NULL,
+                          check=TRUE)
 {
     if (!is.numeric(dim))
         stop(wmsg("'dim' must be an integer vector"))
@@ -166,9 +217,9 @@ SparseArray <- function(dim, nzindex=NULL, nzdata=NULL, dimnames=NULL,
         nzdata <- .normarg_nzdata(nzdata, nrow(nzindex))
     }
     dimnames <- normarg_dimnames(dimnames, dim)
-    new2("SparseArray", dim=dim, nzindex=nzindex, nzdata=nzdata,
-                            dimnames=dimnames,
-                            check=check)
+    new2("COOArray", dim=dim, dimnames=dimnames,
+                     nzindex=nzindex, nzdata=nzdata,
+                     check=check)
 }
 
 
@@ -178,7 +229,7 @@ SparseArray <- function(dim, nzindex=NULL, nzdata=NULL, dimnames=NULL,
 
 ### 'x' must be an array-like object that supports 'type()' and subsetting
 ### by an M-index subscript.
-### Return a SparseArray object.
+### Return a COOArray object.
 dense2sparse <- function(x)
 {
     x_dim <- dim(x)
@@ -187,15 +238,15 @@ dense2sparse <- function(x)
     ## Make sure to use 'type()' and not 'typeof()'.
     zero <- vector(type(x), length=1L)
     nzindex <- which(x != zero, arr.ind=TRUE)  # M-index
-    SparseArray(x_dim, nzindex, x[nzindex], dimnames(x), check=FALSE)
+    COOArray(x_dim, nzindex, x[nzindex], dimnames(x), check=FALSE)
 }
 
-### 'sa' must be a SparseArray object.
+### 'sa' must be a COOArray object.
 ### Return an ordinary array.
 sparse2dense <- function(sa)
 {
-    if (!is(sa, "SparseArray"))
-        stop(wmsg("'sa' must be a SparseArray object"))
+    if (!is(sa, "COOArray"))
+        stop(wmsg("'sa' must be a COOArray object"))
     sa_nzdata <- nzdata(sa)
     zero <- vector(typeof(sa_nzdata), length=1L)
     ans <- array(zero, dim=dim(sa))
@@ -205,28 +256,12 @@ sparse2dense <- function(sa)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### The is_sparse() and extract_sparse_array() generics
+### The extract_sparse_array() generics
 ###
-
-### is_sparse() detects **structural** sparsity which is a global qualitative
-### property of array-like object 'x' rather than a quantitative one.
-### In other words it doesn't look at the data in 'x' to decide whether 'x'
-### should be considered sparse or not. Said otherwise, it is NOT about
-### quantitative sparsity measured by sparsity().
-### IMPORTANT: Seeds for which is_sparse() returns TRUE **must** support
-### extract_sparse_array().
-setGeneric("is_sparse", function(x) standardGeneric("is_sparse"))
-
-setGeneric("is_sparse<-", signature="x",
-    function(x, value) standardGeneric("is_sparse<-")
-)
-
-### By default, nothing is considered sparse.
-setMethod("is_sparse", "ANY", function(x) FALSE)
 
 ### This is the workhorse behind read_sparse_block().
 ### Similar to extract_array() except that:
-###   (1) The extracted array data must be returned in a SparseArray
+###   (1) The extracted array data must be returned in a COOArray
 ###       object. Methods should always operate on the sparse representation
 ###       of the data and never "expand" it, that is, never turn it into a
 ###       dense representation for example by doing something like
@@ -251,7 +286,7 @@ setGeneric("extract_sparse_array",
         ## doing something like the extract_array() generic where
         ## check_returned_array() is used to display a long and
         ## detailed error message.
-        stopifnot(is(ans, "SparseArray"),
+        stopifnot(is(ans, "COOArray"),
                   identical(dim(ans), expected_dim))
         ans
     }
@@ -260,28 +295,26 @@ setGeneric("extract_sparse_array",
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### is_sparse(), extract_sparse_array(), and extract_array() methods for
-### SparseArray objects
+### COOArray objects
 ###
 
-setMethod("is_sparse", "SparseArray", function(x) TRUE)
-
-### IMPORTANT NOTE: The returned SparseArray object is guaranteed to be
+### IMPORTANT NOTE: The returned COOArray object is guaranteed to be
 ### **correct** ONLY if the subscripts in 'index' do NOT contain duplicates!
-### If they contain duplicates, the correct SparseArray object to return
+### If they contain duplicates, the correct COOArray object to return
 ### should contain repeated nonzero data. However, in order to keep it as
 ### efficient as possible, the code below does NOT repeat the nonzero data
 ### that corresponds to duplicates subscripts. It does not check for
 ### duplicates in 'index' either because this check could have a
 ### non-negligible cost.
-### All this is OK because .extract_sparse_array_from_SparseArray()
+### All this is OK because .extract_sparse_array_from_COOArray()
 ### should always be used in a context where 'index' does NOT contain
 ### duplicates. The only situation where 'index' CAN contain duplicates
-### is when .extract_sparse_array_from_SparseArray() is called by
-### .extract_array_from_SparseArray(), in which case the missing
+### is when .extract_sparse_array_from_COOArray() is called by
+### .extract_array_from_COOArray(), in which case the missing
 ### nonzero data is added later.
-.extract_sparse_array_from_SparseArray <- function(x, index)
+.extract_sparse_array_from_COOArray <- function(x, index)
 {
-    stopifnot(is(x, "SparseArray"))
+    stopifnot(is(x, "COOArray"))
     ans_dim <- get_Nindex_lengths(index, dim(x))
     x_nzindex <- x@nzindex
     for (along in seq_along(ans_dim)) {
@@ -293,15 +326,15 @@ setMethod("is_sparse", "SparseArray", function(x) TRUE)
     keep_idx <- which(!rowAnyNAs(x_nzindex))
     ans_nzindex <- x_nzindex[keep_idx, , drop=FALSE]
     ans_nzdata <- x@nzdata[keep_idx]
-    SparseArray(ans_dim, ans_nzindex, ans_nzdata, check=FALSE)
+    COOArray(ans_dim, ans_nzindex, ans_nzdata, check=FALSE)
 }
-setMethod("extract_sparse_array", "SparseArray",
-    .extract_sparse_array_from_SparseArray
+setMethod("extract_sparse_array", "COOArray",
+    .extract_sparse_array_from_COOArray
 )
 
-.extract_array_from_SparseArray <- function(x, index)
+.extract_array_from_COOArray <- function(x, index)
 {
-    sa0 <- .extract_sparse_array_from_SparseArray(x, index)
+    sa0 <- .extract_sparse_array_from_COOArray(x, index)
     ## If the subscripts in 'index' contain duplicates, 'sa0' is
     ## "incomplete" in the sense that it does not contain the nonzero data
     ## that should have been repeated according to the duplicates in the
@@ -311,7 +344,7 @@ setMethod("extract_sparse_array", "SparseArray",
     ## duplicates present in the subscripts. Note that this is easy and cheap
     ## to do now because 'ans0' uses a dense representation (it's an ordinary
     ## array). This would be much harder to do **natively** on the
-    ## SparseArray form (i.e. without converting first to dense then
+    ## COOArray form (i.e. without converting first to dense then
     ## back to sparse in the process).
     sm_index <- lapply(index,
         function(i) {
@@ -326,8 +359,8 @@ setMethod("extract_sparse_array", "SparseArray",
         return(ans0)
     subset_by_Nindex(ans0, sm_index)
 }
-setMethod("extract_array", "SparseArray",
-    .extract_array_from_SparseArray
+setMethod("extract_array", "COOArray",
+    .extract_array_from_COOArray
 )
 
 
@@ -335,37 +368,37 @@ setMethod("extract_array", "SparseArray",
 ### Show
 ###
 
-setMethod("show", "SparseArray",
+setMethod("show", "COOArray",
     function(object) show_compact_array(object)
 )
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Coercion to/from SparseArray
+### Coercion to/from COOArray
 ###
 
-### S3/S4 combo for as.array.SparseArray
-as.array.SparseArray <- function(x, ...) sparse2dense(x)
-setMethod("as.array", "SparseArray", as.array.SparseArray)
+### S3/S4 combo for as.array.COOArray
+as.array.COOArray <- function(x, ...) sparse2dense(x)
+setMethod("as.array", "COOArray", as.array.COOArray)
 
-### S3/S4 combo for as.matrix.SparseArray
-.from_SparseArray_to_matrix <- function(x)
+### S3/S4 combo for as.matrix.COOArray
+.from_COOArray_to_matrix <- function(x)
 {
     x_dim <- dim(x)
     if (length(x_dim) != 2L)
         stop(wmsg("'x' must have exactly 2 dimensions"))
     sparse2dense(x)
 }
-as.matrix.SparseArray <-
-    function(x, ...) .from_SparseArray_to_matrix(x, ...)
-setMethod("as.matrix", "SparseArray", .from_SparseArray_to_matrix)
+as.matrix.COOArray <-
+    function(x, ...) .from_COOArray_to_matrix(x, ...)
+setMethod("as.matrix", "COOArray", .from_COOArray_to_matrix)
 
-setAs("ANY", "SparseArray", function(from) dense2sparse(from))
+setAs("ANY", "COOArray", function(from) dense2sparse(from))
 
-### Going back and forth between SparseArray and dg[C|R]Matrix or
+### Going back and forth between COOArray and dg[C|R]Matrix or
 ### lg[C|R]Matrix objects from the Matrix package:
 
-.from_SparseArray_to_CsparseMatrix <- function(from)
+.from_COOArray_to_CsparseMatrix <- function(from)
 {
     from_dim <- dim(from)
     if (length(from_dim) != 2L)
@@ -376,7 +409,7 @@ setAs("ANY", "SparseArray", function(from) dense2sparse(from))
     CsparseMatrix(from_dim, i, j, from@nzdata, dimnames=dimnames(from))
 }
 
-.from_SparseArray_to_RsparseMatrix <- function(from)
+.from_COOArray_to_RsparseMatrix <- function(from)
 {
     from_dim <- dim(from)
     if (length(from_dim) != 2L)
@@ -387,65 +420,65 @@ setAs("ANY", "SparseArray", function(from) dense2sparse(from))
     RsparseMatrix(from_dim, i, j, from@nzdata, dimnames=dimnames(from))
 }
 
-setAs("SparseArray", "CsparseMatrix",
-    .from_SparseArray_to_CsparseMatrix
+setAs("COOArray", "CsparseMatrix",
+    .from_COOArray_to_CsparseMatrix
 )
-setAs("SparseArray", "RsparseMatrix",
-    .from_SparseArray_to_RsparseMatrix
+setAs("COOArray", "RsparseMatrix",
+    .from_COOArray_to_RsparseMatrix
 )
-setAs("SparseArray", "sparseMatrix",
-    .from_SparseArray_to_CsparseMatrix
+setAs("COOArray", "sparseMatrix",
+    .from_COOArray_to_CsparseMatrix
 )
-setAs("SparseArray", "dgCMatrix",
+setAs("COOArray", "dgCMatrix",
     function(from) as(as(from, "CsparseMatrix"), "dgCMatrix")
 )
-setAs("SparseArray", "dgRMatrix",
+setAs("COOArray", "dgRMatrix",
     function(from) as(as(from, "RsparseMatrix"), "dgRMatrix")
 )
-setAs("SparseArray", "lgCMatrix",
+setAs("COOArray", "lgCMatrix",
     function(from) as(as(from, "CsparseMatrix"), "lgCMatrix")
 )
 ### Will fail if 'as(from, "RsparseMatrix")' returns a dgRMatrix object
 ### because the Matrix package doesn't support coercion from dgRMatrix
 ### to lgRMatrix at the moment:
-###   > as(SparseArray(4:3, rbind(c(4, 3)), -2), "lgRMatrix")
+###   > as(COOArray(4:3, rbind(c(4, 3)), -2), "lgRMatrix")
 ###   Error in as(as(from, "RsparseMatrix"), "lgRMatrix") :
 ###     no method or default for coercing “dgRMatrix” to “lgRMatrix”
-setAs("SparseArray", "lgRMatrix",
+setAs("COOArray", "lgRMatrix",
     function(from) as(as(from, "RsparseMatrix"), "lgRMatrix")
 )
 
-.make_SparseArray_from_dgCMatrix_or_lgCMatrix <-
+.make_COOArray_from_dgCMatrix_or_lgCMatrix <-
     function(from, use.dimnames=TRUE)
 {
     i <- from@i + 1L
     j <- rep.int(seq_len(ncol(from)), diff(from@p))
     ans_nzindex <- cbind(i, j, deparse.level=0L)
     ans_dimnames <- if (use.dimnames) dimnames(from) else NULL
-    SparseArray(dim(from), ans_nzindex, from@x, ans_dimnames, check=FALSE)
+    COOArray(dim(from), ans_nzindex, from@x, ans_dimnames, check=FALSE)
 }
 
-.make_SparseArray_from_dgRMatrix_or_lgRMatrix <-
+.make_COOArray_from_dgRMatrix_or_lgRMatrix <-
     function(from, use.dimnames=TRUE)
 {
     i <- rep.int(seq_len(nrow(from)), diff(from@p))
     j <- from@j + 1L
     ans_nzindex <- cbind(i, j, deparse.level=0L)
     ans_dimnames <- if (use.dimnames) dimnames(from) else NULL
-    SparseArray(dim(from), ans_nzindex, from@x, ans_dimnames, check=FALSE)
+    COOArray(dim(from), ans_nzindex, from@x, ans_dimnames, check=FALSE)
 }
 
-setAs("dgCMatrix", "SparseArray",
-    function(from) .make_SparseArray_from_dgCMatrix_or_lgCMatrix(from)
+setAs("dgCMatrix", "COOArray",
+    function(from) .make_COOArray_from_dgCMatrix_or_lgCMatrix(from)
 )
-setAs("dgRMatrix", "SparseArray",
-    function(from) .make_SparseArray_from_dgRMatrix_or_lgRMatrix(from)
+setAs("dgRMatrix", "COOArray",
+    function(from) .make_COOArray_from_dgRMatrix_or_lgRMatrix(from)
 )
-setAs("lgCMatrix", "SparseArray",
-    function(from) .make_SparseArray_from_dgCMatrix_or_lgCMatrix(from)
+setAs("lgCMatrix", "COOArray",
+    function(from) .make_COOArray_from_dgCMatrix_or_lgCMatrix(from)
 )
-setAs("lgRMatrix", "SparseArray",
-    function(from) .make_SparseArray_from_dgRMatrix_or_lgRMatrix(from)
+setAs("lgRMatrix", "COOArray",
+    function(from) .make_COOArray_from_dgRMatrix_or_lgRMatrix(from)
 )
 
 
@@ -465,13 +498,13 @@ setMethod("is_sparse", "lgRMatrix", function(x) TRUE)
 .extract_sparse_array_from_dgCMatrix_or_lgCMatrix <- function(x, index)
 {
     sm <- subset_by_Nindex(x, index)  # a dgCMatrix or lgCMatrix object
-    .make_SparseArray_from_dgCMatrix_or_lgCMatrix(sm, use.dimnames=FALSE)
+    .make_COOArray_from_dgCMatrix_or_lgCMatrix(sm, use.dimnames=FALSE)
 }
 
 .extract_sparse_array_from_dgRMatrix_or_lgRMatrix <- function(x, index)
 {
     sm <- subset_by_Nindex(x, index)  # a dgRMatrix or lgRMatrix object
-    .make_SparseArray_from_dgRMatrix_or_lgRMatrix(sm, use.dimnames=FALSE)
+    .make_COOArray_from_dgRMatrix_or_lgRMatrix(sm, use.dimnames=FALSE)
 }
 
 setMethod("extract_sparse_array", "dgCMatrix",
@@ -495,7 +528,7 @@ setMethod("extract_sparse_array", "lgRMatrix",
 ### dimensions. See aperm2.R
 ###
 
-.aperm.SparseArray <- function(a, perm)
+.aperm.COOArray <- function(a, perm)
 {
     a_dim <- dim(a)
     perm <- normarg_perm(perm, a_dim)
@@ -513,8 +546,8 @@ setMethod("extract_sparse_array", "lgRMatrix",
                                    check=FALSE)
 }
 
-### S3/S4 combo for aperm.SparseArray
-aperm.SparseArray <-
-    function(a, perm, ...) .aperm.SparseArray(a, perm, ...)
-setMethod("aperm", "SparseArray", aperm.SparseArray)
+### S3/S4 combo for aperm.COOArray
+aperm.COOArray <-
+    function(a, perm, ...) .aperm.COOArray(a, perm, ...)
+setMethod("aperm", "COOArray", aperm.COOArray)
 

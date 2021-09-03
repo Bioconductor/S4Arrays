@@ -3,7 +3,7 @@ Title: Foundation of array-like containers in Bioconductor
 Description: The S4Arrays package defines the Array virtual class to be
 	extended by other S4 classes that wish to implement a container with
 	an array-like semantic, as well as the following Array derivatives:
-	SparseArray for in-memory sparse representation of multi-dimentional
+	SparseArray for in-memory representation of multidimensional sparse
 	arrays, and ArrayGrid for defining a grid of viewports on an array-like
 	object (useful in the context of block processing).
 biocViews: Infrastructure, DataRepresentation

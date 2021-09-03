@@ -29,7 +29,7 @@ exportClasses(
     ArrayGrid, DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid,
 
     ## SparseArray-class.R:
-    SparseArray
+    SparseArray, COOArray
 )
 
 
@@ -40,10 +40,10 @@ exportClasses(
 S3method(aperm, DummyArrayGrid)
 S3method(aperm, ArbitraryArrayGrid)
 S3method(aperm, RegularArrayGrid)
-S3method(aperm, SparseArray)
+S3method(aperm, COOArray)
 
 S3method(as.array, Array)
-S3method(as.array, SparseArray)
+S3method(as.array, COOArray)
 
 S3method(as.character, Array)
 S3method(as.character, ArrayGrid)
@@ -58,7 +58,7 @@ S3method(as.logical, Array)
 
 S3method(as.matrix, Array)
 S3method(as.matrix, SelectionTree)
-S3method(as.matrix, SparseArray)
+S3method(as.matrix, COOArray)
 
 S3method(as.numeric, Array)
 
@@ -66,9 +66,9 @@ S3method(as.raw, Array)
 
 S3method(as.vector, Array)
 
-S3method(mean, SparseArray)
+S3method(mean, COOArray)
 
-S3method(range, SparseArray)
+S3method(range, COOArray)
 
 S3method(rowsum, dgCMatrix)
 
@@ -82,10 +82,10 @@ export(
     aperm.DummyArrayGrid,
     aperm.ArbitraryArrayGrid,
     aperm.RegularArrayGrid,
-    aperm.SparseArray,
+    aperm.COOArray,
 
     as.array.Array,
-    as.array.SparseArray,
+    as.array.COOArray,
 
     as.character.ArrayGrid,
     as.character.Array,
@@ -100,7 +100,7 @@ export(
 
     as.matrix.Array,
     as.matrix.SelectionTree,
-    as.matrix.SparseArray,
+    as.matrix.COOArray,
 
     as.numeric.Array,
 
@@ -108,9 +108,9 @@ export(
 
     as.vector.Array,
 
-    mean.SparseArray,
+    mean.COOArray,
 
-    range.SparseArray,
+    range.COOArray,
 
     rowsum.dgCMatrix,
 
@@ -168,7 +168,7 @@ export(
     DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid,
 
     ## SparseArray-class.R:
-    SparseArray, dense2sparse, sparse2dense,
+    COOArray, dense2sparse, sparse2dense,
 
     ## readSparseCSV.R:
     readSparseCSV, readSparseTable
@@ -190,8 +190,10 @@ export(
     refdim, maxlength, aperm, downsample,
 
     ## SparseArray-class.R:
+    is_sparse,
+    "is_sparse<-",
     nzindex, nzdata, sparsity,
-    is_sparse, "is_sparse<-", extract_sparse_array
+    extract_sparse_array
 )
 
 ### Same list as above.
@@ -199,6 +201,9 @@ exportMethods(
     rowsum, colsum,
     extract_array,
     refdim, maxlength, aperm, downsample,
-    nzindex, nzdata, sparsity, is_sparse, extract_sparse_array
+    is_sparse,
+    #"is_sparse<-",  # no methods defined in S4Arrays!
+    nzindex, nzdata, sparsity,
+    extract_sparse_array
 )
 

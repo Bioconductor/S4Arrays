@@ -53,8 +53,7 @@ setClass("LongMindex",
 setClassUnion("NULL_OR_integer_OR_list", c("NULL", "integer", "list"))
 
 ### Does not have the limitation of Mindex objects (see above) and much
-### compact than Mindex or LongMindex. Primarily used in SparseArray objects
-### to keep track of non-zero data.
+### compact than Mindex or LongMindex.
 setClass("SelectionTree",
     contains="ArraySelection",
     representation(
