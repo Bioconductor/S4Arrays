@@ -7,28 +7,203 @@
 #include <string.h>  /* for memcpy() */
 
 
-/* A "leaf vector" is a sparse vector represented by a list of 2 parallel
-   vectors: an integer vector of positions and a vector (atomic or list)
-   of nonzero values. */
-static int split_leaf_vector(SEXP svtree, SEXP *nzpos, SEXP *nzvals)
+/* All the atomic types + "list". */
+static const SEXPTYPE supported_SVT_Rtypes[] = {
+	LGLSXP,   // "logical"
+	INTSXP,   // "integer"
+	REALSXP,  // "double"
+	CPLXSXP,  // "complex"
+	STRSXP,   // "character"
+	RAWSXP,   // "raw"
+
+	VECSXP    // "list"
+};
+
+
+/****************************************************************************
+ * Low-level utils
+ */
+
+/* General purpose copy function.
+   We only support the 7 SEXP types listed in 'supported_SVT_Rtypes' above.
+   Also we don't need to handle long vectors so 'in_offset', 'out_offset',
+   and 'nelt' only need to be of type int. */
+static inline int copy_vector_elts(SEXP in,  int in_offset,
+				   SEXP out, int out_offset,
+				   int nelt)
 {
-	R_xlen_t nzpos_len;
+	SEXPTYPE Rtype;
+	void *dest, *src;
+	size_t n;
+	int k;
+
+	Rtype = TYPEOF(in);
+	if (TYPEOF(out) != Rtype)
+		return -1;
+	if (in_offset  + nelt > LENGTH(in))
+		return -1;
+	if (out_offset + nelt > LENGTH(out))
+		return -1;
+
+	switch (Rtype) {
+	    case VECSXP:
+		for (k = 0; k < nelt; k++) {
+			SET_VECTOR_ELT(out, out_offset + k,
+			    VECTOR_ELT(in,  in_offset  + k));
+		}
+		return 0;
+
+	    case STRSXP:
+		for (k = 0; k < nelt; k++) {
+			SET_STRING_ELT(out, out_offset + k,
+			    STRING_ELT(in,  in_offset  + k));
+		}
+		return 0;
+
+	    case LGLSXP: case INTSXP:
+		dest = INTEGER(out) + out_offset;
+		src  = INTEGER(in) + in_offset;
+		n    = sizeof(int) * nelt;
+		break;
+
+	    case REALSXP:
+		dest = REAL(out) + out_offset;
+		src  = REAL(in) + in_offset;
+		n    = sizeof(double) * nelt;
+		break;
+
+	    case CPLXSXP:
+		dest = COMPLEX(out) + out_offset;
+		src  = COMPLEX(in) + in_offset;
+		n    = sizeof(Rcomplex) * nelt;
+		break;
+
+	    case RAWSXP:
+		dest = RAW(out) + out_offset;
+		src  = RAW(in) + in_offset;
+		n    = sizeof(Rbyte) * nelt;
+		break;
+
+	    default: return -1;
+	}
+	memcpy(dest, src, n);
+	return 0;
+}
+
+static SEXP make_constant_INTEGER(int len, int val)
+{
+	SEXP ans;
+	int k;
+
+	ans = PROTECT(NEW_INTEGER(len));
+	for (k = 0; k < len; k++)
+		INTEGER(ans)[k] = val;
+	UNPROTECT(1);
+	return ans;
+}
+
+
+/****************************************************************************
+ * Basic manipulation of a leaf vector
+ *
+ * A "leaf vector" is a sparse vector represented by a list of 2 parallel
+ * vectors: an integer vector of positions and a vector (atomic or list)
+ * of nonzero values.
+ * The length of a leaf vector is always <= INT_MAX.
+ */
+
+static SEXP new_leaf_vector(SEXP lv_pos, SEXP lv_vals)
+{
+	const char *msg;
+	R_xlen_t lv_pos_len;
+	SEXP ans;
 
 	/* Sanity checks (should never fail). */
-	if (!isVectorList(svtree))  // IS_LIST() is broken
+	msg = "S4Arrays internal error in new_leaf_vector():\n"
+	      "  invalid 'lv_pos' and/or 'lv_vals' arguments";
+	if (!IS_INTEGER(lv_pos))
+		error(msg);
+	lv_pos_len = XLENGTH(lv_pos);
+	if (lv_pos_len > INT_MAX || lv_pos_len != XLENGTH(lv_vals))
+		error(msg);
+
+	ans = PROTECT(NEW_LIST(2));
+	SET_VECTOR_ELT(ans, 0, lv_pos);
+	SET_VECTOR_ELT(ans, 1, lv_vals);
+	UNPROTECT(1);
+	return ans;
+}
+
+static inline int split_leaf_vector(SEXP lv, SEXP *lv_pos, SEXP *lv_vals)
+{
+	R_xlen_t lv_pos_len;
+
+	/* Sanity checks (should never fail). */
+	if (!isVectorList(lv))  // IS_LIST() is broken
 		return -1;
-	if (LENGTH(svtree) != 2)
+	if (LENGTH(lv) != 2)
 		return -1;
-	*nzpos = VECTOR_ELT(svtree, 0);
-	*nzvals = VECTOR_ELT(svtree, 1);
-	if (!IS_INTEGER(*nzpos))
+	*lv_pos = VECTOR_ELT(lv, 0);
+	*lv_vals = VECTOR_ELT(lv, 1);
+	if (!IS_INTEGER(*lv_pos))
 		return -1;
-	nzpos_len = XLENGTH(*nzpos);
-	if (nzpos_len > INT_MAX)
+	lv_pos_len = XLENGTH(*lv_pos);
+	if (lv_pos_len > INT_MAX)
 		return -1;
-	if (XLENGTH(*nzvals) != nzpos_len)
+	if (XLENGTH(*lv_vals) != lv_pos_len)
 		return -1;
-	return (int) nzpos_len;
+	return (int) lv_pos_len;
+}
+
+static SEXP alloc_leaf_vector(int lv_len, SEXPTYPE Rtype)
+{
+	SEXP lv_pos, lv_vals, ans;
+
+	lv_pos  = PROTECT(make_constant_INTEGER(lv_len, -1));
+	lv_vals = PROTECT(allocVector(Rtype, lv_len));
+	ans = new_leaf_vector(lv_pos, lv_vals);
+	UNPROTECT(2);
+	return ans;
+}
+
+static SEXP make_leaf_vector(const int *pos, SEXP lv_vals, int maxpos)
+{
+	int lv_len, k, p;
+	SEXP lv_pos, ans;
+
+	lv_len = LENGTH(lv_vals);
+	lv_pos = PROTECT(NEW_INTEGER(lv_len));
+	for (k = 0; k < lv_len; k++) {
+		p = pos[k];
+		if (p < 1 || p > maxpos) {
+			UNPROTECT(1);
+			error("the supplied matrix contains "
+			      "out-of-bound values");
+		}
+		INTEGER(lv_pos)[k] = p;
+	}
+	ans = new_leaf_vector(lv_pos, lv_vals);
+	UNPROTECT(1);
+	return ans;
+}
+
+static inline int append_pos_val_pair_to_leaf_vector(SEXP lv,
+		int pos, SEXP nzdata, int nzdata_offset)
+{
+	int lv_len, k;
+	SEXP lv_pos, lv_vals;
+
+	lv_len = split_leaf_vector(lv, &lv_pos, &lv_vals);
+	for (k = 0; k < lv_len; k++) {
+		if (INTEGER(lv_pos)[k] == -1)
+			goto ok;
+	}
+	return -1;
+    ok:
+	INTEGER(lv_pos)[k] = pos;
+	/* Using copy_vector_elts() to copy a single element is not efficient.
+	   TODO: Find something more efficient. */
+	return copy_vector_elts(nzdata, nzdata_offset, lv_vals, k, 1);
 }
 
 
@@ -77,18 +252,6 @@ SEXP C_get_SVTSparseArray_nzdata_length(SEXP x_dim, SEXP x_svtree)
  * Going from SVTSparseArray objects to COOSparseArray objects
  */
 
-/* All the atomic types + "list". */
-static const SEXPTYPE supported_Rtypes[] = {
-	LGLSXP,   // "logical"
-	INTSXP,   // "integer"
-	REALSXP,  // "double"
-	CPLXSXP,  // "complex"
-	STRSXP,   // "character"
-	RAWSXP,   // "raw"
-
-	VECSXP    // "list"
-};
-
 /* Also checks the supplied 'type'. */
 static SEXPTYPE get_Rtype_from_SVTSparseArray_type(SEXP type)
 {
@@ -106,9 +269,9 @@ static SEXPTYPE get_Rtype_from_SVTSparseArray_type(SEXP type)
 	if (type0 == NA_STRING)
 		error(msg);
 	Rtype = str2type(CHAR(type0));
-	ntypes = sizeof(supported_Rtypes) / sizeof(SEXPTYPE);
+	ntypes = sizeof(supported_SVT_Rtypes) / sizeof(SEXPTYPE);
 	for (i = 0; i < ntypes; i++)
-		if (Rtype == supported_Rtypes[i])
+		if (Rtype == supported_SVT_Rtypes[i])
 			return Rtype;
 	error(msg);
 	return 0;
@@ -122,69 +285,14 @@ static SEXP alloc_nzdata(R_xlen_t nzdata_len, SEXP type)
 	return allocVector(Rtype, nzdata_len);
 }
 
-static inline int copy_nzvals_to_nzdata(SEXP nzvals, SEXP nzdata,
-		int nzdata_offset)
-{
-	SEXPTYPE Rtype;
-	int nzvals_len, k;
-
-	Rtype = TYPEOF(nzvals);
-	if (TYPEOF(nzdata) != Rtype)
-		return -1;
-	nzvals_len = LENGTH(nzvals);
-	if (nzdata_offset > LENGTH(nzdata) - nzvals_len)
-		return -1;
-
-	switch (Rtype) {
-	    case LGLSXP: case INTSXP:
-		memcpy(INTEGER(nzdata) + nzdata_offset,
-		       INTEGER(nzvals),
-		       (size_t) nzvals_len * sizeof(int));
-		break;
-
-	    case REALSXP:
-		memcpy(REAL(nzdata) + nzdata_offset,
-		       REAL(nzvals),
-		       (size_t) nzvals_len * sizeof(double));
-		break;
-
-	    case CPLXSXP:
-		memcpy(COMPLEX(nzdata) + nzdata_offset,
-		       COMPLEX(nzvals),
-		       (size_t) nzvals_len * sizeof(Rcomplex));
-		break;
-
-	    case STRSXP:
-		for (k = 0; k < nzvals_len; k++) {
-			SET_STRING_ELT(nzdata, nzdata_offset + k,
-				       STRING_ELT(nzvals, k));
-		}
-		break;
-
-	    case RAWSXP:
-		memcpy(RAW(nzdata) + nzdata_offset,
-		       RAW(nzvals),
-		       (size_t) nzvals_len * sizeof(Rbyte));
-		break;
-
-	    case VECSXP:
-		for (k = 0; k < nzvals_len; k++) {
-			SET_VECTOR_ELT(nzdata, nzdata_offset + k,
-				       VECTOR_ELT(nzvals, k));
-		}
-		break;
-	}
-	return 0;
-}
-
 /* Recursive. */
 static int extract_nzindex_and_nzdata_from_svtree_REC(SEXP svtree,
 		SEXP nzdata, int *nzdata_offset,
 		int *nzindex, int nzindex_nrow, int nzindex_ncol,
 		int *rowbuf, int rowbuf_offset)
 {
-	int svtree_len, k, ret, leaf_len, *p, j;
-	SEXP sub_svtree, nzpos, nzvals;
+	int svtree_len, k, ret, lv_len, *p, j;
+	SEXP sub_svtree, lv_pos, lv_vals;
 
 	if (isNull(svtree))
 		return 0;
@@ -208,16 +316,18 @@ static int extract_nzindex_and_nzdata_from_svtree_REC(SEXP svtree,
 	}
 
 	/* 'svtree' is a "leaf vector". */
-	leaf_len = split_leaf_vector(svtree, &nzpos, &nzvals);
-	if (leaf_len < 0)
+	lv_len = split_leaf_vector(svtree, &lv_pos, &lv_vals);
+	if (lv_len < 0)
 		return -1;
 
-	ret = copy_nzvals_to_nzdata(nzvals, nzdata, *nzdata_offset);
+	ret = copy_vector_elts(lv_vals, 0,
+			       nzdata, *nzdata_offset,
+			       LENGTH(lv_vals));
 	if (ret < 0)
 		return -1;
 
-	for (k = 0; k < leaf_len; k++) {
-		rowbuf[0] = INTEGER(nzpos)[k];
+	for (k = 0; k < lv_len; k++) {
+		rowbuf[0] = INTEGER(lv_pos)[k];
 
 		/* Copy 'rowbuf' to 'nzindex'. */
 		p = nzindex + *nzdata_offset;
@@ -283,43 +393,22 @@ SEXP C_from_SVTSparseArray_to_COOSparseArray(SEXP x_dim,
  * Going from COOSparseArray objects to SVTSparseArray objects
  */
 
-#ifdef _TURLUTUTU_
-
-static SEXP make_depth1_svtree(const int *in, int in_len, int refdim1)
-{
-	SEXP ans;
-	int i, v;
-
-	ans = PROTECT(NEW_INTEGER(in_len));
-	for (i = 0; i < in_len; i++) {
-		v = in[i];
-		if (v < 1 || v > refdim1) {
-			UNPROTECT(1);
-			error("the supplied matrix contains "
-			      "out-of-bound values");
-		}
-		INTEGER(ans)[i] = v;
-	}
-	UNPROTECT(1);
-	return ans;
-}
-
-static int grow_svtree(const int *in,
-		int in_nrow, int in_ncol, int in_offset,
-		SEXP svtree, const int *refdim)
+static int grow_svtree(SEXP svtree,
+		const int *dim, int ndim,
+		const int *nzindex, int nzdata_len, int nzdata_offset)
 {
 	const int *p;
 	int j, k;
 	SEXP sub_svtree;
 
-	p = in + in_offset;
-	if (*p < 1  || *p > refdim[0])
+	p = nzindex + nzdata_offset;
+	if (*p < 1  || *p > dim[0])
 		return -1;
 
-	if (in_ncol >= 3) {
-		p += in_nrow * in_ncol;
-		for (j = in_ncol - 2; j >= 1; j--) {
-			p -= in_nrow;
+	if (ndim >= 3) {
+		p += (size_t) nzdata_len * ndim;
+		for (j = ndim - 2; j >= 1; j--) {
+			p -= nzdata_len;
 			k = *p - 1;
 			if (k < 0 || k >= LENGTH(svtree))
 				return -1;
@@ -328,7 +417,7 @@ static int grow_svtree(const int *in,
 				break;
 			/* 'sub_svtree' is NULL or a list. */
 			if (isNull(sub_svtree)) {
-				sub_svtree = PROTECT(NEW_LIST(refdim[j]));
+				sub_svtree = PROTECT(NEW_LIST(dim[j]));
 				SET_VECTOR_ELT(svtree, k, sub_svtree);
 				UNPROTECT(1);
 			}
@@ -336,14 +425,14 @@ static int grow_svtree(const int *in,
 		}
 		/* 'sub_svtree' is NULL or an integer vector of counts. */
 		if (isNull(sub_svtree)) {
-			sub_svtree = PROTECT(NEW_INTEGER(refdim[j]));
+			sub_svtree = PROTECT(make_constant_INTEGER(dim[j], 0));
 			SET_VECTOR_ELT(svtree, k, sub_svtree);
 			UNPROTECT(1);
 		}
 		svtree = sub_svtree;
 	}
 
-	p = in + in_offset + in_nrow;
+	p = nzindex + nzdata_offset + nzdata_len;
 	k = *p - 1;
 	if (k < 0 || k >= LENGTH(svtree))
 		return -1;
@@ -351,17 +440,17 @@ static int grow_svtree(const int *in,
 	return 0;
 }
 
-static SEXP make_terminal_list(SEXP x)
+static SEXP alloc_list_of_leaf_vectors(SEXP lv_lens, SEXPTYPE Rtype)
 {
-	int x_len, k, ans_elt_len;
+	int ans_len, k, lv_len;
 	SEXP ans, ans_elt;
 
-	x_len = LENGTH(x);
-	ans = PROTECT(NEW_LIST(x_len));
-	for (k = 0; k < x_len; k++) {
-		ans_elt_len = INTEGER(x)[k];
-		if (ans_elt_len != 0) {
-			ans_elt = PROTECT(NEW_INTEGER(ans_elt_len));
+	ans_len = LENGTH(lv_lens);
+	ans = PROTECT(NEW_LIST(ans_len));
+	for (k = 0; k < ans_len; k++) {
+		lv_len = INTEGER(lv_lens)[k];
+		if (lv_len != 0) {
+			ans_elt = PROTECT(alloc_leaf_vector(lv_len, Rtype));
 			SET_VECTOR_ELT(ans, k, ans_elt);
 			UNPROTECT(1);
 		}
@@ -370,18 +459,20 @@ static SEXP make_terminal_list(SEXP x)
 	return ans;
 }
 
-static int add_matrix_row_to_svtree(const int *in,
-		int in_nrow, int in_ncol, int in_offset,
+static int store_nzpos_and_nzval_in_svtree(
+		const int *nzindex, int nzdata_len, int nzindex_ncol,
+		SEXP nzdata, int nzdata_offset,
 		SEXP svtree)
 {
 	const int *p;
 	int j, k;
 	SEXP sub_svtree;
 
-	if (in_ncol >= 3) {
-		p = in + in_offset + in_nrow * in_ncol;
-		for (j = in_ncol - 2; j >= 1; j--) {
-			p -= in_nrow;
+	if (nzindex_ncol >= 3) {
+		p = nzindex + nzdata_offset +
+			      (size_t) nzdata_len * nzindex_ncol;
+		for (j = nzindex_ncol - 2; j >= 1; j--) {
+			p -= nzdata_len;
 			k = *p - 1;
 			sub_svtree = VECTOR_ELT(svtree, k);
 			if (j == 1)
@@ -390,60 +481,65 @@ static int add_matrix_row_to_svtree(const int *in,
 		}
 		/* 'sub_svtree' is an integer vector of counts or a list. */
 		if (IS_INTEGER(sub_svtree)) {
-			sub_svtree = PROTECT(make_terminal_list(sub_svtree));
+			sub_svtree = PROTECT(
+				alloc_list_of_leaf_vectors(sub_svtree,
+							   TYPEOF(nzdata))
+			);
 			SET_VECTOR_ELT(svtree, k, sub_svtree);
 			UNPROTECT(1);
 		}
 		svtree = sub_svtree;
 	}
 
-	p = in + in_offset + in_nrow;
+	p = nzindex + nzdata_offset + nzdata_len;
 	k = *p - 1;
 	sub_svtree = VECTOR_ELT(svtree, k);
-	for (k = 0; k < LENGTH(sub_svtree); k++) {
-		if (INTEGER(sub_svtree)[k] == 0)
-			break;
-	}
-	p = in + in_offset;
-	INTEGER(sub_svtree)[k] = *p;
-	return 0;
+
+	/* 'sub_svtree' is a "leaf vector". */
+	return append_pos_val_pair_to_leaf_vector(sub_svtree,
+						  nzindex[nzdata_offset],
+						  nzdata, nzdata_offset);
 }
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_from_matrix_to_SelectionTree(SEXP m, SEXP refdim)
+SEXP C_from_COOSparseArray_to_SVTSparseArray(SEXP x_dim,
+		SEXP x_nzindex, SEXP x_nzdata)
 {
-	SEXP m_dim, ans;
-	int m_nrow, m_ncol, ans_len, i, ret;
+	int ndim, nzdata_len, ans_len, i, ret;
+	SEXP x_nzindex_dim, ans;
 
-	m_dim = GET_DIM(m);
-	if (LENGTH(m_dim) != 2)
-		error("'m' must be a matrix");
+	ndim = LENGTH(x_dim);
+	nzdata_len = LENGTH(x_nzdata);
 
-	m_nrow = INTEGER(m_dim)[0];
-	m_ncol = INTEGER(m_dim)[1];
-	if (m_ncol != LENGTH(refdim))
-		error("ncol(m) != length(refdim)");
+	/* Check 'x_nzindex' dimensions. */
+	x_nzindex_dim = GET_DIM(x_nzindex);
+	if (LENGTH(x_nzindex_dim) != 2)
+		error("'x@nzindex' must be a matrix");
+	if (INTEGER(x_nzindex_dim)[0] != nzdata_len)
+		error("nrow(x@nzindex) != length(x@nzdata)");
+	if (INTEGER(x_nzindex_dim)[1] != ndim)
+		error("ncol(x@nzindex) != length(x@dim)");
 
-	if (m_nrow == 0)
+	if (nzdata_len == 0)
 		return R_NilValue;
 
-	if (m_ncol == 1)
-		return make_depth1_svtree(INTEGER(m), m_nrow,
-					  INTEGER(refdim)[0]);
+	if (ndim == 1)
+		return make_leaf_vector(INTEGER(x_nzindex), x_nzdata,
+					INTEGER(x_dim)[0]);
 
-	ans_len = INTEGER(refdim)[m_ncol - 1];
+	ans_len = INTEGER(x_dim)[ndim - 1];
 
 	/* 1st pass: Grow the branches of the tree but don't add any
-	   leaves to it, only count them. */
-	if (m_ncol == 2) {
-		ans = PROTECT(NEW_INTEGER(ans_len));
+	   leaf vectors to it, only compute their lengths. */
+	if (ndim == 2) {
+		ans = PROTECT(make_constant_INTEGER(ans_len, 0));
 	} else {
 		ans = PROTECT(NEW_LIST(ans_len));
 	}
-	for (i = 0; i < m_nrow; i++) {
-		ret = grow_svtree(INTEGER(m),
-				  m_nrow, m_ncol, i,
-				  ans, INTEGER(refdim));
+	for (i = 0; i < nzdata_len; i++) {
+		ret = grow_svtree(ans,
+				  INTEGER(x_dim), ndim,
+				  INTEGER(x_nzindex), nzdata_len, i);
 		if (ret < 0) {
 			UNPROTECT(1);
 			error("the supplied matrix contains "
@@ -451,13 +547,15 @@ SEXP C_from_matrix_to_SelectionTree(SEXP m, SEXP refdim)
 		}
 	}
 
-	/* 2nd pass: Add the leaves to the tree. */
-	if (m_ncol == 2)
-		ans = PROTECT(make_terminal_list(ans));
-	for (i = 0; i < m_nrow; i++) {
-		ret = add_matrix_row_to_svtree(INTEGER(m),
-					       m_nrow, m_ncol, i,
-					       ans);
+	/* 2nd pass: Add the leaf vectors to the tree. */
+	if (ndim == 2)
+		ans = PROTECT(alloc_list_of_leaf_vectors(ans,
+			      TYPEOF(x_nzdata)));
+	for (i = 0; i < nzdata_len; i++) {
+		ret = store_nzpos_and_nzval_in_svtree(
+					  INTEGER(x_nzindex), nzdata_len, ndim,
+					  x_nzdata, i,
+					  ans);
 		if (ret < 0) {
 			UNPROTECT(1);
 			error("S4Arrays internal error "
@@ -467,17 +565,9 @@ SEXP C_from_matrix_to_SelectionTree(SEXP m, SEXP refdim)
 		}
 	}
 
-	if (m_ncol == 2)
+	if (ndim == 2)
 		UNPROTECT(1);
 	UNPROTECT(1);
 	return ans;
-}
-
-#endif  /* _TURLUTUTU_ */
-
-SEXP C_from_COOSparseArray_to_SVTSparseArray(SEXP x_dim,
-		SEXP x_nzindex, SEXP x_nzdata)
-{
-	return R_NilValue;
 }
 

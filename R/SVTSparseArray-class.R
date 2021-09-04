@@ -35,6 +35,17 @@
 ### If the sparse array is empty (i.e. has no nonzero data), the 'svtree'
 ### slot is set to NULL.
 ###
+### IMPORTANT NOTES:
+### - All the "leaf vectors" in the SVT are guaranteed to have a
+###   length <= the first dimension of the SVTSparseArray object, which
+###   itself is guaranteed to be <= INT_MAX (2^31 - 1).
+### - The cumulated length of the "leaf vectors" in the SVT is the number
+###   of nonzero values (i.e. nzdata length) in the SVTSparseArray object.
+###   There is no upper limit to this number.
+###   In other words, unlike dgCMatrix objects where this number is
+###   limited to INT_MAX, an SVTSparseArray can store an arbitrary number
+###   of nonzero values.
+###
 
 setClassUnion("NULL_OR_list", c("NULL", "list"))
 
