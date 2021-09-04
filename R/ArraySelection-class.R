@@ -23,13 +23,10 @@ setClass("ArraySelection",
 }
 setValidity2("ArraySelection", .validate_ArraySelection)
 
-### IMPORTANT NOTES:
-### - Because ordinary matrices in base R must have less than 2^31 rows, an
-###   Mindex object cannot represent a "long selection" i.e. a selection of
-###   2^31 array elements or more!
-### - Mindex not a good name as it can easily be confused with MIndex from
-###   Biostrings!
-setClass("Mindex",
+### IMPORTANT NOTE: Because ordinary matrices in base R must have less
+### than 2^31 rows, a COOList object cannot represent a "long selection"
+### i.e. a selection of 2^31 array elements or more!
+setClass("COOList",
     contains="ArraySelection",
     representation(
         # An integer matrix with one column per dimension in the reference
@@ -39,8 +36,8 @@ setClass("Mindex",
     )
 )
 
-### A workaround for the limitation of Mindex objects (see above).
-setClass("LongMindex",
+### A workaround for the limitation of COOList objects (see above).
+setClass("LongCOOList",
     contains="ArraySelection",
     representation(
         # A list of integer vectors of the same length. One integer vector
@@ -52,8 +49,8 @@ setClass("LongMindex",
 
 setClassUnion("NULL_OR_integer_OR_list", c("NULL", "integer", "list"))
 
-### Does not have the limitation of Mindex objects (see above) and much
-### compact than Mindex or LongMindex.
+### Does not have the limitation of COOList objects (see above) and much
+### compact than COOList or LongCOOList.
 setClass("SelectionTree",
     contains="ArraySelection",
     representation(

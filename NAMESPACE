@@ -18,7 +18,7 @@ import(XVector)
 
 exportClasses(
     ## ArraySelection-class.R:
-    ArraySelection, Mindex, LongMindex,
+    ArraySelection, COOList, LongCOOList,
     NULL_OR_integer_OR_list, SelectionTree,
 
     ## Array-class.R:
@@ -29,7 +29,10 @@ exportClasses(
     ArrayGrid, DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid,
 
     ## SparseArray-class.R:
-    SparseArray, COOArray
+    SparseArray, COOSparseArray,
+
+    ## SparseVectorTree-class.R:
+    NULL_OR_list, SparseVectorTree
 )
 
 
@@ -40,10 +43,10 @@ exportClasses(
 S3method(aperm, DummyArrayGrid)
 S3method(aperm, ArbitraryArrayGrid)
 S3method(aperm, RegularArrayGrid)
-S3method(aperm, COOArray)
+S3method(aperm, COOSparseArray)
 
 S3method(as.array, Array)
-S3method(as.array, COOArray)
+S3method(as.array, COOSparseArray)
 
 S3method(as.character, Array)
 S3method(as.character, ArrayGrid)
@@ -58,7 +61,7 @@ S3method(as.logical, Array)
 
 S3method(as.matrix, Array)
 S3method(as.matrix, SelectionTree)
-S3method(as.matrix, COOArray)
+S3method(as.matrix, COOSparseArray)
 
 S3method(as.numeric, Array)
 
@@ -66,9 +69,9 @@ S3method(as.raw, Array)
 
 S3method(as.vector, Array)
 
-S3method(mean, COOArray)
+S3method(mean, COOSparseArray)
 
-S3method(range, COOArray)
+S3method(range, COOSparseArray)
 
 S3method(rowsum, dgCMatrix)
 
@@ -82,10 +85,10 @@ export(
     aperm.DummyArrayGrid,
     aperm.ArbitraryArrayGrid,
     aperm.RegularArrayGrid,
-    aperm.COOArray,
+    aperm.COOSparseArray,
 
     as.array.Array,
-    as.array.COOArray,
+    as.array.COOSparseArray,
 
     as.character.ArrayGrid,
     as.character.Array,
@@ -100,7 +103,7 @@ export(
 
     as.matrix.Array,
     as.matrix.SelectionTree,
-    as.matrix.COOArray,
+    as.matrix.COOSparseArray,
 
     as.numeric.Array,
 
@@ -108,9 +111,9 @@ export(
 
     as.vector.Array,
 
-    mean.COOArray,
+    mean.COOSparseArray,
 
-    range.COOArray,
+    range.COOSparseArray,
 
     rowsum.dgCMatrix,
 
@@ -168,7 +171,7 @@ export(
     DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid,
 
     ## SparseArray-class.R:
-    COOArray, dense2sparse, sparse2dense,
+    COOSparseArray, dense2sparse, sparse2dense,
 
     ## readSparseCSV.R:
     readSparseCSV, readSparseTable

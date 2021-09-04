@@ -32,5 +32,6 @@ Collate: utils.R
 	show-utils.R
 	SparseArray-class.R
 	SparseArray-utils.R
+	SparseVectorTree-class.R
 	readSparseCSV.R
 	zzz.R

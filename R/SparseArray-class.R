@@ -67,7 +67,7 @@ setMethod("is_sparse", "SparseArray", function(x) TRUE)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### COOArray objects
+### COOSparseArray objects
 ###
 ### Same as SparseArraySeed objects in the DelayedArray package.
 ### Extends the Coordinate List (COO) layout used for sparse matrices to
@@ -75,18 +75,18 @@ setMethod("is_sparse", "SparseArray", function(x) TRUE)
 ### See https://en.wikipedia.org/wiki/Sparse_matrix#Coordinate_list_(COO)
 ### This layout is also used by https://sparse.pydata.org/
 ###
-### COOArray API:
+### COOSparseArray API:
 ### - The SparseArray API.
 ### - Getters: nzindex(), nzdata().
 ### - sparsity().
 ### - dense2sparse(), sparse2dense().
 ### - Based on sparse2dense(): extract_array(), as.array(), as.matrix().
-### - Based on dense2sparse(): coercion to COOArray.
-### - Back and forth coercion between COOArray and dg[C|R]Matrix or
+### - Based on dense2sparse(): coercion to COOSparseArray.
+### - Back and forth coercion between COOSparseArray and dg[C|R]Matrix or
 ###   lg[C|R]Matrix objects from the Matrix package.
 ###
 
-setClass("COOArray",
+setClass("COOSparseArray",
     contains="SparseArray",
     representation(
         nzindex="matrix",  # M-index of the nonzero data.
@@ -101,7 +101,7 @@ setClass("COOArray",
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### COOArray validity
+### COOSparseArray validity
 ###
 
 .validate_nzindex_slot <- function(x)
@@ -133,7 +133,7 @@ setClass("COOArray",
     TRUE
 }
 
-.validate_COOArray <- function(x)
+.validate_COOSparseArray <- function(x)
 {
     msg <- .validate_nzindex_slot(x)
     if (!isTRUE(msg))
@@ -144,18 +144,18 @@ setClass("COOArray",
     TRUE
 }
 
-setValidity2("COOArray", .validate_COOArray)
+setValidity2("COOSparseArray", .validate_COOSparseArray)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Getters/setters
+### COOSparseArray getters/setters
 ###
 
 setGeneric("nzindex", function(x) standardGeneric("nzindex"))
-setMethod("nzindex", "COOArray", function(x) x@nzindex)
+setMethod("nzindex", "COOSparseArray", function(x) x@nzindex)
 
 setGeneric("nzdata", function(x) standardGeneric("nzdata"))
-setMethod("nzdata", "COOArray", function(x) x@nzdata)
+setMethod("nzdata", "COOSparseArray", function(x) x@nzdata)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -164,7 +164,7 @@ setMethod("nzdata", "COOArray", function(x) x@nzdata)
 
 setGeneric("sparsity", function(x) standardGeneric("sparsity"))
 
-setMethod("sparsity", "COOArray",
+setMethod("sparsity", "COOSparseArray",
     function(x) { 1 - length(nzdata(x)) / length(x) }
 )
 
@@ -192,8 +192,8 @@ setMethod("sparsity", "COOArray",
     rep(nzdata, length.out=length.out)
 }
 
-COOArray <- function(dim, nzindex=NULL, nzdata=NULL, dimnames=NULL,
-                          check=TRUE)
+COOSparseArray <- function(dim, nzindex=NULL, nzdata=NULL, dimnames=NULL,
+                                check=TRUE)
 {
     if (!is.numeric(dim))
         stop(wmsg("'dim' must be an integer vector"))
@@ -217,9 +217,9 @@ COOArray <- function(dim, nzindex=NULL, nzdata=NULL, dimnames=NULL,
         nzdata <- .normarg_nzdata(nzdata, nrow(nzindex))
     }
     dimnames <- normarg_dimnames(dimnames, dim)
-    new2("COOArray", dim=dim, dimnames=dimnames,
-                     nzindex=nzindex, nzdata=nzdata,
-                     check=check)
+    new2("COOSparseArray", dim=dim, dimnames=dimnames,
+                           nzindex=nzindex, nzdata=nzdata,
+                           check=check)
 }
 
 
@@ -229,7 +229,7 @@ COOArray <- function(dim, nzindex=NULL, nzdata=NULL, dimnames=NULL,
 
 ### 'x' must be an array-like object that supports 'type()' and subsetting
 ### by an M-index subscript.
-### Return a COOArray object.
+### Returns a COOSparseArray object.
 dense2sparse <- function(x)
 {
     x_dim <- dim(x)
@@ -238,20 +238,20 @@ dense2sparse <- function(x)
     ## Make sure to use 'type()' and not 'typeof()'.
     zero <- vector(type(x), length=1L)
     nzindex <- which(x != zero, arr.ind=TRUE)  # M-index
-    COOArray(x_dim, nzindex, x[nzindex], dimnames(x), check=FALSE)
+    COOSparseArray(x_dim, nzindex, x[nzindex], dimnames(x), check=FALSE)
 }
 
-### 'sa' must be a COOArray object.
+### 'coosa' must be a COOSparseArray object.
 ### Return an ordinary array.
-sparse2dense <- function(sa)
+sparse2dense <- function(coosa)
 {
-    if (!is(sa, "COOArray"))
-        stop(wmsg("'sa' must be a COOArray object"))
-    sa_nzdata <- nzdata(sa)
+    if (!is(coosa, "COOSparseArray"))
+        stop(wmsg("'coosa' must be a COOSparseArray object"))
+    sa_nzdata <- nzdata(coosa)
     zero <- vector(typeof(sa_nzdata), length=1L)
-    ans <- array(zero, dim=dim(sa))
-    ans[nzindex(sa)] <- sa_nzdata
-    set_dimnames(ans, dimnames(sa))
+    ans <- array(zero, dim=dim(coosa))
+    ans[nzindex(coosa)] <- sa_nzdata
+    set_dimnames(ans, dimnames(coosa))
 }
 
 
@@ -261,7 +261,7 @@ sparse2dense <- function(sa)
 
 ### This is the workhorse behind read_sparse_block().
 ### Similar to extract_array() except that:
-###   (1) The extracted array data must be returned in a COOArray
+###   (1) The extracted array data must be returned in a COOSparseArray
 ###       object. Methods should always operate on the sparse representation
 ###       of the data and never "expand" it, that is, never turn it into a
 ###       dense representation for example by doing something like
@@ -286,7 +286,7 @@ setGeneric("extract_sparse_array",
         ## doing something like the extract_array() generic where
         ## check_returned_array() is used to display a long and
         ## detailed error message.
-        stopifnot(is(ans, "COOArray"),
+        stopifnot(is(ans, "COOSparseArray"),
                   identical(dim(ans), expected_dim))
         ans
     }
@@ -295,26 +295,26 @@ setGeneric("extract_sparse_array",
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### is_sparse(), extract_sparse_array(), and extract_array() methods for
-### COOArray objects
+### COOSparseArray objects
 ###
 
-### IMPORTANT NOTE: The returned COOArray object is guaranteed to be
+### IMPORTANT NOTE: The returned COOSparseArray object is guaranteed to be
 ### **correct** ONLY if the subscripts in 'index' do NOT contain duplicates!
-### If they contain duplicates, the correct COOArray object to return
+### If they contain duplicates, the correct COOSparseArray object to return
 ### should contain repeated nonzero data. However, in order to keep it as
 ### efficient as possible, the code below does NOT repeat the nonzero data
 ### that corresponds to duplicates subscripts. It does not check for
 ### duplicates in 'index' either because this check could have a
 ### non-negligible cost.
-### All this is OK because .extract_sparse_array_from_COOArray()
+### All this is OK because .extract_sparse_array_from_COOSparseArray()
 ### should always be used in a context where 'index' does NOT contain
 ### duplicates. The only situation where 'index' CAN contain duplicates
-### is when .extract_sparse_array_from_COOArray() is called by
-### .extract_array_from_COOArray(), in which case the missing
+### is when .extract_sparse_array_from_COOSparseArray() is called by
+### .extract_array_from_COOSparseArray(), in which case the missing
 ### nonzero data is added later.
-.extract_sparse_array_from_COOArray <- function(x, index)
+.extract_sparse_array_from_COOSparseArray <- function(x, index)
 {
-    stopifnot(is(x, "COOArray"))
+    stopifnot(is(x, "COOSparseArray"))
     ans_dim <- get_Nindex_lengths(index, dim(x))
     x_nzindex <- x@nzindex
     for (along in seq_along(ans_dim)) {
@@ -326,15 +326,15 @@ setGeneric("extract_sparse_array",
     keep_idx <- which(!rowAnyNAs(x_nzindex))
     ans_nzindex <- x_nzindex[keep_idx, , drop=FALSE]
     ans_nzdata <- x@nzdata[keep_idx]
-    COOArray(ans_dim, ans_nzindex, ans_nzdata, check=FALSE)
+    COOSparseArray(ans_dim, ans_nzindex, ans_nzdata, check=FALSE)
 }
-setMethod("extract_sparse_array", "COOArray",
-    .extract_sparse_array_from_COOArray
+setMethod("extract_sparse_array", "COOSparseArray",
+    .extract_sparse_array_from_COOSparseArray
 )
 
-.extract_array_from_COOArray <- function(x, index)
+.extract_array_from_COOSparseArray <- function(x, index)
 {
-    sa0 <- .extract_sparse_array_from_COOArray(x, index)
+    sa0 <- .extract_sparse_array_from_COOSparseArray(x, index)
     ## If the subscripts in 'index' contain duplicates, 'sa0' is
     ## "incomplete" in the sense that it does not contain the nonzero data
     ## that should have been repeated according to the duplicates in the
@@ -344,7 +344,7 @@ setMethod("extract_sparse_array", "COOArray",
     ## duplicates present in the subscripts. Note that this is easy and cheap
     ## to do now because 'ans0' uses a dense representation (it's an ordinary
     ## array). This would be much harder to do **natively** on the
-    ## COOArray form (i.e. without converting first to dense then
+    ## COOSparseArray form (i.e. without converting first to dense then
     ## back to sparse in the process).
     sm_index <- lapply(index,
         function(i) {
@@ -359,8 +359,8 @@ setMethod("extract_sparse_array", "COOArray",
         return(ans0)
     subset_by_Nindex(ans0, sm_index)
 }
-setMethod("extract_array", "COOArray",
-    .extract_array_from_COOArray
+setMethod("extract_array", "COOSparseArray",
+    .extract_array_from_COOSparseArray
 )
 
 
@@ -368,37 +368,37 @@ setMethod("extract_array", "COOArray",
 ### Show
 ###
 
-setMethod("show", "COOArray",
+setMethod("show", "COOSparseArray",
     function(object) show_compact_array(object)
 )
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Coercion to/from COOArray
+### Coercion to/from COOSparseArray
 ###
 
-### S3/S4 combo for as.array.COOArray
-as.array.COOArray <- function(x, ...) sparse2dense(x)
-setMethod("as.array", "COOArray", as.array.COOArray)
+### S3/S4 combo for as.array.COOSparseArray
+as.array.COOSparseArray <- function(x, ...) sparse2dense(x)
+setMethod("as.array", "COOSparseArray", as.array.COOSparseArray)
 
-### S3/S4 combo for as.matrix.COOArray
-.from_COOArray_to_matrix <- function(x)
+### S3/S4 combo for as.matrix.COOSparseArray
+.from_COOSparseArray_to_matrix <- function(x)
 {
     x_dim <- dim(x)
     if (length(x_dim) != 2L)
         stop(wmsg("'x' must have exactly 2 dimensions"))
     sparse2dense(x)
 }
-as.matrix.COOArray <-
-    function(x, ...) .from_COOArray_to_matrix(x, ...)
-setMethod("as.matrix", "COOArray", .from_COOArray_to_matrix)
+as.matrix.COOSparseArray <-
+    function(x, ...) .from_COOSparseArray_to_matrix(x, ...)
+setMethod("as.matrix", "COOSparseArray", .from_COOSparseArray_to_matrix)
 
-setAs("ANY", "COOArray", function(from) dense2sparse(from))
+setAs("ANY", "COOSparseArray", function(from) dense2sparse(from))
 
-### Going back and forth between COOArray and dg[C|R]Matrix or
+### Going back and forth between COOSparseArray and dg[C|R]Matrix or
 ### lg[C|R]Matrix objects from the Matrix package:
 
-.from_COOArray_to_CsparseMatrix <- function(from)
+.from_COOSparseArray_to_CsparseMatrix <- function(from)
 {
     from_dim <- dim(from)
     if (length(from_dim) != 2L)
@@ -409,7 +409,7 @@ setAs("ANY", "COOArray", function(from) dense2sparse(from))
     CsparseMatrix(from_dim, i, j, from@nzdata, dimnames=dimnames(from))
 }
 
-.from_COOArray_to_RsparseMatrix <- function(from)
+.from_COOSparseArray_to_RsparseMatrix <- function(from)
 {
     from_dim <- dim(from)
     if (length(from_dim) != 2L)
@@ -420,65 +420,65 @@ setAs("ANY", "COOArray", function(from) dense2sparse(from))
     RsparseMatrix(from_dim, i, j, from@nzdata, dimnames=dimnames(from))
 }
 
-setAs("COOArray", "CsparseMatrix",
-    .from_COOArray_to_CsparseMatrix
+setAs("COOSparseArray", "CsparseMatrix",
+    .from_COOSparseArray_to_CsparseMatrix
 )
-setAs("COOArray", "RsparseMatrix",
-    .from_COOArray_to_RsparseMatrix
+setAs("COOSparseArray", "RsparseMatrix",
+    .from_COOSparseArray_to_RsparseMatrix
 )
-setAs("COOArray", "sparseMatrix",
-    .from_COOArray_to_CsparseMatrix
+setAs("COOSparseArray", "sparseMatrix",
+    .from_COOSparseArray_to_CsparseMatrix
 )
-setAs("COOArray", "dgCMatrix",
+setAs("COOSparseArray", "dgCMatrix",
     function(from) as(as(from, "CsparseMatrix"), "dgCMatrix")
 )
-setAs("COOArray", "dgRMatrix",
+setAs("COOSparseArray", "dgRMatrix",
     function(from) as(as(from, "RsparseMatrix"), "dgRMatrix")
 )
-setAs("COOArray", "lgCMatrix",
+setAs("COOSparseArray", "lgCMatrix",
     function(from) as(as(from, "CsparseMatrix"), "lgCMatrix")
 )
 ### Will fail if 'as(from, "RsparseMatrix")' returns a dgRMatrix object
 ### because the Matrix package doesn't support coercion from dgRMatrix
 ### to lgRMatrix at the moment:
-###   > as(COOArray(4:3, rbind(c(4, 3)), -2), "lgRMatrix")
+###   > as(COOSparseArray(4:3, rbind(c(4, 3)), -2), "lgRMatrix")
 ###   Error in as(as(from, "RsparseMatrix"), "lgRMatrix") :
 ###     no method or default for coercing “dgRMatrix” to “lgRMatrix”
-setAs("COOArray", "lgRMatrix",
+setAs("COOSparseArray", "lgRMatrix",
     function(from) as(as(from, "RsparseMatrix"), "lgRMatrix")
 )
 
-.make_COOArray_from_dgCMatrix_or_lgCMatrix <-
+.make_COOSparseArray_from_dgCMatrix_or_lgCMatrix <-
     function(from, use.dimnames=TRUE)
 {
     i <- from@i + 1L
     j <- rep.int(seq_len(ncol(from)), diff(from@p))
     ans_nzindex <- cbind(i, j, deparse.level=0L)
     ans_dimnames <- if (use.dimnames) dimnames(from) else NULL
-    COOArray(dim(from), ans_nzindex, from@x, ans_dimnames, check=FALSE)
+    COOSparseArray(dim(from), ans_nzindex, from@x, ans_dimnames, check=FALSE)
 }
 
-.make_COOArray_from_dgRMatrix_or_lgRMatrix <-
+.make_COOSparseArray_from_dgRMatrix_or_lgRMatrix <-
     function(from, use.dimnames=TRUE)
 {
     i <- rep.int(seq_len(nrow(from)), diff(from@p))
     j <- from@j + 1L
     ans_nzindex <- cbind(i, j, deparse.level=0L)
     ans_dimnames <- if (use.dimnames) dimnames(from) else NULL
-    COOArray(dim(from), ans_nzindex, from@x, ans_dimnames, check=FALSE)
+    COOSparseArray(dim(from), ans_nzindex, from@x, ans_dimnames, check=FALSE)
 }
 
-setAs("dgCMatrix", "COOArray",
-    function(from) .make_COOArray_from_dgCMatrix_or_lgCMatrix(from)
+setAs("dgCMatrix", "COOSparseArray",
+    function(from) .make_COOSparseArray_from_dgCMatrix_or_lgCMatrix(from)
 )
-setAs("dgRMatrix", "COOArray",
-    function(from) .make_COOArray_from_dgRMatrix_or_lgRMatrix(from)
+setAs("dgRMatrix", "COOSparseArray",
+    function(from) .make_COOSparseArray_from_dgRMatrix_or_lgRMatrix(from)
 )
-setAs("lgCMatrix", "COOArray",
-    function(from) .make_COOArray_from_dgCMatrix_or_lgCMatrix(from)
+setAs("lgCMatrix", "COOSparseArray",
+    function(from) .make_COOSparseArray_from_dgCMatrix_or_lgCMatrix(from)
 )
-setAs("lgRMatrix", "COOArray",
-    function(from) .make_COOArray_from_dgRMatrix_or_lgRMatrix(from)
+setAs("lgRMatrix", "COOSparseArray",
+    function(from) .make_COOSparseArray_from_dgRMatrix_or_lgRMatrix(from)
 )
 
 
@@ -498,13 +498,13 @@ setMethod("is_sparse", "lgRMatrix", function(x) TRUE)
 .extract_sparse_array_from_dgCMatrix_or_lgCMatrix <- function(x, index)
 {
     sm <- subset_by_Nindex(x, index)  # a dgCMatrix or lgCMatrix object
-    .make_COOArray_from_dgCMatrix_or_lgCMatrix(sm, use.dimnames=FALSE)
+    .make_COOSparseArray_from_dgCMatrix_or_lgCMatrix(sm, use.dimnames=FALSE)
 }
 
 .extract_sparse_array_from_dgRMatrix_or_lgRMatrix <- function(x, index)
 {
     sm <- subset_by_Nindex(x, index)  # a dgRMatrix or lgRMatrix object
-    .make_COOArray_from_dgRMatrix_or_lgRMatrix(sm, use.dimnames=FALSE)
+    .make_COOSparseArray_from_dgRMatrix_or_lgRMatrix(sm, use.dimnames=FALSE)
 }
 
 setMethod("extract_sparse_array", "dgCMatrix",
@@ -528,7 +528,7 @@ setMethod("extract_sparse_array", "lgRMatrix",
 ### dimensions. See aperm2.R
 ###
 
-.aperm.COOArray <- function(a, perm)
+.aperm.COOSparseArray <- function(a, perm)
 {
     a_dim <- dim(a)
     perm <- normarg_perm(perm, a_dim)
@@ -546,8 +546,8 @@ setMethod("extract_sparse_array", "lgRMatrix",
                                    check=FALSE)
 }
 
-### S3/S4 combo for aperm.COOArray
-aperm.COOArray <-
-    function(a, perm, ...) .aperm.COOArray(a, perm, ...)
-setMethod("aperm", "COOArray", aperm.COOArray)
+### S3/S4 combo for aperm.COOSparseArray
+aperm.COOSparseArray <-
+    function(a, perm, ...) .aperm.COOSparseArray(a, perm, ...)
+setMethod("aperm", "COOSparseArray", aperm.COOSparseArray)
 
