@@ -31,8 +31,8 @@ exportClasses(
     ## SparseArray-class.R:
     SparseArray, COOSparseArray,
 
-    ## SparseVectorTree-class.R:
-    NULL_OR_list, SparseVectorTree
+    ## SVTSparseArray-class.R:
+    NULL_OR_list, SVTSparseArray
 )
 
 
