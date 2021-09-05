@@ -67,6 +67,18 @@ setClass("SVTSparseArray",
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### Low-level constructor
+###
+
+.new_SVTSparseArray <- function(dim, dimnames=NULL, type="logical",
+                                svtree=NULL, check=TRUE)
+{
+    new2("SVTSparseArray", dim=dim, dimnames=dimnames, type=type,
+                           svtree=svtree, check=check)
+}
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### Getters
 ###
 
@@ -75,8 +87,11 @@ setMethod("type", "SVTSparseArray", function(x) x@type)
 ### Note that like for the length of atomic vectors in base R, the returned
 ### length will be a double if it's > .Machine$integer.max
 .get_SVTSparseArray_nzdata_length <- function(x)
+{
+    stopifnot(is(x, "SVTSparseArray"))
     .Call2("C_get_SVTSparseArray_nzdata_length", x@dim, x@svtree,
                                                  PACKAGE="S4Arrays")
+}
 
 #setMethod("nzdataLength", "SVTSparseArray",
 #    .get_SVTSparseArray_nzdata_length
@@ -89,22 +104,24 @@ setMethod("type", "SVTSparseArray", function(x) x@type)
 
 .from_SVTSparseArray_to_COOSparseArray <- function(from)
 {
+    stopifnot(is(from, "SVTSparseArray"))
     ## Returns 'ans_nzindex' and 'ans_nzdata' in a list of length 2.
     C_ans <- .Call2("C_from_SVTSparseArray_to_COOSparseArray",
                     from@dim, from@type, from@svtree, PACKAGE="S4Arrays")
     ans_nzindex <- C_ans[[1L]]
     ans_nzdata  <- C_ans[[2L]]
     new2("COOSparseArray", dim=from@dim, dimnames=from@dimnames,
-                     nzindex=ans_nzindex, nzdata=ans_nzdata, check=FALSE)
+                           nzindex=ans_nzindex, nzdata=ans_nzdata, check=FALSE)
 }
 
 .from_COOSparseArray_to_SVTSparseArray <- function(from)
 {
+    stopifnot(is(from, "COOSparseArray"))
     ans_svtree <- .Call2("C_from_COOSparseArray_to_SVTSparseArray",
                          from@dim, from@nzindex, from@nzdata,
                          PACKAGE="S4Arrays")
-    new2("SVTSparseArray", dim=from@dim, dimnames=from@dimnames,
-                           type=type(from), svtree=ans_svtree, check=FALSE)
+    .new_SVTSparseArray(from@dim, from@dimnames, type(from), ans_svtree,
+                        check=FALSE)
 }
 
 setAs("SVTSparseArray", "COOSparseArray",
@@ -112,5 +129,44 @@ setAs("SVTSparseArray", "COOSparseArray",
 )
 setAs("COOSparseArray", "SVTSparseArray",
     .from_COOSparseArray_to_SVTSparseArray
+)
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### SVTSparseArray constructor
+###
+
+.make_SVTSparseArray_from_dgCMatrix <- function(x, as.integer=FALSE)
+{
+    stopifnot(is(x, "dgCMatrix"))
+    if (!isTRUEorFALSE(as.integer))
+        stop(wmsg("'as.integer' must be TRUE or FALSE"))
+    ans_svtree <- .Call2("C_make_SVTSparseArray_from_dgCMatrix",
+                         x, as.integer, PACKAGE="S4Arrays")
+    .new_SVTSparseArray(dim(x), dimnames(x), type(x), ans_svtree,
+                        check=FALSE)
+}
+
+SVTSparseArray <- function(x, as.integer=FALSE)
+{
+    if (!is(x, "dgCMatrix"))
+        return(as(x, "SVTSparseArray"))
+    .make_SVTSparseArray_from_dgCMatrix(x, as.integer=as.integer)
+}
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### Going from dgCMatrix or lgCMatrix to SVTSparseArray objects
+###
+
+setAs("dgCMatrix", "SVTSparseArray",
+    function(from) .make_SVTSparseArray_from_dgCMatrix(from)
+)
+
+setAs("lgCMatrix", "SVTSparseArray",
+    function(from)
+    {
+        stop("not ready yet")
+    }
 )
 

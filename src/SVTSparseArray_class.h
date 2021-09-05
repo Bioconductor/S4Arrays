@@ -20,5 +20,10 @@ SEXP C_from_COOSparseArray_to_SVTSparseArray(
         SEXP x_nzdata
 );
 
+SEXP C_make_SVTSparseArray_from_dgCMatrix(
+	SEXP x,
+	SEXP as_integer
+);
+
 #endif  /* _SVTSPARSEARRAY_CLASS_H_ */
 

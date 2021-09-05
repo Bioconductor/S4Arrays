@@ -173,6 +173,9 @@ export(
     ## SparseArray-class.R:
     COOSparseArray, dense2sparse, sparse2dense,
 
+    ## SVTSparseArray-class.R:
+    SVTSparseArray,
+
     ## readSparseCSV.R:
     readSparseCSV, readSparseTable
 )

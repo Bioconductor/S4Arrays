@@ -440,15 +440,15 @@ static int grow_svtree(SEXP svtree,
 	return 0;
 }
 
-static SEXP alloc_list_of_leaf_vectors(SEXP lv_lens, SEXPTYPE Rtype)
+static SEXP alloc_list_of_leaf_vectors(const int *lv_lens, int lv_lens_len,
+		SEXPTYPE Rtype)
 {
-	int ans_len, k, lv_len;
 	SEXP ans, ans_elt;
+	int k, lv_len;
 
-	ans_len = LENGTH(lv_lens);
-	ans = PROTECT(NEW_LIST(ans_len));
-	for (k = 0; k < ans_len; k++) {
-		lv_len = INTEGER(lv_lens)[k];
+	ans = PROTECT(NEW_LIST(lv_lens_len));
+	for (k = 0; k < lv_lens_len; k++) {
+		lv_len = lv_lens[k];
 		if (lv_len != 0) {
 			ans_elt = PROTECT(alloc_leaf_vector(lv_len, Rtype));
 			SET_VECTOR_ELT(ans, k, ans_elt);
@@ -482,7 +482,8 @@ static int store_nzpos_and_nzval_in_svtree(
 		/* 'sub_svtree' is an integer vector of counts or a list. */
 		if (IS_INTEGER(sub_svtree)) {
 			sub_svtree = PROTECT(
-				alloc_list_of_leaf_vectors(sub_svtree,
+				alloc_list_of_leaf_vectors(INTEGER(sub_svtree),
+							   LENGTH(sub_svtree),
 							   TYPEOF(nzdata))
 			);
 			SET_VECTOR_ELT(svtree, k, sub_svtree);
@@ -549,8 +550,10 @@ SEXP C_from_COOSparseArray_to_SVTSparseArray(SEXP x_dim,
 
 	/* 2nd pass: Add the leaf vectors to the tree. */
 	if (ndim == 2)
-		ans = PROTECT(alloc_list_of_leaf_vectors(ans,
-			      TYPEOF(x_nzdata)));
+		ans = PROTECT(
+			alloc_list_of_leaf_vectors(INTEGER(ans), ans_len,
+						   TYPEOF(x_nzdata))
+		);
 	for (i = 0; i < nzdata_len; i++) {
 		ret = store_nzpos_and_nzval_in_svtree(
 					  INTEGER(x_nzindex), nzdata_len, ndim,
@@ -567,6 +570,65 @@ SEXP C_from_COOSparseArray_to_SVTSparseArray(SEXP x_dim,
 
 	if (ndim == 2)
 		UNPROTECT(1);
+	UNPROTECT(1);
+	return ans;
+}
+
+
+/****************************************************************************
+ * C_make_SVTSparseArray_from_dgCMatrix()
+ */
+
+static SEXP make_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
+						int offset, int lv_len)
+{
+	SEXP lv_pos, lv_vals, ans;
+	int k;
+
+	lv_pos  = PROTECT(NEW_INTEGER(lv_len));
+	lv_vals = PROTECT(NEW_NUMERIC(lv_len));
+	for (k = 0; k < lv_len; k++) {
+		INTEGER(lv_pos)[k]  = INTEGER(x_i)[offset] + 1;
+		REAL(lv_vals)[k]    = REAL(x_x)[offset];
+		offset++;
+	}
+	ans = new_leaf_vector(lv_pos, lv_vals);
+	UNPROTECT(2);
+	return ans;
+}
+
+SEXP C_make_SVTSparseArray_from_dgCMatrix(SEXP x, SEXP as_integer)
+{
+	SEXP x_Dim, x_p, x_i, x_x, ans, lv;
+	int as_int, x_ncol, j, offset, lv_len;
+
+	as_int = LOGICAL(as_integer)[0];
+	if (as_int)
+		error("'as.integer=TRUE' is not supported yet");
+
+	x_Dim = GET_SLOT(x, install("Dim"));
+	x_ncol = INTEGER(x_Dim)[1];
+	x_p = GET_SLOT(x, install("p"));
+
+	if (INTEGER(x_p)[x_ncol] == 0)
+		return R_NilValue;
+
+	x_i = GET_SLOT(x, install("i"));
+	x_x = GET_SLOT(x, install("x"));
+
+	ans = PROTECT(NEW_LIST(x_ncol));
+	for (j = 0; j < x_ncol; j++) {
+		offset = INTEGER(x_p)[j];
+		lv_len = INTEGER(x_p)[j + 1] - offset;
+		if (lv_len != 0) {
+			lv = PROTECT(
+				make_leaf_vector_from_dgCMatrix_col(x_i, x_x,
+							offset, lv_len)
+			);
+			SET_VECTOR_ELT(ans, j, lv);
+			UNPROTECT(1);
+		}
+	}
 	UNPROTECT(1);
 	return ans;
 }
