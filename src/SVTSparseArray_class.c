@@ -597,6 +597,7 @@ static SEXP make_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
 	return ans;
 }
 
+/* --- .Call ENTRY POINT --- */
 SEXP C_make_SVTSparseArray_from_dgCMatrix(SEXP x, SEXP as_integer)
 {
 	SEXP x_Dim, x_p, x_i, x_x, ans, lv;
@@ -630,6 +631,71 @@ SEXP C_make_SVTSparseArray_from_dgCMatrix(SEXP x, SEXP as_integer)
 		}
 	}
 	UNPROTECT(1);
+	return ans;
+}
+
+
+/****************************************************************************
+ * From SVTSparseArray to [d|l]gCMatrix
+ */
+
+static void dump_svtree_to_CsparseMatrix_slots(SEXP x_svtree, int x_ncol,
+		SEXP ans_p, SEXP ans_i, SEXP ans_x)
+{
+	int offset, j, lv_len, k;
+	SEXP sub_svtree, lv_pos, lv_vals;
+
+	INTEGER(ans_p)[0] = 0;
+	offset = 0;
+	for (j = 0; j < x_ncol; j++) {
+		sub_svtree = VECTOR_ELT(x_svtree, j);
+		if (!isNull(sub_svtree)) {
+			/* 'sub_svtree' is a "leaf vector". */
+			lv_len = split_leaf_vector(sub_svtree,
+						   &lv_pos, &lv_vals);
+			copy_vector_elts(lv_vals, 0, ans_x, offset, lv_len);
+			for (k = 0; k < lv_len; k++) {
+				INTEGER(ans_i)[offset] = INTEGER(lv_pos)[k] - 1;
+				offset++;
+			}
+		}
+		INTEGER(ans_p)[j + 1] = offset;
+	}
+	return;
+}
+
+/* --- .Call ENTRY POINT --- */
+SEXP C_from_SVTSparseArray_to_CsparseMatrix(SEXP x_dim,
+		SEXP x_type, SEXP x_svtree)
+{
+	int x_ncol;
+	R_xlen_t nzdata_len;
+	SEXP ans_p, ans_i, ans_x, ans;
+
+	if (LENGTH(x_dim) != 2)
+		error("object to coerce to dgCMatrix "
+		      "must have exactly 2 dimensions");
+	x_ncol = INTEGER(x_dim)[1];
+	nzdata_len = sum_leaf_vector_lengths_REC(x_svtree, 2);
+	if (nzdata_len > INT_MAX)
+		error("SVTSparseArray object contains too many nonzero "
+		      "values to be turned into a COOSparseArray object");
+
+	ans_i = PROTECT(NEW_INTEGER(nzdata_len));
+	ans_x = PROTECT(alloc_nzdata(nzdata_len, x_type));
+	if (nzdata_len == 0) {
+		ans_p = PROTECT(make_constant_INTEGER(x_ncol + 1, 0));
+	} else {
+		ans_p = PROTECT(NEW_INTEGER(x_ncol + 1));
+		dump_svtree_to_CsparseMatrix_slots(x_svtree, x_ncol,
+						   ans_p, ans_i, ans_x);
+	}
+
+	ans = PROTECT(NEW_LIST(3));
+	SET_VECTOR_ELT(ans, 0, ans_p);
+	SET_VECTOR_ELT(ans, 1, ans_i);
+	SET_VECTOR_ELT(ans, 2, ans_x);
+	UNPROTECT(4);
 	return ans;
 }
 

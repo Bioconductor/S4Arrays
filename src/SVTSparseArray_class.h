@@ -25,5 +25,11 @@ SEXP C_make_SVTSparseArray_from_dgCMatrix(
 	SEXP as_integer
 );
 
+SEXP C_from_SVTSparseArray_to_CsparseMatrix(
+	SEXP x_dim,
+	SEXP x_type,
+	SEXP x_svtree
+);
+
 #endif  /* _SVTSPARSEARRAY_CLASS_H_ */
 

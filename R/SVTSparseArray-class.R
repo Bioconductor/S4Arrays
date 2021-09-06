@@ -156,7 +156,7 @@ SVTSparseArray <- function(x, as.integer=FALSE)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Going from dgCMatrix or lgCMatrix to SVTSparseArray objects
+### Going back and forth between SVTSparseArray and [d|l]gCMatrix objects
 ###
 
 setAs("dgCMatrix", "SVTSparseArray",
@@ -169,4 +169,27 @@ setAs("lgCMatrix", "SVTSparseArray",
         stop("not ready yet")
     }
 )
+
+.from_SVTSparseArray_to_CsparseMatrix <- function(from)
+{
+    stopifnot(is(from, "SVTSparseArray"))
+    if (length(from@dim) != 2L)
+        stop(wmsg("the ", class(from), " object to coerce to dgCMatrix ",
+                  "or lgCMatrix must have exactly 2 dimensions"))
+    ans_class <- switch(from@type,
+                        'integer'=, 'double'="dgCMatrix",
+                        'logical'="lgCMatrix",
+                        stop(wmsg("unsupported data type: ", from@type)))
+    ## Returns 'ans_p', 'ans_i', and 'ans_x', in a list of length 3.
+    C_ans <- .Call2("C_from_SVTSparseArray_to_CsparseMatrix",
+                    from@dim, from@type, from@svtree, PACKAGE="S4Arrays")
+    ans_p <- C_ans[[1L]]
+    ans_i <- C_ans[[2L]]
+    ans_x <- C_ans[[3L]]
+    new(ans_class, Dim=from@dim, p=ans_p, i=ans_i, x=ans_x,
+                   Dimnames=from@dimnames)
+}
+
+setAs("SVTSparseArray", "dgCMatrix", .from_SVTSparseArray_to_CsparseMatrix)
+setAs("SVTSparseArray", "lgCMatrix", .from_SVTSparseArray_to_CsparseMatrix)
 
