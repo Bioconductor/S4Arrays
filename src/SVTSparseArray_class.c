@@ -19,6 +19,11 @@ static const SEXPTYPE supported_SVT_Rtypes[] = {
 	VECSXP    // "list"
 };
 
+
+/****************************************************************************
+ * Low-level utils
+ */
+
 static inline size_t get_Rtype_size(SEXPTYPE Rtype)
 {
 	switch (Rtype) {
@@ -27,39 +32,54 @@ static inline size_t get_Rtype_size(SEXPTYPE Rtype)
 	    case CPLXSXP:             return sizeof(Rcomplex);
 	    case RAWSXP:              return sizeof(Rbyte);
 	}
-	error("S4Arrays internal error in get_Rtype_size():\n"
-	      "  unsupported 'Rtype'");
 	return 0;
 }
 
-
-/****************************************************************************
- * Low-level utils
- */
-
-/* Also checks the supplied 'type'. */
-static SEXPTYPE get_Rtype_from_SVTSparseArray_type(SEXP type)
+/* Like allocVector() but with initialization of the vector elements. */
+static SEXP new_Rvector(SEXPTYPE Rtype, R_xlen_t len)
 {
-	static const char *msg;
-	SEXP type0;
-	SEXPTYPE Rtype;
-	int ntypes, i;
+	SEXP ans;
+	size_t Rtype_size;
 
-	msg = "S4Arrays internal error "
-	      "in get_Rtype_from_SVTSparseArray_type():\n"
-	      "  SVTSparseArray object has invalid type";
-	if (!IS_CHARACTER(type) || LENGTH(type) != 1)
-		error(msg);
-	type0 = STRING_ELT(type, 0);
-	if (type0 == NA_STRING)
-		error(msg);
-	Rtype = str2type(CHAR(type0));
-	ntypes = sizeof(supported_SVT_Rtypes) / sizeof(SEXPTYPE);
-	for (i = 0; i < ntypes; i++)
-		if (Rtype == supported_SVT_Rtypes[i])
-			return Rtype;
-	error(msg);
-	return 0;
+	ans = PROTECT(allocVector(Rtype, len));
+	/* allocVector() does NOT initialize the vector elements, except
+	   for a list or a character vector. */
+	if (Rtype != VECSXP && Rtype != STRSXP) {
+		Rtype_size = get_Rtype_size(Rtype);
+		if (Rtype_size == 0) {
+			UNPROTECT(1);
+			error("S4Arrays internal error in new_Rvector():\n"
+			      "  unsupported 'Rtype'");
+		}
+		memset(DATAPTR(ans), 0, Rtype_size * XLENGTH(ans));
+	}
+	UNPROTECT(1);
+	return ans;
+}
+
+/* Like allocArray() but with initialization of the array elements and
+   addition of the dimnames. */
+static SEXP new_Rarray(SEXPTYPE Rtype, SEXP dim, SEXP dimnames)
+{
+	SEXP ans;
+	size_t Rtype_size;
+
+	ans = PROTECT(allocArray(Rtype, dim));
+	/* allocArray() is just a thin wrapper for allocVector() and the
+	   latter does NOT initialize the vector elements, except for a
+	   list or a character vector. */
+	if (Rtype != VECSXP && Rtype != STRSXP) {
+		Rtype_size = get_Rtype_size(Rtype);
+		if (Rtype_size == 0) {
+			UNPROTECT(1);
+			error("S4Arrays internal error in new_Rarray():\n"
+			      "  unsupported 'Rtype'");
+		}
+		memset(DATAPTR(ans), 0, Rtype_size * XLENGTH(ans));
+	}
+	SET_DIMNAMES(ans, dimnames);
+	UNPROTECT(1);
+	return ans;
 }
 
 typedef void (*CopyRVectorEltFunType)(
@@ -245,16 +265,29 @@ static inline int copy_Rvector_elts(
 	return 0;
 }
 
-static SEXP make_constant_INTEGER(int len, int val)
+/* Also checks the supplied 'type'. */
+static SEXPTYPE get_Rtype_from_SVTSparseArray_type(SEXP type)
 {
-	SEXP ans;
-	int k;
+	static const char *msg;
+	SEXP type0;
+	SEXPTYPE Rtype;
+	int ntypes, i;
 
-	ans = PROTECT(NEW_INTEGER(len));
-	for (k = 0; k < len; k++)
-		INTEGER(ans)[k] = val;
-	UNPROTECT(1);
-	return ans;
+	msg = "S4Arrays internal error "
+	      "in get_Rtype_from_SVTSparseArray_type():\n"
+	      "  SVTSparseArray object has invalid type";
+	if (!IS_CHARACTER(type) || LENGTH(type) != 1)
+		error(msg);
+	type0 = STRING_ELT(type, 0);
+	if (type0 == NA_STRING)
+		error(msg);
+	Rtype = str2type(CHAR(type0));
+	ntypes = sizeof(supported_SVT_Rtypes) / sizeof(SEXPTYPE);
+	for (i = 0; i < ntypes; i++)
+		if (Rtype == supported_SVT_Rtypes[i])
+			return Rtype;
+	error(msg);
+	return 0;
 }
 
 
@@ -310,17 +343,6 @@ static inline int split_leaf_vector(SEXP lv, SEXP *lv_pos, SEXP *lv_vals)
 	return (int) lv_pos_len;
 }
 
-static SEXP alloc_leaf_vector(int lv_len, SEXPTYPE Rtype)
-{
-	SEXP lv_pos, lv_vals, ans;
-
-	lv_pos  = PROTECT(make_constant_INTEGER(lv_len, -1));
-	lv_vals = PROTECT(allocVector(Rtype, lv_len));
-	ans = new_leaf_vector(lv_pos, lv_vals);
-	UNPROTECT(2);
-	return ans;
-}
-
 static SEXP make_leaf_vector(const int *pos, SEXP lv_vals, int maxpos)
 {
 	int lv_len, k, p;
@@ -342,28 +364,27 @@ static SEXP make_leaf_vector(const int *pos, SEXP lv_vals, int maxpos)
 	return ans;
 }
 
-static inline int append_pos_val_pair_to_leaf_vector(SEXP lv,
+/* 'alv' must be an "appendable leaf vector. */
+static inline int append_pos_val_pair_to_leaf_vector(SEXP alv,
 		int pos, SEXP nzdata, int nzdata_offset)
 {
-	int lv_len, k;
-	SEXP lv_pos, lv_vals;
+	SEXP alv_pos, alv_vals, alv_nelt;
+	int alv_len, *alv_nelt_p;
 
-	lv_len = split_leaf_vector(lv, &lv_pos, &lv_vals);
-	if (lv_len < 0)
+	alv_pos  = VECTOR_ELT(alv, 0);
+	alv_vals = VECTOR_ELT(alv, 1);
+	alv_nelt = VECTOR_ELT(alv, 2);
+	alv_len  = LENGTH(alv_pos);
+	alv_nelt_p = INTEGER(alv_nelt);
+	if (*alv_nelt_p >= alv_len)
 		return -1;
-
-	for (k = 0; k < lv_len; k++) {
-		if (INTEGER(lv_pos)[k] == -1)
-			goto ok;
-	}
-	return -1;
-
-    ok:
-	INTEGER(lv_pos)[k] = pos;
+	INTEGER(alv_pos)[*alv_nelt_p] = pos;
 	/* Using copy_Rvector_elts() to copy a single element is not efficient.
 	   TODO: Find something more efficient. */
-	return copy_Rvector_elts(nzdata, (R_xlen_t) nzdata_offset,
-				 lv_vals, (R_xlen_t) k, (R_xlen_t) 1);
+	copy_Rvector_elts(nzdata, (R_xlen_t) nzdata_offset,
+			  alv_vals, (R_xlen_t) *alv_nelt_p, (R_xlen_t) 1);
+	(*alv_nelt_p)++;
+	return *alv_nelt_p == alv_len;
 }
 
 
@@ -560,7 +581,9 @@ static int grow_svtree(SEXP svtree,
 		}
 		/* 'sub_svtree' is NULL or an integer vector of counts. */
 		if (isNull(sub_svtree)) {
-			sub_svtree = PROTECT(make_constant_INTEGER(dim[j], 0));
+			sub_svtree = PROTECT(
+				new_Rvector(INTSXP, (R_xlen_t) dim[j])
+			);
 			SET_VECTOR_ELT(svtree, k, sub_svtree);
 			UNPROTECT(1);
 		}
@@ -575,23 +598,43 @@ static int grow_svtree(SEXP svtree,
 	return 0;
 }
 
-static SEXP alloc_list_of_leaf_vectors(const int *lv_lens, int lv_lens_len,
+static SEXP alloc_appendable_leaf_vector(int alv_len, SEXPTYPE Rtype)
+{
+	SEXP alv_pos, alv_vals, alv_nelt, ans;
+
+	alv_pos  = PROTECT(NEW_INTEGER(alv_len));
+	alv_vals = PROTECT(allocVector(Rtype, alv_len));
+	alv_nelt = PROTECT(NEW_INTEGER(1));
+	INTEGER(alv_nelt)[0] = 0;
+
+	ans = PROTECT(NEW_LIST(3));
+	SET_VECTOR_ELT(ans, 0, alv_pos);
+	SET_VECTOR_ELT(ans, 1, alv_vals);
+	SET_VECTOR_ELT(ans, 2, alv_nelt);
+	UNPROTECT(4);
+	return ans;
+}
+
+static SEXP alloc_list_of_appendable_leaf_vectors(
+		const int *alv_lens, int alv_lens_len,
 		SEXPTYPE Rtype)
 {
-	SEXP ans, ans_elt;
-	int k, lv_len;
+	SEXP alvs, alv;
+	int k, alv_len;
 
-	ans = PROTECT(NEW_LIST(lv_lens_len));
-	for (k = 0; k < lv_lens_len; k++) {
-		lv_len = lv_lens[k];
-		if (lv_len != 0) {
-			ans_elt = PROTECT(alloc_leaf_vector(lv_len, Rtype));
-			SET_VECTOR_ELT(ans, k, ans_elt);
+	alvs = PROTECT(NEW_LIST(alv_lens_len));
+	for (k = 0; k < alv_lens_len; k++) {
+		alv_len = alv_lens[k];
+		if (alv_len != 0) {
+			alv = PROTECT(
+				alloc_appendable_leaf_vector(alv_len, Rtype)
+			);
+			SET_VECTOR_ELT(alvs, k, alv);
 			UNPROTECT(1);
 		}
 	}
 	UNPROTECT(1);
-	return ans;
+	return alvs;
 }
 
 static int store_nzpos_and_nzval_in_svtree(
@@ -600,7 +643,7 @@ static int store_nzpos_and_nzval_in_svtree(
 		SEXP svtree)
 {
 	const int *p;
-	int j, k;
+	int j, k, ret;
 	SEXP sub_svtree;
 
 	if (nzindex_ncol >= 3) {
@@ -617,9 +660,10 @@ static int store_nzpos_and_nzval_in_svtree(
 		/* 'sub_svtree' is an integer vector of counts or a list. */
 		if (IS_INTEGER(sub_svtree)) {
 			sub_svtree = PROTECT(
-				alloc_list_of_leaf_vectors(INTEGER(sub_svtree),
-							   LENGTH(sub_svtree),
-							   TYPEOF(nzdata))
+				alloc_list_of_appendable_leaf_vectors(
+						INTEGER(sub_svtree),
+						LENGTH(sub_svtree),
+						TYPEOF(nzdata))
 			);
 			SET_VECTOR_ELT(svtree, k, sub_svtree);
 			UNPROTECT(1);
@@ -631,10 +675,24 @@ static int store_nzpos_and_nzval_in_svtree(
 	k = *p - 1;
 	sub_svtree = VECTOR_ELT(svtree, k);
 
-	/* 'sub_svtree' is a "leaf vector". */
-	return append_pos_val_pair_to_leaf_vector(sub_svtree,
-						  nzindex[nzdata_offset],
-						  nzdata, nzdata_offset);
+	/* 'sub_svtree' is an "appendable leaf vector". */
+	ret = append_pos_val_pair_to_leaf_vector(sub_svtree,
+						 nzindex[nzdata_offset],
+						 nzdata, nzdata_offset);
+	if (ret < 0)
+		return -1;
+	if (ret == 1) {
+		/* 'sub_svtree' is a full "appendable leaf vector".
+		   Replace it with a regular (i.e. non-appendable) "leaf
+		   vector". */
+		sub_svtree = PROTECT(
+			new_leaf_vector(VECTOR_ELT(sub_svtree, 0),
+					VECTOR_ELT(sub_svtree, 1))
+		);
+		SET_VECTOR_ELT(svtree, k, sub_svtree);
+		UNPROTECT(1);
+	}
+	return 0;
 }
 
 /* --- .Call ENTRY POINT --- */
@@ -668,7 +726,7 @@ SEXP C_from_COOSparseArray_to_SVTSparseArray(SEXP x_dim,
 	/* 1st pass: Grow the branches of the tree but don't add any
 	   leaf vectors to it, only compute their lengths. */
 	if (ndim == 2) {
-		ans = PROTECT(make_constant_INTEGER(ans_len, 0));
+		ans = PROTECT(new_Rvector(INTSXP, (R_xlen_t) ans_len));
 	} else {
 		ans = PROTECT(NEW_LIST(ans_len));
 	}
@@ -686,8 +744,9 @@ SEXP C_from_COOSparseArray_to_SVTSparseArray(SEXP x_dim,
 	/* 2nd pass: Add the leaf vectors to the tree. */
 	if (ndim == 2)
 		ans = PROTECT(
-			alloc_list_of_leaf_vectors(INTEGER(ans), ans_len,
-						   TYPEOF(x_nzdata))
+			alloc_list_of_appendable_leaf_vectors(
+					INTEGER(ans), ans_len,
+					TYPEOF(x_nzdata))
 		);
 	for (i = 0; i < nzdata_len; i++) {
 		ret = store_nzpos_and_nzval_in_svtree(
@@ -823,7 +882,7 @@ SEXP C_from_SVTSparseArray_to_CsparseMatrix(SEXP x_dim,
 	ans_i = PROTECT(NEW_INTEGER(nzdata_len));
 	ans_x = PROTECT(alloc_nzdata(nzdata_len, x_type));
 	if (nzdata_len == 0) {
-		ans_p = PROTECT(make_constant_INTEGER(x_ncol + 1, 0));
+		ans_p = PROTECT(new_Rvector(INTSXP, (R_xlen_t) x_ncol + 1));
 	} else {
 		ans_p = PROTECT(NEW_INTEGER(x_ncol + 1));
 		ret = dump_svtree_to_CsparseMatrix_slots(x_svtree, x_ncol,
@@ -848,26 +907,6 @@ SEXP C_from_SVTSparseArray_to_CsparseMatrix(SEXP x_dim,
 /****************************************************************************
  * From SVTSparseArray to ordinary array
  */
-
-static SEXP new_array(SEXP dim, SEXP dimnames, SEXP type)
-{
-	SEXPTYPE Rtype;
-	SEXP ans;
-	R_xlen_t ans_len;
-
-	Rtype = get_Rtype_from_SVTSparseArray_type(type);
-	ans = PROTECT(allocArray(Rtype, dim));
-	SET_DIMNAMES(ans, dimnames);
-	/* allocArray() is just a thin wrapper for allocVector() and the
-	   latter does not initialize the vector elements, except for a list
-	   or a character vector. */
-	if (Rtype != VECSXP && Rtype != STRSXP) {
-		ans_len = XLENGTH(ans);
-		memset(DATAPTR(ans), 0, get_Rtype_size(Rtype) * ans_len);
-	}
-	UNPROTECT(1);
-	return ans;
-}
 
 /* Recursive. */
 static int dump_svtree_to_ordinary_array_REC(SEXP svtree,
@@ -923,7 +962,7 @@ SEXP C_from_SVTSparseArray_to_array(SEXP x_dim, SEXP x_dimnames,
 
 	Rtype = get_Rtype_from_SVTSparseArray_type(x_type);
 	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(Rtype);
-	ans = PROTECT(new_array(x_dim, x_dimnames, x_type));
+	ans = PROTECT(new_Rarray(Rtype, x_dim, x_dimnames));
 	ret = dump_svtree_to_ordinary_array_REC(x_svtree,
 				INTEGER(x_dim), LENGTH(x_dim),
 				ans, 0, XLENGTH(ans),
