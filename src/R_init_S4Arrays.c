@@ -19,6 +19,8 @@ static const R_CallMethodDef callMethods[] = {
 	CALLMETHOD_DEF(C_from_COOSparseArray_to_SVTSparseArray, 3),
 	CALLMETHOD_DEF(C_make_SVTSparseArray_from_dgCMatrix, 2),
 	CALLMETHOD_DEF(C_from_SVTSparseArray_to_CsparseMatrix, 3),
+	CALLMETHOD_DEF(C_from_SVTSparseArray_to_array, 4),
+	CALLMETHOD_DEF(C_from_array_to_SVTSparseArray, 1),
 
 /* readSparseCSV.c */
 	CALLMETHOD_DEF(C_readSparseCSV, 2),

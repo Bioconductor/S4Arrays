@@ -31,5 +31,16 @@ SEXP C_from_SVTSparseArray_to_CsparseMatrix(
 	SEXP x_svtree
 );
 
+SEXP C_from_SVTSparseArray_to_array(
+	SEXP x_dim,
+	SEXP x_dimnames,
+	SEXP x_type,
+	SEXP x_svtree
+);
+
+SEXP C_from_array_to_SVTSparseArray(
+	SEXP x
+);
+
 #endif  /* _SVTSPARSEARRAY_CLASS_H_ */
 

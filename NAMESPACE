@@ -47,6 +47,7 @@ S3method(aperm, COOSparseArray)
 
 S3method(as.array, Array)
 S3method(as.array, COOSparseArray)
+S3method(as.array, SVTSparseArray)
 
 S3method(as.character, Array)
 S3method(as.character, ArrayGrid)
@@ -89,6 +90,7 @@ export(
 
     as.array.Array,
     as.array.COOSparseArray,
+    as.array.SVTSparseArray,
 
     as.character.ArrayGrid,
     as.character.Array,

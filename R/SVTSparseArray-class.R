@@ -73,6 +73,7 @@ setClass("SVTSparseArray",
 .new_SVTSparseArray <- function(dim, dimnames=NULL, type="logical",
                                 svtree=NULL, check=TRUE)
 {
+    dimnames <- normarg_dimnames(dimnames, dim)
     new2("SVTSparseArray", dim=dim, dimnames=dimnames, type=type,
                            svtree=svtree, check=check)
 }
@@ -149,6 +150,8 @@ setAs("COOSparseArray", "SVTSparseArray",
 
 SVTSparseArray <- function(x, as.integer=FALSE)
 {
+    if (missing(x))
+        return(new2("SVTSparseArray", check=FALSE))
     if (!is(x, "dgCMatrix"))
         return(as(x, "SVTSparseArray"))
     .make_SVTSparseArray_from_dgCMatrix(x, as.integer=as.integer)
@@ -192,4 +195,32 @@ setAs("lgCMatrix", "SVTSparseArray",
 
 setAs("SVTSparseArray", "dgCMatrix", .from_SVTSparseArray_to_CsparseMatrix)
 setAs("SVTSparseArray", "lgCMatrix", .from_SVTSparseArray_to_CsparseMatrix)
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### Going back and forth between SVTSparseArray objects and ordinary arrays
+###
+
+.from_SVTSparseArray_to_array <- function(from)
+{
+    stopifnot(is(from, "SVTSparseArray"))
+    .Call2("C_from_SVTSparseArray_to_array",
+           from@dim, dimnames(from),
+           from@type, from@svtree, PACKAGE="S4Arrays")
+}
+
+.from_array_to_SVTSparseArray <- function(from)
+{
+    stopifnot(is.array(from))
+    ans_svtree <- .Call2("C_from_array_to_SVTSparseArray",
+                         from, PACKAGE="S4Arrays")
+    .new_SVTSparseArray(dim(from), dimnames(from), type(from), ans_svtree,
+                        check=FALSE)
+}
+
+### S3/S4 combo for as.array.COOSparseArray
+as.array.SVTSparseArray <- function(x, ...) .from_SVTSparseArray_to_array(x)
+setMethod("as.array", "SVTSparseArray", as.array.SVTSparseArray)
+
+setAs("array", "SVTSparseArray", .from_array_to_SVTSparseArray)
 

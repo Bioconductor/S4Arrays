@@ -19,30 +19,65 @@ static const SEXPTYPE supported_SVT_Rtypes[] = {
 	VECSXP    // "list"
 };
 
+static inline size_t get_Rtype_size(SEXPTYPE Rtype)
+{
+	switch (Rtype) {
+	    case LGLSXP: case INTSXP: return sizeof(int);
+	    case REALSXP:             return sizeof(double);
+	    case CPLXSXP:             return sizeof(Rcomplex);
+	    case RAWSXP:              return sizeof(Rbyte);
+	}
+	error("S4Arrays internal error in get_Rtype_size():\n"
+	      "  unsupported 'Rtype'");
+	return 0;
+}
+
 
 /****************************************************************************
  * Low-level utils
  */
 
+/* Also checks the supplied 'type'. */
+static SEXPTYPE get_Rtype_from_SVTSparseArray_type(SEXP type)
+{
+	static const char *msg;
+	SEXP type0;
+	SEXPTYPE Rtype;
+	int ntypes, i;
+
+	msg = "S4Arrays internal error "
+	      "in get_Rtype_from_SVTSparseArray_type():\n"
+	      "  SVTSparseArray object has invalid type";
+	if (!IS_CHARACTER(type) || LENGTH(type) != 1)
+		error(msg);
+	type0 = STRING_ELT(type, 0);
+	if (type0 == NA_STRING)
+		error(msg);
+	Rtype = str2type(CHAR(type0));
+	ntypes = sizeof(supported_SVT_Rtypes) / sizeof(SEXPTYPE);
+	for (i = 0; i < ntypes; i++)
+		if (Rtype == supported_SVT_Rtypes[i])
+			return Rtype;
+	error(msg);
+	return 0;
+}
+
 /* General purpose copy function.
-   We only support the 7 SEXP types listed in 'supported_SVT_Rtypes' above.
-   Also we don't need to handle long vectors so 'in_offset', 'out_offset',
-   and 'nelt' only need to be of type int. */
-static inline int copy_vector_elts(SEXP in,  int in_offset,
-				   SEXP out, int out_offset,
-				   int nelt)
+   We only support the 7 SEXP types listed in 'supported_SVT_Rtypes' above. */
+static inline int copy_vector_elts(SEXP in,  R_xlen_t in_offset,
+				   SEXP out, R_xlen_t out_offset,
+				   R_xlen_t nelt)
 {
 	SEXPTYPE Rtype;
 	void *dest, *src;
-	size_t n;
-	int k;
+	R_xlen_t k;
 
 	Rtype = TYPEOF(in);
 	if (TYPEOF(out) != Rtype)
 		return -1;
-	if (in_offset  + nelt > LENGTH(in))
+	if (in_offset  + nelt > XLENGTH(in))
 		return -1;
-	if (out_offset + nelt > LENGTH(out))
+	if (out_offset + nelt > XLENGTH(out))
 		return -1;
 
 	switch (Rtype) {
@@ -62,31 +97,27 @@ static inline int copy_vector_elts(SEXP in,  int in_offset,
 
 	    case LGLSXP: case INTSXP:
 		dest = INTEGER(out) + out_offset;
-		src  = INTEGER(in) + in_offset;
-		n    = sizeof(int) * nelt;
+		src  = INTEGER(in)  + in_offset;
 		break;
 
 	    case REALSXP:
 		dest = REAL(out) + out_offset;
-		src  = REAL(in) + in_offset;
-		n    = sizeof(double) * nelt;
+		src  = REAL(in)  + in_offset;
 		break;
 
 	    case CPLXSXP:
 		dest = COMPLEX(out) + out_offset;
-		src  = COMPLEX(in) + in_offset;
-		n    = sizeof(Rcomplex) * nelt;
+		src  = COMPLEX(in)  + in_offset;
 		break;
 
 	    case RAWSXP:
 		dest = RAW(out) + out_offset;
-		src  = RAW(in) + in_offset;
-		n    = sizeof(Rbyte) * nelt;
+		src  = RAW(in)  + in_offset;
 		break;
 
 	    default: return -1;
 	}
-	memcpy(dest, src, n);
+	memcpy(dest, src, get_Rtype_size(Rtype) * nelt);
 	return 0;
 }
 
@@ -194,16 +225,21 @@ static inline int append_pos_val_pair_to_leaf_vector(SEXP lv,
 	SEXP lv_pos, lv_vals;
 
 	lv_len = split_leaf_vector(lv, &lv_pos, &lv_vals);
+	if (lv_len < 0)
+		return -1;
+
 	for (k = 0; k < lv_len; k++) {
 		if (INTEGER(lv_pos)[k] == -1)
 			goto ok;
 	}
 	return -1;
+
     ok:
 	INTEGER(lv_pos)[k] = pos;
 	/* Using copy_vector_elts() to copy a single element is not efficient.
 	   TODO: Find something more efficient. */
-	return copy_vector_elts(nzdata, nzdata_offset, lv_vals, k, 1);
+	return copy_vector_elts(nzdata, (R_xlen_t) nzdata_offset,
+				lv_vals, (R_xlen_t) k, (R_xlen_t) 1);
 }
 
 
@@ -252,31 +288,6 @@ SEXP C_get_SVTSparseArray_nzdata_length(SEXP x_dim, SEXP x_svtree)
  * Going from SVTSparseArray objects to COOSparseArray objects
  */
 
-/* Also checks the supplied 'type'. */
-static SEXPTYPE get_Rtype_from_SVTSparseArray_type(SEXP type)
-{
-	static const char *msg;
-	SEXP type0;
-	SEXPTYPE Rtype;
-	int ntypes, i;
-
-	msg = "S4Arrays internal error "
-	      "in get_Rtype_from_SVTSparseArray_type():\n"
-	      "  SVTSparseArray object has invalid type";
-	if (!IS_CHARACTER(type) || LENGTH(type) != 1)
-		error(msg);
-	type0 = STRING_ELT(type, 0);
-	if (type0 == NA_STRING)
-		error(msg);
-	Rtype = str2type(CHAR(type0));
-	ntypes = sizeof(supported_SVT_Rtypes) / sizeof(SEXPTYPE);
-	for (i = 0; i < ntypes; i++)
-		if (Rtype == supported_SVT_Rtypes[i])
-			return Rtype;
-	error(msg);
-	return 0;
-}
-
 static SEXP alloc_nzdata(R_xlen_t nzdata_len, SEXP type)
 {
 	SEXPTYPE Rtype;
@@ -320,9 +331,9 @@ static int extract_nzindex_and_nzdata_from_svtree_REC(SEXP svtree,
 	if (lv_len < 0)
 		return -1;
 
-	ret = copy_vector_elts(lv_vals, 0,
-			       nzdata, *nzdata_offset,
-			       LENGTH(lv_vals));
+	ret = copy_vector_elts(lv_vals, (R_xlen_t) 0,
+			       nzdata, (R_xlen_t) *nzdata_offset,
+			       XLENGTH(lv_vals));
 	if (ret < 0)
 		return -1;
 
@@ -556,9 +567,9 @@ SEXP C_from_COOSparseArray_to_SVTSparseArray(SEXP x_dim,
 		);
 	for (i = 0; i < nzdata_len; i++) {
 		ret = store_nzpos_and_nzval_in_svtree(
-					  INTEGER(x_nzindex), nzdata_len, ndim,
-					  x_nzdata, i,
-					  ans);
+				INTEGER(x_nzindex), nzdata_len, ndim,
+				x_nzdata, i,
+				ans);
 		if (ret < 0) {
 			UNPROTECT(1);
 			error("S4Arrays internal error "
@@ -639,10 +650,10 @@ SEXP C_make_SVTSparseArray_from_dgCMatrix(SEXP x, SEXP as_integer)
  * From SVTSparseArray to [d|l]gCMatrix
  */
 
-static void dump_svtree_to_CsparseMatrix_slots(SEXP x_svtree, int x_ncol,
+static int dump_svtree_to_CsparseMatrix_slots(SEXP x_svtree, int x_ncol,
 		SEXP ans_p, SEXP ans_i, SEXP ans_x)
 {
-	int offset, j, lv_len, k;
+	int offset, j, lv_len, ret, k;
 	SEXP sub_svtree, lv_pos, lv_vals;
 
 	INTEGER(ans_p)[0] = 0;
@@ -653,7 +664,11 @@ static void dump_svtree_to_CsparseMatrix_slots(SEXP x_svtree, int x_ncol,
 			/* 'sub_svtree' is a "leaf vector". */
 			lv_len = split_leaf_vector(sub_svtree,
 						   &lv_pos, &lv_vals);
-			copy_vector_elts(lv_vals, 0, ans_x, offset, lv_len);
+			ret = copy_vector_elts(lv_vals, (R_xlen_t) 0,
+					       ans_x, (R_xlen_t) offset,
+					       XLENGTH(lv_vals));
+			if (ret < 0)
+				return -1;
 			for (k = 0; k < lv_len; k++) {
 				INTEGER(ans_i)[offset] = INTEGER(lv_pos)[k] - 1;
 				offset++;
@@ -661,7 +676,7 @@ static void dump_svtree_to_CsparseMatrix_slots(SEXP x_svtree, int x_ncol,
 		}
 		INTEGER(ans_p)[j + 1] = offset;
 	}
-	return;
+	return 0;
 }
 
 /* --- .Call ENTRY POINT --- */
@@ -687,8 +702,14 @@ SEXP C_from_SVTSparseArray_to_CsparseMatrix(SEXP x_dim,
 		ans_p = PROTECT(make_constant_INTEGER(x_ncol + 1, 0));
 	} else {
 		ans_p = PROTECT(NEW_INTEGER(x_ncol + 1));
-		dump_svtree_to_CsparseMatrix_slots(x_svtree, x_ncol,
-						   ans_p, ans_i, ans_x);
+		ret = dump_svtree_to_CsparseMatrix_slots(x_svtree, x_ncol,
+							 ans_p, ans_i, ans_x);
+		if (ret < 0) {
+			UNPROTECT(3);
+			error("S4Arrays internal error "
+			      "in C_from_SVTSparseArray_to_CsparseMatrix():\n"
+			      "  invalid SVTSparseArray object");
+		}
 	}
 
 	ans = PROTECT(NEW_LIST(3));
@@ -696,6 +717,110 @@ SEXP C_from_SVTSparseArray_to_CsparseMatrix(SEXP x_dim,
 	SET_VECTOR_ELT(ans, 1, ans_i);
 	SET_VECTOR_ELT(ans, 2, ans_x);
 	UNPROTECT(4);
+	return ans;
+}
+
+
+/****************************************************************************
+ * From SVTSparseArray to ordinary array
+ */
+
+static SEXP new_array(SEXP dim, SEXP dimnames, SEXP type)
+{
+	SEXPTYPE Rtype;
+	SEXP ans;
+	R_xlen_t ans_len;
+
+	Rtype = get_Rtype_from_SVTSparseArray_type(type);
+	ans = PROTECT(allocArray(Rtype, dim));
+	SET_DIMNAMES(ans, dimnames);
+	/* allocArray() is just a thin wrapper for allocVector() and the
+	   latter does not initialize the vector elements, except for a list
+	   or a character vector. */
+	if (Rtype != VECSXP && Rtype != STRSXP) {
+		ans_len = XLENGTH(ans);
+		memset(DATAPTR(ans), 0, get_Rtype_size(Rtype) * ans_len);
+	}
+	UNPROTECT(1);
+	return ans;
+}
+
+/* Recursive. */
+static int dump_svtree_to_ordinary_array_REC(SEXP svtree,
+		const int *dim, int ndim,
+		SEXP out, R_xlen_t array_offset, R_xlen_t array_len)
+{
+	int lv_len, k, svtree_len, ret;
+	SEXP lv_pos, lv_vals, sub_svtree;
+	R_xlen_t out_offset;
+
+	if (isNull(svtree))
+		return 0;
+
+	if (ndim == 1) {
+		/* 'svtree' is a "leaf vector". */
+		lv_len = split_leaf_vector(svtree, &lv_pos, &lv_vals);
+		if (lv_len < 0)
+			return -1;
+		for (k = 0; k < lv_len; k++) {
+			out_offset = array_offset + INTEGER(lv_pos)[k] - 1;
+			/* Using copy_vector_elts() to copy a single element
+			   is not efficient.
+			   TODO: Find something more efficient. */
+			ret = copy_vector_elts(lv_vals, (R_xlen_t) k,
+					       out, out_offset, (R_xlen_t) 1);
+			if (ret < 0)
+				return -1;
+		}
+		return 0;
+	}
+
+	/* 'svtree' is a regular node (list). */
+	array_len /= dim[ndim - 1];
+	svtree_len = LENGTH(svtree);
+	for (k = 0; k < svtree_len; k++) {
+		sub_svtree = VECTOR_ELT(svtree, k);
+		ret = dump_svtree_to_ordinary_array_REC(sub_svtree,
+				dim, ndim - 1,
+				out, array_offset, array_len);
+		if (ret < 0)
+			return -1;
+		array_offset += array_len;
+	}
+	return 0;
+}
+
+
+/* --- .Call ENTRY POINT --- */
+SEXP C_from_SVTSparseArray_to_array(SEXP x_dim, SEXP x_dimnames,
+		SEXP x_type, SEXP x_svtree)
+{
+	SEXP ans;
+	int ret;
+
+	ans = PROTECT(new_array(x_dim, x_dimnames, x_type));
+	ret = dump_svtree_to_ordinary_array_REC(x_svtree,
+				INTEGER(x_dim), LENGTH(x_dim),
+				ans, 0, XLENGTH(ans));
+	UNPROTECT(1);
+	if (ret < 0)
+		error("S4Arrays internal error "
+		      "in C_from_SVTSparseArray_to_array():\n"
+		      "  invalid SVTSparseArray object");
+	return ans;
+}
+
+
+/****************************************************************************
+ * From ordinary array to SVTSparseArray
+ */
+
+/* --- .Call ENTRY POINT --- */
+SEXP C_from_array_to_SVTSparseArray(SEXP x)
+{
+	SEXP ans;
+
+	error("not ready yet");
 	return ans;
 }
 
