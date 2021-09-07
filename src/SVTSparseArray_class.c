@@ -366,7 +366,8 @@ static SEXP make_leaf_vector(const int *pos, SEXP lv_vals, int maxpos)
 
 /* 'alv' must be an "appendable leaf vector. */
 static inline int append_pos_val_pair_to_leaf_vector(SEXP alv,
-		int pos, SEXP nzdata, int nzdata_offset)
+		int pos, SEXP nzdata, int nzdata_offset,
+		CopyRVectorEltFunType copy_Rvector_elt_FUN)
 {
 	SEXP alv_pos, alv_vals, alv_nelt;
 	int alv_len, *alv_nelt_p;
@@ -379,10 +380,8 @@ static inline int append_pos_val_pair_to_leaf_vector(SEXP alv,
 	if (*alv_nelt_p >= alv_len)
 		return -1;
 	INTEGER(alv_pos)[*alv_nelt_p] = pos;
-	/* Using copy_Rvector_elts() to copy a single element is not efficient.
-	   TODO: Find something more efficient. */
-	copy_Rvector_elts(nzdata, (R_xlen_t) nzdata_offset,
-			  alv_vals, (R_xlen_t) *alv_nelt_p, (R_xlen_t) 1);
+	copy_Rvector_elt_FUN(nzdata, (R_xlen_t) nzdata_offset,
+			     alv_vals, (R_xlen_t) *alv_nelt_p);
 	(*alv_nelt_p)++;
 	return *alv_nelt_p == alv_len;
 }
@@ -640,7 +639,8 @@ static SEXP alloc_list_of_appendable_leaf_vectors(
 static int store_nzpos_and_nzval_in_svtree(
 		const int *nzindex, int nzdata_len, int nzindex_ncol,
 		SEXP nzdata, int nzdata_offset,
-		SEXP svtree)
+		SEXP svtree,
+		CopyRVectorEltFunType copy_Rvector_elt_FUN)
 {
 	const int *p;
 	int j, k, ret;
@@ -678,7 +678,8 @@ static int store_nzpos_and_nzval_in_svtree(
 	/* 'sub_svtree' is an "appendable leaf vector". */
 	ret = append_pos_val_pair_to_leaf_vector(sub_svtree,
 						 nzindex[nzdata_offset],
-						 nzdata, nzdata_offset);
+						 nzdata, nzdata_offset,
+						 copy_Rvector_elt_FUN);
 	if (ret < 0)
 		return -1;
 	if (ret == 1) {
@@ -699,8 +700,13 @@ static int store_nzpos_and_nzval_in_svtree(
 SEXP C_from_COOSparseArray_to_SVTSparseArray(SEXP x_dim,
 		SEXP x_nzindex, SEXP x_nzdata)
 {
+	CopyRVectorEltFunType copy_Rvector_elt_FUN;
 	int ndim, nzdata_len, ans_len, i, ret;
 	SEXP x_nzindex_dim, ans;
+
+	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(TYPEOF(x_nzdata));
+	if (copy_Rvector_elt_FUN == NULL)
+		error("'x@nzdata' has invalid type");
 
 	ndim = LENGTH(x_dim);
 	nzdata_len = LENGTH(x_nzdata);
@@ -752,7 +758,8 @@ SEXP C_from_COOSparseArray_to_SVTSparseArray(SEXP x_dim,
 		ret = store_nzpos_and_nzval_in_svtree(
 				INTEGER(x_nzindex), nzdata_len, ndim,
 				x_nzdata, i,
-				ans);
+				ans,
+				copy_Rvector_elt_FUN);
 		if (ret < 0) {
 			UNPROTECT(1);
 			error("S4Arrays internal error "
