@@ -29,10 +29,13 @@ exportClasses(
     ArrayGrid, DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid,
 
     ## SparseArray-class.R:
-    SparseArray, COOSparseArray,
+    SparseArray,
 
-    ## SVTSparseArray-class.R:
-    NULL_OR_list, SVTSparseArray
+    ## COO_SparseArray-class.R:
+    COO_SparseArray,
+
+    ## SVT_SparseArray-class.R:
+    NULL_OR_list, SVT_SparseArray
 )
 
 
@@ -43,11 +46,11 @@ exportClasses(
 S3method(aperm, DummyArrayGrid)
 S3method(aperm, ArbitraryArrayGrid)
 S3method(aperm, RegularArrayGrid)
-S3method(aperm, COOSparseArray)
+S3method(aperm, COO_SparseArray)
 
 S3method(as.array, Array)
-S3method(as.array, COOSparseArray)
-S3method(as.array, SVTSparseArray)
+S3method(as.array, COO_SparseArray)
+S3method(as.array, SVT_SparseArray)
 
 S3method(as.character, Array)
 S3method(as.character, ArrayGrid)
@@ -62,7 +65,7 @@ S3method(as.logical, Array)
 
 S3method(as.matrix, Array)
 S3method(as.matrix, SelectionTree)
-S3method(as.matrix, COOSparseArray)
+S3method(as.matrix, COO_SparseArray)
 
 S3method(as.numeric, Array)
 
@@ -70,9 +73,9 @@ S3method(as.raw, Array)
 
 S3method(as.vector, Array)
 
-S3method(mean, COOSparseArray)
+S3method(mean, COO_SparseArray)
 
-S3method(range, COOSparseArray)
+S3method(range, COO_SparseArray)
 
 S3method(rowsum, dgCMatrix)
 
@@ -86,11 +89,11 @@ export(
     aperm.DummyArrayGrid,
     aperm.ArbitraryArrayGrid,
     aperm.RegularArrayGrid,
-    aperm.COOSparseArray,
+    aperm.COO_SparseArray,
 
     as.array.Array,
-    as.array.COOSparseArray,
-    as.array.SVTSparseArray,
+    as.array.COO_SparseArray,
+    as.array.SVT_SparseArray,
 
     as.character.ArrayGrid,
     as.character.Array,
@@ -105,7 +108,7 @@ export(
 
     as.matrix.Array,
     as.matrix.SelectionTree,
-    as.matrix.COOSparseArray,
+    as.matrix.COO_SparseArray,
 
     as.numeric.Array,
 
@@ -113,9 +116,9 @@ export(
 
     as.vector.Array,
 
-    mean.COOSparseArray,
+    mean.COO_SparseArray,
 
-    range.COOSparseArray,
+    range.COO_SparseArray,
 
     rowsum.dgCMatrix,
 
@@ -172,11 +175,11 @@ export(
     DummyArrayViewport, ArrayViewport, makeNindexFromArrayViewport,
     DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid,
 
-    ## SparseArray-class.R:
-    COOSparseArray, dense2sparse, sparse2dense,
+    ## COO_SparseArray-class.R:
+    COO_SparseArray, dense2sparse, sparse2dense,
 
-    ## SVTSparseArray-class.R:
-    SVTSparseArray,
+    ## SVT_SparseArray-class.R:
+    SVT_SparseArray,
 
     ## readSparseCSV.R:
     readSparseCSV, readSparseTable

@@ -7,9 +7,9 @@
 ### Binding
 ###
 
-### Similar to simple_abind() (see bind-arrays.R) but works on COOSparseArray
-### objects.
-abind_COOSparseArray_objects <- function(objects, along)
+### Similar to simple_abind() (see bind-arrays.R) but works on
+### COO_SparseArray objects.
+abind_COO_SparseArray_objects <- function(objects, along)
 {
     stopifnot(is.list(objects))
     if (length(objects) == 0L)
@@ -43,20 +43,20 @@ abind_COOSparseArray_objects <- function(objects, along)
     ## Combine the "nzdata" slots.
     ans_nzdata <- unlist(lapply(objects, slot, "nzdata"), use.names=FALSE)
 
-    COOSparseArray(ans_dim, ans_nzindex, ans_nzdata, ans_dimnames, check=FALSE)
+    COO_SparseArray(ans_dim, ans_nzindex, ans_nzdata, ans_dimnames, check=FALSE)
 }
 
-setMethod("rbind", "COOSparseArray",
+setMethod("rbind", "COO_SparseArray",
     function(...)
     {
-        abind_COOSparseArray_objects(list(...), along=1L)
+        abind_COO_SparseArray_objects(list(...), along=1L)
     }
 )
 
-setMethod("cbind", "COOSparseArray",
+setMethod("cbind", "COO_SparseArray",
     function(...)
     {
-        abind_COOSparseArray_objects(list(...), along=2L)
+        abind_COO_SparseArray_objects(list(...), along=2L)
     }
 )
 
@@ -74,14 +74,14 @@ setMethod("cbind", "COOSparseArray",
 ### (e.g. is.finite(), !, log(), etc..). We only implement the former.
 ###
 ### All the "unary isometric" array transformations implemented in this
-### section return a COOSparseArray object of the same dimensions as the
-### input COOSparseArray object.
+### section return a COO_SparseArray object of the same dimensions as the
+### input COO_SparseArray object.
 ###
 
 .UNARY_ISO_OPS <- c("is.na", "is.infinite", "is.nan", "tolower", "toupper")
 
 for (.Generic in .UNARY_ISO_OPS) {
-    setMethod(.Generic, "COOSparseArray",
+    setMethod(.Generic, "COO_SparseArray",
         function(x)
         {
             GENERIC <- match.fun(.Generic)
@@ -91,7 +91,7 @@ for (.Generic in .UNARY_ISO_OPS) {
     )
 }
 
-setMethod("nchar", "COOSparseArray",
+setMethod("nchar", "COO_SparseArray",
     function(x, type="chars", allowNA=FALSE, keepNA=NA)
     {
         new_nzdata <- nchar(x@nzdata, type=type, allowNA=allowNA, keepNA=keepNA)
@@ -104,7 +104,7 @@ setMethod("nchar", "COOSparseArray",
 ### anyNA()
 ###
 
-setMethod("anyNA", "COOSparseArray",
+setMethod("anyNA", "COO_SparseArray",
     function(x, recursive=FALSE) anyNA(x@nzdata, recursive=recursive)
 )
 
@@ -116,12 +116,12 @@ setMethod("anyNA", "COOSparseArray",
 .nzindex_order <- function(nzindex)
     do.call(order, lapply(ncol(nzindex):1L, function(along) nzindex[ , along]))
 
-setMethod("which", "COOSparseArray",
+setMethod("which", "COO_SparseArray",
     function(x, arr.ind=FALSE, useNames=TRUE)
     {
         if (!identical(useNames, TRUE))
             warning(wmsg("'useNames' is ignored when 'x' is ",
-                         "a COOSparseArray object or derivative"))
+                         "a COO_SparseArray object or derivative"))
         if (!isTRUEorFALSE(arr.ind))
             stop(wmsg("'arr.ind' must be TRUE or FALSE"))
         idx1 <- which(x@nzdata)
@@ -141,18 +141,18 @@ setMethod("which", "COOSparseArray",
 ### Members: max(), min(), range(), sum(), prod(), any(), all()
 ###
 
-setMethod("Summary", "COOSparseArray",
+setMethod("Summary", "COO_SparseArray",
     function(x, ..., na.rm=FALSE)
     {
         GENERIC <- match.fun(.Generic)
         if (length(list(...)) != 0L)
-            stop(wmsg(.Generic, "() method for COOSparseArray objects ",
+            stop(wmsg(.Generic, "() method for COO_SparseArray objects ",
                       "only accepts a single object"))
         ## Whether 'x' contains zeros or not doesn't make a difference for
         ## sum() and any().
         if (.Generic %in% c("sum", "any"))
             return(GENERIC(x@nzdata, na.rm=na.rm))
-        ## Of course a typical COOSparseArray object "contains" zeros
+        ## Of course a typical COO_SparseArray object "contains" zeros
         ## (i.e. it would contain zeros if we converted it to a dense
         ## representation with sparse2dense()). However, this is not
         ## guaranteed so we need to make sure to properly handle the case
@@ -177,12 +177,12 @@ setMethod("Summary", "COOSparseArray",
 ### because we want to support the 'finite' argument like S3 method
 ### base::range.default() does.
 
-### S3/S4 combo for range.COOSparseArray
-range.COOSparseArray <- function(..., na.rm=FALSE, finite=FALSE)
+### S3/S4 combo for range.COO_SparseArray
+range.COO_SparseArray <- function(..., na.rm=FALSE, finite=FALSE)
 {
     objects <- list(...)
     if (length(objects) != 1L)
-        stop(wmsg("range() method for COOSparseArray objects ",
+        stop(wmsg("range() method for COO_SparseArray objects ",
                   "only accepts a single object"))
     x <- objects[[1L]]
     x_has_zeros <- length(x@nzdata) < length(x)
@@ -194,9 +194,9 @@ range.COOSparseArray <- function(..., na.rm=FALSE, finite=FALSE)
 ### The signature of all the members of the S4 "Summary" group generic is
 ### 'x, ..., na.rm' (see getGeneric("range")) which means that the S4 methods
 ### cannot add arguments after 'na.rm'. So we add the 'finite' argument before.
-setMethod("range", "COOSparseArray",
+setMethod("range", "COO_SparseArray",
     function(x, ..., finite=FALSE, na.rm=FALSE)
-        range.COOSparseArray(x, ..., na.rm=na.rm, finite=finite)
+        range.COO_SparseArray(x, ..., na.rm=na.rm, finite=finite)
 
 )
 
@@ -205,7 +205,7 @@ setMethod("range", "COOSparseArray",
 ### mean()
 ###
 
-.mean_COOSparseArray <- function(x, na.rm=FALSE)
+.mean_COO_SparseArray <- function(x, na.rm=FALSE)
 {
     s <- sum(x@nzdata, na.rm=na.rm)
     nval <- length(x)
@@ -214,8 +214,8 @@ setMethod("range", "COOSparseArray",
     s / nval
 }
 
-### S3/S4 combo for mean.COOSparseArray
-mean.COOSparseArray <- function(x, na.rm=FALSE, ...)
-    .mean_COOSparseArray(x, na.rm=na.rm, ...)
-setMethod("mean", "COOSparseArray", .mean_COOSparseArray)
+### S3/S4 combo for mean.COO_SparseArray
+mean.COO_SparseArray <- function(x, na.rm=FALSE, ...)
+    .mean_COO_SparseArray(x, na.rm=na.rm, ...)
+setMethod("mean", "COO_SparseArray", .mean_COO_SparseArray)
 

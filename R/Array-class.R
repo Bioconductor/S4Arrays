@@ -82,26 +82,26 @@ setMethod("t", "Array", t.Array)
 
 ### Any Array derivative will be coercible to a sparseMatrix subclass (e.g.
 ### dg[C|R]Matrix or lg[C|R]Matrix) as long as there is a method for coercing
-### it to COOSparseArray.
+### it to COO_SparseArray.
 setAs("Array", "dgCMatrix",
-    function(from) as(as(from, "COOSparseArray"), "dgCMatrix")
+    function(from) as(as(from, "COO_SparseArray"), "dgCMatrix")
 )
 setAs("Array", "dgRMatrix",
-    function(from) as(as(from, "COOSparseArray"), "dgRMatrix")
+    function(from) as(as(from, "COO_SparseArray"), "dgRMatrix")
 )
 setAs("Array", "lgCMatrix",
-    function(from) as(as(from, "COOSparseArray"), "lgCMatrix")
+    function(from) as(as(from, "COO_SparseArray"), "lgCMatrix")
 )
 setAs("Array", "lgRMatrix",
-    function(from) as(as(from, "COOSparseArray"), "lgRMatrix")
+    function(from) as(as(from, "COO_SparseArray"), "lgRMatrix")
 )
 setAs("Array", "CsparseMatrix",
-    function(from) as(as(from, "COOSparseArray"), "CsparseMatrix")
+    function(from) as(as(from, "COO_SparseArray"), "CsparseMatrix")
 )
 setAs("Array", "RsparseMatrix",
-    function(from) as(as(from, "COOSparseArray"), "RsparseMatrix")
+    function(from) as(as(from, "COO_SparseArray"), "RsparseMatrix")
 )
 setAs("Array", "sparseMatrix",
-    function(from) as(as(from, "COOSparseArray"), "sparseMatrix")
+    function(from) as(as(from, "COO_SparseArray"), "sparseMatrix")
 )
 

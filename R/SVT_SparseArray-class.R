@@ -1,8 +1,10 @@
 ### =========================================================================
-### SVTSparseArray objects
+### SVT_SparseArray objects
 ### -------------------------------------------------------------------------
 ###
-### An SVTSparseArray object stores its nonzero data in a "Sparse Vector
+### SparseArray objects using the SVT layout.
+###
+### An SVT_SparseArray object stores its nonzero data in a "Sparse Vector
 ### Tree" (SVT).
 ###
 ### An SVT is a tree of depth the number of dimensions in the array where
@@ -11,20 +13,20 @@
 ### vector of positions and a vector (atomic or list) of nonzero values.
 ### The 2nd vector determines the type of the leaf vector. All the leaf
 ### vectors in the SVT must have the same type, which should match the type
-### specified in the 'type' slot of the SVTSparseArray object.
+### specified in the 'type' slot of the SVT_SparseArray object.
 ###
 ### More precisely:
 ###
-### - An SVTSparseArray object with 1 dimension stores its nonzero data in an
+### - An SVT_SparseArray object with 1 dimension stores its nonzero data in an
 ###   SVT of depth 1. Such SVT is represented by a single "leaf vector".
 ###
-### - An SVTSparseArray object with 2 dimensions stores its nonzero data in an
+### - An SVT_SparseArray object with 2 dimensions stores its nonzero data in an
 ###   SVT of depth 2. Such SVT is represented by a list of length the extend
 ###   of the 2nd dimension (nb of columns). Each list element is an SVT of
 ###   depth 1 (as described above), or a NULL if the corresponding column is
 ###   empty (i.e. has no nonzero data).
 ###
-### - An SVTSparseArray object with 3 dimensions stores its nonzero data in an
+### - An SVT_SparseArray object with 3 dimensions stores its nonzero data in an
 ###   SVT of depth 3. Such SVT is represented by a list of length the extend
 ###   of the 3rd dimension. Each list element must be an SVT of depth 2 (as
 ###   described above) that stores the nonzero data of the corresponding 2D
@@ -37,19 +39,19 @@
 ###
 ### IMPORTANT NOTES:
 ### - All the "leaf vectors" in the SVT are guaranteed to have a
-###   length <= the first dimension of the SVTSparseArray object, which
+###   length <= the first dimension of the SVT_SparseArray object, which
 ###   itself is guaranteed to be <= INT_MAX (2^31 - 1).
 ### - The cumulated length of the "leaf vectors" in the SVT is the number
-###   of nonzero values (i.e. nzdata length) in the SVTSparseArray object.
+###   of nonzero values (i.e. nzdata length) in the SVT_SparseArray object.
 ###   There is no upper limit to this number.
 ###   In other words, unlike dgCMatrix objects where this number is
-###   limited to INT_MAX, an SVTSparseArray can store an arbitrary number
+###   limited to INT_MAX, an SVT_SparseArray can store an arbitrary number
 ###   of nonzero values.
 ###
 
 setClassUnion("NULL_OR_list", c("NULL", "list"))
 
-setClass("SVTSparseArray",
+setClass("SVT_SparseArray",
     contains="SparseArray",
     representation(
         type="character",
@@ -70,12 +72,12 @@ setClass("SVTSparseArray",
 ### Low-level constructor
 ###
 
-.new_SVTSparseArray <- function(dim, dimnames=NULL, type="logical",
+.new_SVT_SparseArray <- function(dim, dimnames=NULL, type="logical",
                                 svtree=NULL, check=TRUE)
 {
     dimnames <- normarg_dimnames(dimnames, dim)
-    new2("SVTSparseArray", dim=dim, dimnames=dimnames, type=type,
-                           svtree=svtree, check=check)
+    new2("SVT_SparseArray", dim=dim, dimnames=dimnames, type=type,
+                            svtree=svtree, check=check)
 }
 
 
@@ -83,99 +85,100 @@ setClass("SVTSparseArray",
 ### Getters
 ###
 
-setMethod("type", "SVTSparseArray", function(x) x@type)
+setMethod("type", "SVT_SparseArray", function(x) x@type)
 
 ### Note that like for the length of atomic vectors in base R, the returned
 ### length will be a double if it's > .Machine$integer.max
-.get_SVTSparseArray_nzdata_length <- function(x)
+.get_SVT_SparseArray_nzdata_length <- function(x)
 {
-    stopifnot(is(x, "SVTSparseArray"))
-    .Call2("C_get_SVTSparseArray_nzdata_length", x@dim, x@svtree,
+    stopifnot(is(x, "SVT_SparseArray"))
+    .Call2("C_get_SVT_SparseArray_nzdata_length", x@dim, x@svtree,
                                                  PACKAGE="S4Arrays")
 }
 
-#setMethod("nzdataLength", "SVTSparseArray",
-#    .get_SVTSparseArray_nzdata_length
+#setMethod("nzdataLength", "SVT_SparseArray",
+#    .get_SVT_SparseArray_nzdata_length
 #)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Going back and forth between SVTSparseArray and COOSparseArray objects
+### Going back and forth between SVT_SparseArray and COO_SparseArray objects
 ###
 
-.from_SVTSparseArray_to_COOSparseArray <- function(from)
+.from_SVT_SparseArray_to_COO_SparseArray <- function(from)
 {
-    stopifnot(is(from, "SVTSparseArray"))
+    stopifnot(is(from, "SVT_SparseArray"))
     ## Returns 'ans_nzindex' and 'ans_nzdata' in a list of length 2.
-    C_ans <- .Call2("C_from_SVTSparseArray_to_COOSparseArray",
+    C_ans <- .Call2("C_from_SVT_SparseArray_to_COO_SparseArray",
                     from@dim, from@type, from@svtree, PACKAGE="S4Arrays")
     ans_nzindex <- C_ans[[1L]]
     ans_nzdata  <- C_ans[[2L]]
-    new2("COOSparseArray", dim=from@dim, dimnames=from@dimnames,
-                           nzindex=ans_nzindex, nzdata=ans_nzdata, check=FALSE)
+    new2("COO_SparseArray", dim=from@dim, dimnames=from@dimnames,
+                            nzindex=ans_nzindex, nzdata=ans_nzdata,
+                            check=FALSE)
 }
 
-.from_COOSparseArray_to_SVTSparseArray <- function(from)
+.from_COO_SparseArray_to_SVT_SparseArray <- function(from)
 {
-    stopifnot(is(from, "COOSparseArray"))
-    ans_svtree <- .Call2("C_from_COOSparseArray_to_SVTSparseArray",
+    stopifnot(is(from, "COO_SparseArray"))
+    ans_svtree <- .Call2("C_from_COO_SparseArray_to_SVT_SparseArray",
                          from@dim, from@nzindex, from@nzdata,
                          PACKAGE="S4Arrays")
-    .new_SVTSparseArray(from@dim, from@dimnames, type(from), ans_svtree,
+    .new_SVT_SparseArray(from@dim, from@dimnames, type(from), ans_svtree,
                         check=FALSE)
 }
 
-setAs("SVTSparseArray", "COOSparseArray",
-    .from_SVTSparseArray_to_COOSparseArray
+setAs("SVT_SparseArray", "COO_SparseArray",
+    .from_SVT_SparseArray_to_COO_SparseArray
 )
-setAs("COOSparseArray", "SVTSparseArray",
-    .from_COOSparseArray_to_SVTSparseArray
+setAs("COO_SparseArray", "SVT_SparseArray",
+    .from_COO_SparseArray_to_SVT_SparseArray
 )
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### SVTSparseArray constructor
+### SVT_SparseArray constructor
 ###
 
-.make_SVTSparseArray_from_dgCMatrix <- function(x, as.integer=FALSE)
+.make_SVT_SparseArray_from_dgCMatrix <- function(x, as.integer=FALSE)
 {
     stopifnot(is(x, "dgCMatrix"))
     if (!isTRUEorFALSE(as.integer))
         stop(wmsg("'as.integer' must be TRUE or FALSE"))
-    ans_svtree <- .Call2("C_make_SVTSparseArray_from_dgCMatrix",
+    ans_svtree <- .Call2("C_make_SVT_SparseArray_from_dgCMatrix",
                          x, as.integer, PACKAGE="S4Arrays")
-    .new_SVTSparseArray(dim(x), dimnames(x), type(x), ans_svtree,
+    .new_SVT_SparseArray(dim(x), dimnames(x), type(x), ans_svtree,
                         check=FALSE)
 }
 
-SVTSparseArray <- function(x, as.integer=FALSE)
+SVT_SparseArray <- function(x, as.integer=FALSE)
 {
     if (missing(x))
-        return(new2("SVTSparseArray", check=FALSE))
+        return(new2("SVT_SparseArray", check=FALSE))
     if (!is(x, "dgCMatrix"))
-        return(as(x, "SVTSparseArray"))
-    .make_SVTSparseArray_from_dgCMatrix(x, as.integer=as.integer)
+        return(as(x, "SVT_SparseArray"))
+    .make_SVT_SparseArray_from_dgCMatrix(x, as.integer=as.integer)
 }
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Going back and forth between SVTSparseArray and [d|l]gCMatrix objects
+### Going back and forth between SVT_SparseArray and [d|l]gCMatrix objects
 ###
 
-setAs("dgCMatrix", "SVTSparseArray",
-    function(from) .make_SVTSparseArray_from_dgCMatrix(from)
+setAs("dgCMatrix", "SVT_SparseArray",
+    function(from) .make_SVT_SparseArray_from_dgCMatrix(from)
 )
 
-setAs("lgCMatrix", "SVTSparseArray",
+setAs("lgCMatrix", "SVT_SparseArray",
     function(from)
     {
         stop("not ready yet")
     }
 )
 
-.from_SVTSparseArray_to_CsparseMatrix <- function(from)
+.from_SVT_SparseArray_to_CsparseMatrix <- function(from)
 {
-    stopifnot(is(from, "SVTSparseArray"))
+    stopifnot(is(from, "SVT_SparseArray"))
     if (length(from@dim) != 2L)
         stop(wmsg("the ", class(from), " object to coerce to dgCMatrix ",
                   "or lgCMatrix must have exactly 2 dimensions"))
@@ -184,7 +187,7 @@ setAs("lgCMatrix", "SVTSparseArray",
                         'logical'="lgCMatrix",
                         stop(wmsg("unsupported data type: ", from@type)))
     ## Returns 'ans_p', 'ans_i', and 'ans_x', in a list of length 3.
-    C_ans <- .Call2("C_from_SVTSparseArray_to_CsparseMatrix",
+    C_ans <- .Call2("C_from_SVT_SparseArray_to_CsparseMatrix",
                     from@dim, from@type, from@svtree, PACKAGE="S4Arrays")
     ans_p <- C_ans[[1L]]
     ans_i <- C_ans[[2L]]
@@ -193,34 +196,34 @@ setAs("lgCMatrix", "SVTSparseArray",
                    Dimnames=from@dimnames)
 }
 
-setAs("SVTSparseArray", "dgCMatrix", .from_SVTSparseArray_to_CsparseMatrix)
-setAs("SVTSparseArray", "lgCMatrix", .from_SVTSparseArray_to_CsparseMatrix)
+setAs("SVT_SparseArray", "dgCMatrix", .from_SVT_SparseArray_to_CsparseMatrix)
+setAs("SVT_SparseArray", "lgCMatrix", .from_SVT_SparseArray_to_CsparseMatrix)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Going back and forth between SVTSparseArray objects and ordinary arrays
+### Going back and forth between SVT_SparseArray objects and ordinary arrays
 ###
 
-.from_SVTSparseArray_to_array <- function(from)
+.from_SVT_SparseArray_to_array <- function(from)
 {
-    stopifnot(is(from, "SVTSparseArray"))
-    .Call2("C_from_SVTSparseArray_to_array",
+    stopifnot(is(from, "SVT_SparseArray"))
+    .Call2("C_from_SVT_SparseArray_to_array",
            from@dim, dimnames(from),
            from@type, from@svtree, PACKAGE="S4Arrays")
 }
 
-.from_array_to_SVTSparseArray <- function(from)
+.from_array_to_SVT_SparseArray <- function(from)
 {
     stopifnot(is.array(from))
-    ans_svtree <- .Call2("C_from_array_to_SVTSparseArray",
+    ans_svtree <- .Call2("C_from_array_to_SVT_SparseArray",
                          from, PACKAGE="S4Arrays")
-    .new_SVTSparseArray(dim(from), dimnames(from), type(from), ans_svtree,
+    .new_SVT_SparseArray(dim(from), dimnames(from), type(from), ans_svtree,
                         check=FALSE)
 }
 
-### S3/S4 combo for as.array.COOSparseArray
-as.array.SVTSparseArray <- function(x, ...) .from_SVTSparseArray_to_array(x)
-setMethod("as.array", "SVTSparseArray", as.array.SVTSparseArray)
+### S3/S4 combo for as.array.SVT_SparseArray
+as.array.SVT_SparseArray <- function(x, ...) .from_SVT_SparseArray_to_array(x)
+setMethod("as.array", "SVT_SparseArray", as.array.SVT_SparseArray)
 
-setAs("array", "SVTSparseArray", .from_array_to_SVTSparseArray)
+setAs("array", "SVT_SparseArray", .from_array_to_SVT_SparseArray)
 

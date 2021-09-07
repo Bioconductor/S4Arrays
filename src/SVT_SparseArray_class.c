@@ -1,7 +1,7 @@
 /****************************************************************************
- *             Low-level manipulation of SVTSparseArray objects             *
+ *            Low-level manipulation of SVT_SparseArray objects             *
  ****************************************************************************/
-#include "SVTSparseArray_class.h"
+#include "SVT_SparseArray_class.h"
 
 #include <limits.h>  /* for INT_MAX */
 #include <string.h>  /* for memcpy(), memset() */
@@ -266,7 +266,7 @@ static inline int copy_Rvector_elts(
 }
 
 /* Also checks the supplied 'type'. */
-static SEXPTYPE get_Rtype_from_SVTSparseArray_type(SEXP type)
+static SEXPTYPE get_Rtype_from_SVT_SparseArray_type(SEXP type)
 {
 	static const char *msg;
 	SEXP type0;
@@ -274,8 +274,8 @@ static SEXPTYPE get_Rtype_from_SVTSparseArray_type(SEXP type)
 	int ntypes, i;
 
 	msg = "S4Arrays internal error "
-	      "in get_Rtype_from_SVTSparseArray_type():\n"
-	      "  SVTSparseArray object has invalid type";
+	      "in get_Rtype_from_SVT_SparseArray_type():\n"
+	      "  SVT_SparseArray object has invalid type";
 	if (!IS_CHARACTER(type) || LENGTH(type) != 1)
 		error(msg);
 	type0 = STRING_ELT(type, 0);
@@ -388,7 +388,7 @@ static inline int append_pos_val_pair_to_leaf_vector(SEXP alv,
 
 
 /****************************************************************************
- * C_get_SVTSparseArray_nzdata_length()
+ * C_get_SVT_SparseArray_nzdata_length()
  */
 
 /* Recursive. */
@@ -417,7 +417,7 @@ static R_xlen_t sum_leaf_vector_lengths_REC(SEXP svtree, int ndim)
 }
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_get_SVTSparseArray_nzdata_length(SEXP x_dim, SEXP x_svtree)
+SEXP C_get_SVT_SparseArray_nzdata_length(SEXP x_dim, SEXP x_svtree)
 {
 	R_xlen_t nzdata_len;
 
@@ -429,14 +429,14 @@ SEXP C_get_SVTSparseArray_nzdata_length(SEXP x_dim, SEXP x_svtree)
 
 
 /****************************************************************************
- * Going from SVTSparseArray objects to COOSparseArray objects
+ * Going from SVT_SparseArray objects to COO_SparseArray objects
  */
 
 static SEXP alloc_nzdata(R_xlen_t nzdata_len, SEXP type)
 {
 	SEXPTYPE Rtype;
 
-	Rtype = get_Rtype_from_SVTSparseArray_type(type);
+	Rtype = get_Rtype_from_SVT_SparseArray_type(type);
 	return allocVector(Rtype, nzdata_len);
 }
 
@@ -497,7 +497,7 @@ static int extract_nzindex_and_nzdata_from_svtree_REC(SEXP svtree,
 }
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_from_SVTSparseArray_to_COOSparseArray(SEXP x_dim,
+SEXP C_from_SVT_SparseArray_to_COO_SparseArray(SEXP x_dim,
 		SEXP x_type, SEXP x_svtree)
 {
 	R_xlen_t nzdata_len;
@@ -506,8 +506,8 @@ SEXP C_from_SVTSparseArray_to_COOSparseArray(SEXP x_dim,
 
 	nzdata_len = sum_leaf_vector_lengths_REC(x_svtree, LENGTH(x_dim));
 	if (nzdata_len > INT_MAX)
-		error("SVTSparseArray object contains too many nonzero "
-		      "values to be turned into a COOSparseArray object");
+		error("SVT_SparseArray object contains too many nonzero "
+		      "values to be turned into a COO_SparseArray object");
 
 	nzdata = PROTECT(alloc_nzdata(nzdata_len, x_type));
 
@@ -524,15 +524,15 @@ SEXP C_from_SVTSparseArray_to_COOSparseArray(SEXP x_dim,
 	if (ret < 0) {
 		UNPROTECT(2);
 		error("S4Arrays internal error "
-		      "in C_from_SVTSparseArray_to_COOSparseArray():\n"
-		      "  invalid SVTSparseArray object");
+		      "in C_from_SVT_SparseArray_to_COO_SparseArray():\n"
+		      "  invalid SVT_SparseArray object");
 	}
 
 	/* Sanity check (should never fail). */
 	if (nzdata_offset != nzindex_nrow) {
 		UNPROTECT(2);
 		error("S4Arrays internal error "
-		      "in C_from_SVTSparseArray_to_COOSparseArray():\n"
+		      "in C_from_SVT_SparseArray_to_COO_SparseArray():\n"
 		      "  *out_offset != nzindex_nrow");
 	}
 
@@ -545,7 +545,7 @@ SEXP C_from_SVTSparseArray_to_COOSparseArray(SEXP x_dim,
 
 
 /****************************************************************************
- * Going from COOSparseArray objects to SVTSparseArray objects
+ * Going from COO_SparseArray objects to SVT_SparseArray objects
  */
 
 static int grow_svtree(SEXP svtree,
@@ -697,7 +697,7 @@ static int store_nzpos_and_nzval_in_svtree(
 }
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_from_COOSparseArray_to_SVTSparseArray(SEXP x_dim,
+SEXP C_from_COO_SparseArray_to_SVT_SparseArray(SEXP x_dim,
 		SEXP x_nzindex, SEXP x_nzdata)
 {
 	CopyRVectorEltFunType copy_Rvector_elt_FUN;
@@ -777,7 +777,7 @@ SEXP C_from_COOSparseArray_to_SVTSparseArray(SEXP x_dim,
 
 
 /****************************************************************************
- * C_make_SVTSparseArray_from_dgCMatrix()
+ * C_make_SVT_SparseArray_from_dgCMatrix()
  */
 
 static SEXP make_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
@@ -799,7 +799,7 @@ static SEXP make_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
 }
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_make_SVTSparseArray_from_dgCMatrix(SEXP x, SEXP as_integer)
+SEXP C_make_SVT_SparseArray_from_dgCMatrix(SEXP x, SEXP as_integer)
 {
 	SEXP x_Dim, x_p, x_i, x_x, ans, lv;
 	int as_int, x_ncol, j, offset, lv_len;
@@ -837,7 +837,7 @@ SEXP C_make_SVTSparseArray_from_dgCMatrix(SEXP x, SEXP as_integer)
 
 
 /****************************************************************************
- * From SVTSparseArray to [d|l]gCMatrix
+ * From SVT_SparseArray to [d|l]gCMatrix
  */
 
 static int dump_svtree_to_CsparseMatrix_slots(SEXP x_svtree, int x_ncol,
@@ -870,7 +870,7 @@ static int dump_svtree_to_CsparseMatrix_slots(SEXP x_svtree, int x_ncol,
 }
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_from_SVTSparseArray_to_CsparseMatrix(SEXP x_dim,
+SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
 		SEXP x_type, SEXP x_svtree)
 {
 	int x_ncol, ret;
@@ -883,8 +883,8 @@ SEXP C_from_SVTSparseArray_to_CsparseMatrix(SEXP x_dim,
 	x_ncol = INTEGER(x_dim)[1];
 	nzdata_len = sum_leaf_vector_lengths_REC(x_svtree, 2);
 	if (nzdata_len > INT_MAX)
-		error("SVTSparseArray object contains too many nonzero "
-		      "values to be turned into a COOSparseArray object");
+		error("SVT_SparseArray object contains too many nonzero "
+		      "values to be turned into a COO_SparseArray object");
 
 	ans_i = PROTECT(NEW_INTEGER(nzdata_len));
 	ans_x = PROTECT(alloc_nzdata(nzdata_len, x_type));
@@ -897,8 +897,8 @@ SEXP C_from_SVTSparseArray_to_CsparseMatrix(SEXP x_dim,
 		if (ret < 0) {
 			UNPROTECT(3);
 			error("S4Arrays internal error "
-			      "in C_from_SVTSparseArray_to_CsparseMatrix():\n"
-			      "  invalid SVTSparseArray object");
+			      "in C_from_SVT_SparseArray_to_CsparseMatrix():\n"
+			      "  invalid SVT_SparseArray object");
 		}
 	}
 
@@ -912,7 +912,7 @@ SEXP C_from_SVTSparseArray_to_CsparseMatrix(SEXP x_dim,
 
 
 /****************************************************************************
- * From SVTSparseArray to ordinary array
+ * From SVT_SparseArray to ordinary array
  */
 
 /* Recursive. */
@@ -959,7 +959,7 @@ static int dump_svtree_to_ordinary_array_REC(SEXP svtree,
 
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_from_SVTSparseArray_to_array(SEXP x_dim, SEXP x_dimnames,
+SEXP C_from_SVT_SparseArray_to_array(SEXP x_dim, SEXP x_dimnames,
 		SEXP x_type, SEXP x_svtree)
 {
 	SEXPTYPE Rtype;
@@ -967,7 +967,7 @@ SEXP C_from_SVTSparseArray_to_array(SEXP x_dim, SEXP x_dimnames,
 	SEXP ans;
 	int ret;
 
-	Rtype = get_Rtype_from_SVTSparseArray_type(x_type);
+	Rtype = get_Rtype_from_SVT_SparseArray_type(x_type);
 	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(Rtype);
 	ans = PROTECT(new_Rarray(Rtype, x_dim, x_dimnames));
 	ret = dump_svtree_to_ordinary_array_REC(x_svtree,
@@ -977,18 +977,18 @@ SEXP C_from_SVTSparseArray_to_array(SEXP x_dim, SEXP x_dimnames,
 	UNPROTECT(1);
 	if (ret < 0)
 		error("S4Arrays internal error "
-		      "in C_from_SVTSparseArray_to_array():\n"
-		      "  invalid SVTSparseArray object");
+		      "in C_from_SVT_SparseArray_to_array():\n"
+		      "  invalid SVT_SparseArray object");
 	return ans;
 }
 
 
 /****************************************************************************
- * From ordinary array to SVTSparseArray
+ * From ordinary array to SVT_SparseArray
  */
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_from_array_to_SVTSparseArray(SEXP x)
+SEXP C_from_array_to_SVT_SparseArray(SEXP x)
 {
 	SEXP ans;
 
