@@ -4,7 +4,7 @@
 #include "SVTSparseArray_class.h"
 
 #include <limits.h>  /* for INT_MAX */
-#include <string.h>  /* for memcpy() */
+#include <string.h>  /* for memcpy(), memset() */
 
 
 /* All the atomic types + "list". */
@@ -62,62 +62,125 @@ static SEXPTYPE get_Rtype_from_SVTSparseArray_type(SEXP type)
 	return 0;
 }
 
-/* General purpose copy function.
-   We only support the 7 SEXP types listed in 'supported_SVT_Rtypes' above. */
-static inline int copy_vector_elts(SEXP in,  R_xlen_t in_offset,
-				   SEXP out, R_xlen_t out_offset,
-				   R_xlen_t nelt)
+typedef void (*CopyRVectorEltsFunType)(
+		SEXP in,  R_xlen_t in_offset,
+		SEXP out, R_xlen_t out_offset,
+		R_xlen_t nelt);
+
+static inline void copy_INTEGER_elts(
+		SEXP in,  R_xlen_t in_offset,
+		SEXP out, R_xlen_t out_offset,
+		R_xlen_t nelt)
 {
-	SEXPTYPE Rtype;
 	void *dest, *src;
+
+	dest = INTEGER(out) + out_offset;
+	src  = INTEGER(in)  + in_offset;
+	memcpy(dest, src, sizeof(int) * nelt);
+	return;
+}
+
+static inline void copy_NUMERIC_elts(
+		SEXP in,  R_xlen_t in_offset,
+		SEXP out, R_xlen_t out_offset,
+		R_xlen_t nelt)
+{
+	void *dest, *src;
+
+	dest = REAL(out) + out_offset;
+	src  = REAL(in)  + in_offset;
+	memcpy(dest, src, sizeof(double) * nelt);
+	return;
+}
+
+static inline void copy_COMPLEX_elts(
+		SEXP in,  R_xlen_t in_offset,
+		SEXP out, R_xlen_t out_offset,
+		R_xlen_t nelt)
+{
+	void *dest, *src;
+
+	dest = COMPLEX(out) + out_offset;
+	src  = COMPLEX(in)  + in_offset;
+	memcpy(dest, src, sizeof(Rcomplex) * nelt);
+	return;
+}
+
+static inline void copy_RAW_elts(
+		SEXP in,  R_xlen_t in_offset,
+		SEXP out, R_xlen_t out_offset,
+		R_xlen_t nelt)
+{
+	void *dest, *src;
+
+	dest = RAW(out) + out_offset;
+	src  = RAW(in)  + in_offset;
+	memcpy(dest, src, sizeof(Rbyte) * nelt);
+	return;
+}
+
+static inline void copy_CHARACTER_elts(
+		SEXP in,  R_xlen_t in_offset,
+		SEXP out, R_xlen_t out_offset,
+		R_xlen_t nelt)
+{
 	R_xlen_t k;
 
+	for (k = 0; k < nelt; k++) {
+		SET_STRING_ELT(out, out_offset + k,
+		    STRING_ELT(in,  in_offset  + k));
+	}
+	return;
+}
+
+static inline void copy_LIST_elts(
+		SEXP in,  R_xlen_t in_offset,
+		SEXP out, R_xlen_t out_offset,
+		R_xlen_t nelt)
+{
+	R_xlen_t k;
+
+	for (k = 0; k < nelt; k++) {
+		SET_VECTOR_ELT(out, out_offset + k,
+		    VECTOR_ELT(in,  in_offset  + k));
+	}
+	return;
+}
+
+static CopyRVectorEltsFunType select_copy_Rvector_elts_FUN(SEXPTYPE Rtype)
+{
+	switch (Rtype) {
+	    case LGLSXP: case INTSXP: return copy_INTEGER_elts;
+	    case REALSXP:             return copy_NUMERIC_elts;
+	    case CPLXSXP:             return copy_COMPLEX_elts;
+	    case RAWSXP:              return copy_RAW_elts;
+	    case VECSXP:              return copy_LIST_elts;
+	    case STRSXP:              return copy_CHARACTER_elts;
+	}
+	return NULL;
+}
+
+/* General purpose copy function.
+   We only support the 7 SEXP types listed in 'supported_SVT_Rtypes' above. */
+static inline int copy_Rvector_elts(
+		SEXP in,  R_xlen_t in_offset,
+		SEXP out, R_xlen_t out_offset,
+		R_xlen_t nelt)
+{
+	SEXPTYPE Rtype;
+	CopyRVectorEltsFunType copy_Rvector_elts_FUN;
+
 	Rtype = TYPEOF(in);
+	copy_Rvector_elts_FUN = select_copy_Rvector_elts_FUN(Rtype);
+	if (copy_Rvector_elts_FUN == NULL)
+		return -1;
 	if (TYPEOF(out) != Rtype)
 		return -1;
 	if (in_offset  + nelt > XLENGTH(in))
 		return -1;
 	if (out_offset + nelt > XLENGTH(out))
 		return -1;
-
-	switch (Rtype) {
-	    case VECSXP:
-		for (k = 0; k < nelt; k++) {
-			SET_VECTOR_ELT(out, out_offset + k,
-			    VECTOR_ELT(in,  in_offset  + k));
-		}
-		return 0;
-
-	    case STRSXP:
-		for (k = 0; k < nelt; k++) {
-			SET_STRING_ELT(out, out_offset + k,
-			    STRING_ELT(in,  in_offset  + k));
-		}
-		return 0;
-
-	    case LGLSXP: case INTSXP:
-		dest = INTEGER(out) + out_offset;
-		src  = INTEGER(in)  + in_offset;
-		break;
-
-	    case REALSXP:
-		dest = REAL(out) + out_offset;
-		src  = REAL(in)  + in_offset;
-		break;
-
-	    case CPLXSXP:
-		dest = COMPLEX(out) + out_offset;
-		src  = COMPLEX(in)  + in_offset;
-		break;
-
-	    case RAWSXP:
-		dest = RAW(out) + out_offset;
-		src  = RAW(in)  + in_offset;
-		break;
-
-	    default: return -1;
-	}
-	memcpy(dest, src, get_Rtype_size(Rtype) * nelt);
+	copy_Rvector_elts_FUN(in, in_offset, out, out_offset, nelt);
 	return 0;
 }
 
@@ -236,10 +299,10 @@ static inline int append_pos_val_pair_to_leaf_vector(SEXP lv,
 
     ok:
 	INTEGER(lv_pos)[k] = pos;
-	/* Using copy_vector_elts() to copy a single element is not efficient.
+	/* Using copy_Rvector_elts() to copy a single element is not efficient.
 	   TODO: Find something more efficient. */
-	return copy_vector_elts(nzdata, (R_xlen_t) nzdata_offset,
-				lv_vals, (R_xlen_t) k, (R_xlen_t) 1);
+	return copy_Rvector_elts(nzdata, (R_xlen_t) nzdata_offset,
+				 lv_vals, (R_xlen_t) k, (R_xlen_t) 1);
 }
 
 
@@ -331,9 +394,9 @@ static int extract_nzindex_and_nzdata_from_svtree_REC(SEXP svtree,
 	if (lv_len < 0)
 		return -1;
 
-	ret = copy_vector_elts(lv_vals, (R_xlen_t) 0,
-			       nzdata, (R_xlen_t) *nzdata_offset,
-			       XLENGTH(lv_vals));
+	ret = copy_Rvector_elts(lv_vals, (R_xlen_t) 0,
+				nzdata, (R_xlen_t) *nzdata_offset,
+				XLENGTH(lv_vals));
 	if (ret < 0)
 		return -1;
 
@@ -664,9 +727,9 @@ static int dump_svtree_to_CsparseMatrix_slots(SEXP x_svtree, int x_ncol,
 			/* 'sub_svtree' is a "leaf vector". */
 			lv_len = split_leaf_vector(sub_svtree,
 						   &lv_pos, &lv_vals);
-			ret = copy_vector_elts(lv_vals, (R_xlen_t) 0,
-					       ans_x, (R_xlen_t) offset,
-					       XLENGTH(lv_vals));
+			ret = copy_Rvector_elts(lv_vals, (R_xlen_t) 0,
+						ans_x, (R_xlen_t) offset,
+						XLENGTH(lv_vals));
 			if (ret < 0)
 				return -1;
 			for (k = 0; k < lv_len; k++) {
@@ -683,7 +746,7 @@ static int dump_svtree_to_CsparseMatrix_slots(SEXP x_svtree, int x_ncol,
 SEXP C_from_SVTSparseArray_to_CsparseMatrix(SEXP x_dim,
 		SEXP x_type, SEXP x_svtree)
 {
-	int x_ncol;
+	int x_ncol, ret;
 	R_xlen_t nzdata_len;
 	SEXP ans_p, ans_i, ans_x, ans;
 
@@ -748,7 +811,8 @@ static SEXP new_array(SEXP dim, SEXP dimnames, SEXP type)
 /* Recursive. */
 static int dump_svtree_to_ordinary_array_REC(SEXP svtree,
 		const int *dim, int ndim,
-		SEXP out, R_xlen_t array_offset, R_xlen_t array_len)
+		SEXP out, R_xlen_t array_offset, R_xlen_t array_len,
+		CopyRVectorEltsFunType copy_Rvector_elts_FUN)
 {
 	int lv_len, k, svtree_len, ret;
 	SEXP lv_pos, lv_vals, sub_svtree;
@@ -764,13 +828,9 @@ static int dump_svtree_to_ordinary_array_REC(SEXP svtree,
 			return -1;
 		for (k = 0; k < lv_len; k++) {
 			out_offset = array_offset + INTEGER(lv_pos)[k] - 1;
-			/* Using copy_vector_elts() to copy a single element
-			   is not efficient.
-			   TODO: Find something more efficient. */
-			ret = copy_vector_elts(lv_vals, (R_xlen_t) k,
-					       out, out_offset, (R_xlen_t) 1);
-			if (ret < 0)
-				return -1;
+			copy_Rvector_elts_FUN(lv_vals, (R_xlen_t) k,
+					      out, out_offset,
+					      (R_xlen_t) 1);
 		}
 		return 0;
 	}
@@ -782,7 +842,8 @@ static int dump_svtree_to_ordinary_array_REC(SEXP svtree,
 		sub_svtree = VECTOR_ELT(svtree, k);
 		ret = dump_svtree_to_ordinary_array_REC(sub_svtree,
 				dim, ndim - 1,
-				out, array_offset, array_len);
+				out, array_offset, array_len,
+				copy_Rvector_elts_FUN);
 		if (ret < 0)
 			return -1;
 		array_offset += array_len;
@@ -795,13 +856,18 @@ static int dump_svtree_to_ordinary_array_REC(SEXP svtree,
 SEXP C_from_SVTSparseArray_to_array(SEXP x_dim, SEXP x_dimnames,
 		SEXP x_type, SEXP x_svtree)
 {
+	SEXPTYPE Rtype;
+	CopyRVectorEltsFunType copy_Rvector_elts_FUN;
 	SEXP ans;
 	int ret;
 
+	Rtype = get_Rtype_from_SVTSparseArray_type(x_type);
+	copy_Rvector_elts_FUN = select_copy_Rvector_elts_FUN(Rtype);
 	ans = PROTECT(new_array(x_dim, x_dimnames, x_type));
 	ret = dump_svtree_to_ordinary_array_REC(x_svtree,
 				INTEGER(x_dim), LENGTH(x_dim),
-				ans, 0, XLENGTH(ans));
+				ans, 0, XLENGTH(ans),
+				copy_Rvector_elts_FUN);
 	UNPROTECT(1);
 	if (ret < 0)
 		error("S4Arrays internal error "
