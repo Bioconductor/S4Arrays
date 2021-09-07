@@ -62,10 +62,22 @@ static SEXPTYPE get_Rtype_from_SVTSparseArray_type(SEXP type)
 	return 0;
 }
 
+typedef void (*CopyRVectorEltFunType)(
+		SEXP in,  R_xlen_t in_offset,
+		SEXP out, R_xlen_t out_offset);
+
 typedef void (*CopyRVectorEltsFunType)(
 		SEXP in,  R_xlen_t in_offset,
 		SEXP out, R_xlen_t out_offset,
 		R_xlen_t nelt);
+
+static inline void copy_INTEGER_elt(
+		SEXP in,  R_xlen_t in_offset,
+		SEXP out, R_xlen_t out_offset)
+{
+	INTEGER(out)[out_offset] = INTEGER(in)[in_offset];
+	return;
+}
 
 static inline void copy_INTEGER_elts(
 		SEXP in,  R_xlen_t in_offset,
@@ -77,6 +89,14 @@ static inline void copy_INTEGER_elts(
 	dest = INTEGER(out) + out_offset;
 	src  = INTEGER(in)  + in_offset;
 	memcpy(dest, src, sizeof(int) * nelt);
+	return;
+}
+
+static inline void copy_NUMERIC_elt(
+		SEXP in,  R_xlen_t in_offset,
+		SEXP out, R_xlen_t out_offset)
+{
+	REAL(out)[out_offset] = REAL(in)[in_offset];
 	return;
 }
 
@@ -93,6 +113,14 @@ static inline void copy_NUMERIC_elts(
 	return;
 }
 
+static inline void copy_COMPLEX_elt(
+		SEXP in,  R_xlen_t in_offset,
+		SEXP out, R_xlen_t out_offset)
+{
+	COMPLEX(out)[out_offset] = COMPLEX(in)[in_offset];
+	return;
+}
+
 static inline void copy_COMPLEX_elts(
 		SEXP in,  R_xlen_t in_offset,
 		SEXP out, R_xlen_t out_offset,
@@ -103,6 +131,14 @@ static inline void copy_COMPLEX_elts(
 	dest = COMPLEX(out) + out_offset;
 	src  = COMPLEX(in)  + in_offset;
 	memcpy(dest, src, sizeof(Rcomplex) * nelt);
+	return;
+}
+
+static inline void copy_RAW_elt(
+		SEXP in,  R_xlen_t in_offset,
+		SEXP out, R_xlen_t out_offset)
+{
+	RAW(out)[out_offset] = RAW(in)[in_offset];
 	return;
 }
 
@@ -119,6 +155,14 @@ static inline void copy_RAW_elts(
 	return;
 }
 
+static inline void copy_CHARACTER_elt(
+		SEXP in,  R_xlen_t in_offset,
+		SEXP out, R_xlen_t out_offset)
+{
+	SET_STRING_ELT(out, out_offset, STRING_ELT(in, in_offset));
+	return;
+}
+
 static inline void copy_CHARACTER_elts(
 		SEXP in,  R_xlen_t in_offset,
 		SEXP out, R_xlen_t out_offset,
@@ -126,10 +170,16 @@ static inline void copy_CHARACTER_elts(
 {
 	R_xlen_t k;
 
-	for (k = 0; k < nelt; k++) {
-		SET_STRING_ELT(out, out_offset + k,
-		    STRING_ELT(in,  in_offset  + k));
-	}
+	for (k = 0; k < nelt; k++)
+		copy_CHARACTER_elt(in, in_offset + k, out, out_offset + k);
+	return;
+}
+
+static inline void copy_LIST_elt(
+		SEXP in,  R_xlen_t in_offset,
+		SEXP out, R_xlen_t out_offset)
+{
+	SET_VECTOR_ELT(out, out_offset, VECTOR_ELT(in, in_offset));
 	return;
 }
 
@@ -140,11 +190,22 @@ static inline void copy_LIST_elts(
 {
 	R_xlen_t k;
 
-	for (k = 0; k < nelt; k++) {
-		SET_VECTOR_ELT(out, out_offset + k,
-		    VECTOR_ELT(in,  in_offset  + k));
-	}
+	for (k = 0; k < nelt; k++)
+		copy_LIST_elt(in, in_offset + k, out, out_offset + k);
 	return;
+}
+
+static CopyRVectorEltFunType select_copy_Rvector_elt_FUN(SEXPTYPE Rtype)
+{
+	switch (Rtype) {
+	    case LGLSXP: case INTSXP: return copy_INTEGER_elt;
+	    case REALSXP:             return copy_NUMERIC_elt;
+	    case CPLXSXP:             return copy_COMPLEX_elt;
+	    case RAWSXP:              return copy_RAW_elt;
+	    case VECSXP:              return copy_LIST_elt;
+	    case STRSXP:              return copy_CHARACTER_elt;
+	}
+	return NULL;
 }
 
 static CopyRVectorEltsFunType select_copy_Rvector_elts_FUN(SEXPTYPE Rtype)
@@ -812,7 +873,7 @@ static SEXP new_array(SEXP dim, SEXP dimnames, SEXP type)
 static int dump_svtree_to_ordinary_array_REC(SEXP svtree,
 		const int *dim, int ndim,
 		SEXP out, R_xlen_t array_offset, R_xlen_t array_len,
-		CopyRVectorEltsFunType copy_Rvector_elts_FUN)
+		CopyRVectorEltFunType copy_Rvector_elt_FUN)
 {
 	int lv_len, k, svtree_len, ret;
 	SEXP lv_pos, lv_vals, sub_svtree;
@@ -828,9 +889,8 @@ static int dump_svtree_to_ordinary_array_REC(SEXP svtree,
 			return -1;
 		for (k = 0; k < lv_len; k++) {
 			out_offset = array_offset + INTEGER(lv_pos)[k] - 1;
-			copy_Rvector_elts_FUN(lv_vals, (R_xlen_t) k,
-					      out, out_offset,
-					      (R_xlen_t) 1);
+			copy_Rvector_elt_FUN(lv_vals, (R_xlen_t) k,
+					     out, out_offset);
 		}
 		return 0;
 	}
@@ -843,7 +903,7 @@ static int dump_svtree_to_ordinary_array_REC(SEXP svtree,
 		ret = dump_svtree_to_ordinary_array_REC(sub_svtree,
 				dim, ndim - 1,
 				out, array_offset, array_len,
-				copy_Rvector_elts_FUN);
+				copy_Rvector_elt_FUN);
 		if (ret < 0)
 			return -1;
 		array_offset += array_len;
@@ -857,17 +917,17 @@ SEXP C_from_SVTSparseArray_to_array(SEXP x_dim, SEXP x_dimnames,
 		SEXP x_type, SEXP x_svtree)
 {
 	SEXPTYPE Rtype;
-	CopyRVectorEltsFunType copy_Rvector_elts_FUN;
+	CopyRVectorEltFunType copy_Rvector_elt_FUN;
 	SEXP ans;
 	int ret;
 
 	Rtype = get_Rtype_from_SVTSparseArray_type(x_type);
-	copy_Rvector_elts_FUN = select_copy_Rvector_elts_FUN(Rtype);
+	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(Rtype);
 	ans = PROTECT(new_array(x_dim, x_dimnames, x_type));
 	ret = dump_svtree_to_ordinary_array_REC(x_svtree,
 				INTEGER(x_dim), LENGTH(x_dim),
 				ans, 0, XLENGTH(ans),
-				copy_Rvector_elts_FUN);
+				copy_Rvector_elt_FUN);
 	UNPROTECT(1);
 	if (ret < 0)
 		error("S4Arrays internal error "
