@@ -34,8 +34,8 @@
 ###
 ### - etc...
 ###
-### If the sparse array is empty (i.e. has no nonzero data), the 'svtree'
-### slot is set to NULL.
+### If the sparse array is empty (i.e. has no nonzero data), the 'SVT' slot
+### is set to NULL.
 ###
 ### IMPORTANT NOTES:
 ### - All the "leaf vectors" in the SVT are guaranteed to have a
@@ -55,7 +55,7 @@ setClass("SVT_SparseArray",
     contains="SparseArray",
     representation(
         type="character",
-        svtree="NULL_OR_list"  # NULL or Sparse Vector Tree (SVT)
+        SVT="NULL_OR_list"  # NULL or Sparse Vector Tree (SVT)
     ),
     prototype(
         type="logical"
@@ -73,11 +73,11 @@ setClass("SVT_SparseArray",
 ###
 
 .new_SVT_SparseArray <- function(dim, dimnames=NULL, type="logical",
-                                svtree=NULL, check=TRUE)
+                                 SVT=NULL, check=TRUE)
 {
     dimnames <- normarg_dimnames(dimnames, dim)
     new2("SVT_SparseArray", dim=dim, dimnames=dimnames, type=type,
-                            svtree=svtree, check=check)
+                            SVT=SVT, check=check)
 }
 
 
@@ -92,8 +92,8 @@ setMethod("type", "SVT_SparseArray", function(x) x@type)
 .get_SVT_SparseArray_nzdata_length <- function(x)
 {
     stopifnot(is(x, "SVT_SparseArray"))
-    .Call2("C_get_SVT_SparseArray_nzdata_length", x@dim, x@svtree,
-                                                 PACKAGE="S4Arrays")
+    .Call2("C_get_SVT_SparseArray_nzdata_length",
+           x@dim, x@SVT, PACKAGE="S4Arrays")
 }
 
 #setMethod("nzdataLength", "SVT_SparseArray",
@@ -110,7 +110,7 @@ setMethod("type", "SVT_SparseArray", function(x) x@type)
     stopifnot(is(from, "SVT_SparseArray"))
     ## Returns 'ans_nzindex' and 'ans_nzdata' in a list of length 2.
     C_ans <- .Call2("C_from_SVT_SparseArray_to_COO_SparseArray",
-                    from@dim, from@type, from@svtree, PACKAGE="S4Arrays")
+                    from@dim, from@type, from@SVT, PACKAGE="S4Arrays")
     ans_nzindex <- C_ans[[1L]]
     ans_nzdata  <- C_ans[[2L]]
     new2("COO_SparseArray", dim=from@dim, dimnames=from@dimnames,
@@ -121,11 +121,10 @@ setMethod("type", "SVT_SparseArray", function(x) x@type)
 .from_COO_SparseArray_to_SVT_SparseArray <- function(from)
 {
     stopifnot(is(from, "COO_SparseArray"))
-    ans_svtree <- .Call2("C_from_COO_SparseArray_to_SVT_SparseArray",
-                         from@dim, from@nzindex, from@nzdata,
-                         PACKAGE="S4Arrays")
-    .new_SVT_SparseArray(from@dim, from@dimnames, type(from), ans_svtree,
-                        check=FALSE)
+    ans_SVT <- .Call2("C_build_SVT_from_COO_SparseArray",
+                      from@dim, from@nzindex, from@nzdata, PACKAGE="S4Arrays")
+    .new_SVT_SparseArray(from@dim, from@dimnames, type(from), ans_SVT,
+                         check=FALSE)
 }
 
 setAs("SVT_SparseArray", "COO_SparseArray",
@@ -145,10 +144,10 @@ setAs("COO_SparseArray", "SVT_SparseArray",
     stopifnot(is(x, "dgCMatrix"))
     if (!isTRUEorFALSE(as.integer))
         stop(wmsg("'as.integer' must be TRUE or FALSE"))
-    ans_svtree <- .Call2("C_make_SVT_SparseArray_from_dgCMatrix",
-                         x, as.integer, PACKAGE="S4Arrays")
-    .new_SVT_SparseArray(dim(x), dimnames(x), type(x), ans_svtree,
-                        check=FALSE)
+    ans_SVT <- .Call2("C_build_SVT_from_dgCMatrix",
+                      x, as.integer, PACKAGE="S4Arrays")
+    .new_SVT_SparseArray(dim(x), dimnames(x), type(x), ans_SVT,
+                         check=FALSE)
 }
 
 SVT_SparseArray <- function(x, as.integer=FALSE)
@@ -188,7 +187,7 @@ setAs("lgCMatrix", "SVT_SparseArray",
                         stop(wmsg("unsupported data type: ", from@type)))
     ## Returns 'ans_p', 'ans_i', and 'ans_x', in a list of length 3.
     C_ans <- .Call2("C_from_SVT_SparseArray_to_CsparseMatrix",
-                    from@dim, from@type, from@svtree, PACKAGE="S4Arrays")
+                    from@dim, from@type, from@SVT, PACKAGE="S4Arrays")
     ans_p <- C_ans[[1L]]
     ans_i <- C_ans[[2L]]
     ans_x <- C_ans[[3L]]
@@ -208,17 +207,15 @@ setAs("SVT_SparseArray", "lgCMatrix", .from_SVT_SparseArray_to_CsparseMatrix)
 {
     stopifnot(is(from, "SVT_SparseArray"))
     .Call2("C_from_SVT_SparseArray_to_Rarray",
-           from@dim, dimnames(from),
-           from@type, from@svtree, PACKAGE="S4Arrays")
+           from@dim, dimnames(from), from@type, from@SVT, PACKAGE="S4Arrays")
 }
 
 .from_array_to_SVT_SparseArray <- function(from)
 {
     stopifnot(is.array(from))
-    ans_svtree <- .Call2("C_from_Rarray_to_SVT_SparseArray",
-                         from, PACKAGE="S4Arrays")
-    .new_SVT_SparseArray(dim(from), dimnames(from), type(from), ans_svtree,
-                        check=FALSE)
+    ans_SVT <- .Call2("C_build_SVT_from_Rarray", from, PACKAGE="S4Arrays")
+    .new_SVT_SparseArray(dim(from), dimnames(from), type(from), ans_SVT,
+                         check=FALSE)
 }
 
 ### S3/S4 combo for as.array.SVT_SparseArray
