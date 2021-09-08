@@ -31,14 +31,14 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(
 	SEXP x_svtree
 );
 
-SEXP C_from_SVT_SparseArray_to_array(
+SEXP C_from_SVT_SparseArray_to_Rarray(
 	SEXP x_dim,
 	SEXP x_dimnames,
 	SEXP x_type,
 	SEXP x_svtree
 );
 
-SEXP C_from_array_to_SVT_SparseArray(
+SEXP C_from_Rarray_to_SVT_SparseArray(
 	SEXP x
 );
 

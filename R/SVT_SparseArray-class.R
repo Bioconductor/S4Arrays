@@ -207,7 +207,7 @@ setAs("SVT_SparseArray", "lgCMatrix", .from_SVT_SparseArray_to_CsparseMatrix)
 .from_SVT_SparseArray_to_array <- function(from)
 {
     stopifnot(is(from, "SVT_SparseArray"))
-    .Call2("C_from_SVT_SparseArray_to_array",
+    .Call2("C_from_SVT_SparseArray_to_Rarray",
            from@dim, dimnames(from),
            from@type, from@svtree, PACKAGE="S4Arrays")
 }
@@ -215,7 +215,7 @@ setAs("SVT_SparseArray", "lgCMatrix", .from_SVT_SparseArray_to_CsparseMatrix)
 .from_array_to_SVT_SparseArray <- function(from)
 {
     stopifnot(is.array(from))
-    ans_svtree <- .Call2("C_from_array_to_SVT_SparseArray",
+    ans_svtree <- .Call2("C_from_Rarray_to_SVT_SparseArray",
                          from, PACKAGE="S4Arrays")
     .new_SVT_SparseArray(dim(from), dimnames(from), type(from), ans_svtree,
                         check=FALSE)

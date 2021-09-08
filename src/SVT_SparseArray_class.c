@@ -292,7 +292,7 @@ static SEXPTYPE get_Rtype_from_SVT_SparseArray_type(SEXP type)
 
 
 /****************************************************************************
- * Basic manipulation of a leaf vector
+ * Basic manipulation of a "leaf vector"
  *
  * A "leaf vector" is a sparse vector represented by a list of 2 parallel
  * vectors: an integer vector of positions and a vector (atomic or list)
@@ -319,6 +319,17 @@ static SEXP new_leaf_vector(SEXP lv_pos, SEXP lv_vals)
 	SET_VECTOR_ELT(ans, 0, lv_pos);
 	SET_VECTOR_ELT(ans, 1, lv_vals);
 	UNPROTECT(1);
+	return ans;
+}
+
+static SEXP alloc_leaf_vector(int lv_len, SEXPTYPE Rtype)
+{
+	SEXP lv_pos, lv_vals, ans;
+
+	lv_pos  = PROTECT(NEW_INTEGER(lv_len));
+	lv_vals = PROTECT(allocVector(Rtype, lv_len));
+	ans = new_leaf_vector(lv_pos, lv_vals);
+	UNPROTECT(2);
 	return ans;
 }
 
@@ -701,14 +712,14 @@ SEXP C_from_COO_SparseArray_to_SVT_SparseArray(SEXP x_dim,
 		SEXP x_nzindex, SEXP x_nzdata)
 {
 	CopyRVectorEltFunType copy_Rvector_elt_FUN;
-	int ndim, nzdata_len, ans_len, i, ret;
+	int x_ndim, nzdata_len, ans_len, i, ret;
 	SEXP x_nzindex_dim, ans;
 
 	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(TYPEOF(x_nzdata));
 	if (copy_Rvector_elt_FUN == NULL)
 		error("'x@nzdata' has invalid type");
 
-	ndim = LENGTH(x_dim);
+	x_ndim = LENGTH(x_dim);
 	nzdata_len = LENGTH(x_nzdata);
 
 	/* Check 'x_nzindex' dimensions. */
@@ -717,28 +728,28 @@ SEXP C_from_COO_SparseArray_to_SVT_SparseArray(SEXP x_dim,
 		error("'x@nzindex' must be a matrix");
 	if (INTEGER(x_nzindex_dim)[0] != nzdata_len)
 		error("nrow(x@nzindex) != length(x@nzdata)");
-	if (INTEGER(x_nzindex_dim)[1] != ndim)
+	if (INTEGER(x_nzindex_dim)[1] != x_ndim)
 		error("ncol(x@nzindex) != length(x@dim)");
 
 	if (nzdata_len == 0)
 		return R_NilValue;
 
-	if (ndim == 1)
+	if (x_ndim == 1)
 		return make_leaf_vector(INTEGER(x_nzindex), x_nzdata,
 					INTEGER(x_dim)[0]);
 
-	ans_len = INTEGER(x_dim)[ndim - 1];
+	ans_len = INTEGER(x_dim)[x_ndim - 1];
 
 	/* 1st pass: Grow the branches of the tree but don't add any
 	   leaf vectors to it, only compute their lengths. */
-	if (ndim == 2) {
+	if (x_ndim == 2) {
 		ans = PROTECT(new_Rvector(INTSXP, (R_xlen_t) ans_len));
 	} else {
 		ans = PROTECT(NEW_LIST(ans_len));
 	}
 	for (i = 0; i < nzdata_len; i++) {
 		ret = grow_svtree(ans,
-				  INTEGER(x_dim), ndim,
+				  INTEGER(x_dim), x_ndim,
 				  INTEGER(x_nzindex), nzdata_len, i);
 		if (ret < 0) {
 			UNPROTECT(1);
@@ -748,7 +759,7 @@ SEXP C_from_COO_SparseArray_to_SVT_SparseArray(SEXP x_dim,
 	}
 
 	/* 2nd pass: Add the leaf vectors to the tree. */
-	if (ndim == 2)
+	if (x_ndim == 2)
 		ans = PROTECT(
 			alloc_list_of_appendable_leaf_vectors(
 					INTEGER(ans), ans_len,
@@ -756,7 +767,7 @@ SEXP C_from_COO_SparseArray_to_SVT_SparseArray(SEXP x_dim,
 		);
 	for (i = 0; i < nzdata_len; i++) {
 		ret = store_nzpos_and_nzval_in_svtree(
-				INTEGER(x_nzindex), nzdata_len, ndim,
+				INTEGER(x_nzindex), nzdata_len, x_ndim,
 				x_nzdata, i,
 				ans,
 				copy_Rvector_elt_FUN);
@@ -769,7 +780,7 @@ SEXP C_from_COO_SparseArray_to_SVT_SparseArray(SEXP x_dim,
 		}
 	}
 
-	if (ndim == 2)
+	if (x_ndim == 2)
 		UNPROTECT(1);
 	UNPROTECT(1);
 	return ans;
@@ -854,6 +865,8 @@ static int dump_svtree_to_CsparseMatrix_slots(SEXP x_svtree, int x_ncol,
 			/* 'sub_svtree' is a "leaf vector". */
 			lv_len = split_leaf_vector(sub_svtree,
 						   &lv_pos, &lv_vals);
+			if (lv_len < 0)
+				return -1;
 			ret = copy_Rvector_elts(lv_vals, (R_xlen_t) 0,
 						ans_x, (R_xlen_t) offset,
 						XLENGTH(lv_vals));
@@ -916,14 +929,14 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
  */
 
 /* Recursive. */
-static int dump_svtree_to_ordinary_array_REC(SEXP svtree,
+static int dump_svtree_to_Rsubarray_REC(SEXP svtree,
 		const int *dim, int ndim,
-		SEXP out, R_xlen_t array_offset, R_xlen_t array_len,
+		SEXP Rarray, R_xlen_t subarr_offset, R_xlen_t subarr_len,
 		CopyRVectorEltFunType copy_Rvector_elt_FUN)
 {
 	int lv_len, k, svtree_len, ret;
 	SEXP lv_pos, lv_vals, sub_svtree;
-	R_xlen_t out_offset;
+	R_xlen_t offset;
 
 	if (isNull(svtree))
 		return 0;
@@ -934,32 +947,34 @@ static int dump_svtree_to_ordinary_array_REC(SEXP svtree,
 		if (lv_len < 0)
 			return -1;
 		for (k = 0; k < lv_len; k++) {
-			out_offset = array_offset + INTEGER(lv_pos)[k] - 1;
+			offset = subarr_offset + INTEGER(lv_pos)[k] - 1;
 			copy_Rvector_elt_FUN(lv_vals, (R_xlen_t) k,
-					     out, out_offset);
+					     Rarray, offset);
 		}
 		return 0;
 	}
 
 	/* 'svtree' is a regular node (list). */
-	array_len /= dim[ndim - 1];
 	svtree_len = LENGTH(svtree);
+	if (svtree_len != dim[ndim - 1])
+		return -1;
+	subarr_len /= svtree_len;
 	for (k = 0; k < svtree_len; k++) {
 		sub_svtree = VECTOR_ELT(svtree, k);
-		ret = dump_svtree_to_ordinary_array_REC(sub_svtree,
+		ret = dump_svtree_to_Rsubarray_REC(sub_svtree,
 				dim, ndim - 1,
-				out, array_offset, array_len,
+				Rarray, subarr_offset, subarr_len,
 				copy_Rvector_elt_FUN);
 		if (ret < 0)
 			return -1;
-		array_offset += array_len;
+		subarr_offset += subarr_len;
 	}
 	return 0;
 }
 
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_from_SVT_SparseArray_to_array(SEXP x_dim, SEXP x_dimnames,
+SEXP C_from_SVT_SparseArray_to_Rarray(SEXP x_dim, SEXP x_dimnames,
 		SEXP x_type, SEXP x_svtree)
 {
 	SEXPTYPE Rtype;
@@ -970,14 +985,14 @@ SEXP C_from_SVT_SparseArray_to_array(SEXP x_dim, SEXP x_dimnames,
 	Rtype = get_Rtype_from_SVT_SparseArray_type(x_type);
 	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(Rtype);
 	ans = PROTECT(new_Rarray(Rtype, x_dim, x_dimnames));
-	ret = dump_svtree_to_ordinary_array_REC(x_svtree,
+	ret = dump_svtree_to_Rsubarray_REC(x_svtree,
 				INTEGER(x_dim), LENGTH(x_dim),
 				ans, 0, XLENGTH(ans),
 				copy_Rvector_elt_FUN);
 	UNPROTECT(1);
 	if (ret < 0)
 		error("S4Arrays internal error "
-		      "in C_from_SVT_SparseArray_to_array():\n"
+		      "in C_from_SVT_SparseArray_to_Rarray():\n"
 		      "  invalid SVT_SparseArray object");
 	return ans;
 }
@@ -987,12 +1002,96 @@ SEXP C_from_SVT_SparseArray_to_array(SEXP x_dim, SEXP x_dimnames,
  * From ordinary array to SVT_SparseArray
  */
 
-/* --- .Call ENTRY POINT --- */
-SEXP C_from_array_to_SVT_SparseArray(SEXP x)
+/* Returns R_NilValue or a "leaf vector". */
+static SEXP build_svtree_from_Rsubvec(
+		SEXP Rvector, R_xlen_t subvec_offset, int subvec_len,
+		CopyRVectorEltFunType copy_Rvector_elt_FUN)
 {
-	SEXP ans;
+	int lv_len, i;
+	R_xlen_t offset;
+	SEXP lv, lv_pos, lv_vals;
 
-	error("not ready yet");
-	return ans;
+	lv_len = 0;
+	for (i = 0, offset = subvec_offset; i < subvec_len; i++, offset++) {
+		/* Implement and use isZero() for this. */
+		if (INTEGER(Rvector)[offset] != 0)
+			lv_len++;
+	}
+	if (lv_len == 0)
+		return R_NilValue;
+	lv = PROTECT(alloc_leaf_vector(lv_len, TYPEOF(Rvector)));
+	split_leaf_vector(lv, &lv_pos, &lv_vals);
+	lv_len = 0;
+	for (i = 0, offset = subvec_offset; i < subvec_len; i++, offset++) {
+		/* Implement and use isZero() for this. */
+		if (INTEGER(Rvector)[offset] != 0) {
+			INTEGER(lv_pos)[lv_len] = i + 1;
+			INTEGER(lv_vals)[lv_len] = INTEGER(Rvector)[offset];
+			lv_len++;
+		}
+	}
+	UNPROTECT(1);
+	return lv;
+}
+
+/* Recursive. */
+static SEXP build_svtree_from_Rsubarray_REC(
+		SEXP Rarray, R_xlen_t subarr_offset, R_xlen_t subarr_len,
+		const int *dim, int ndim,
+		CopyRVectorEltFunType copy_Rvector_elt_FUN)
+{
+	int svtree_len, k, empty;
+	SEXP ans, ans_elt;
+
+	if (ndim == 1) { /* Sanity check (should never fail). */
+		if (dim[0] != subarr_len)
+			error("S4Arrays internal error "
+			      "in build_svtree_from_Rsubarray_REC():\n"
+			      "  dim[0] != subarr_len");
+		return build_svtree_from_Rsubvec(Rarray, subarr_offset, dim[0],
+						 copy_Rvector_elt_FUN);
+	}
+
+	svtree_len = dim[ndim - 1];  /* cannot be 0 so safe to divide below */
+	subarr_len /= svtree_len;
+	ans = PROTECT(NEW_LIST(svtree_len));
+	empty = 1;
+	for (k = 0; k < svtree_len; k++) {
+		ans_elt = build_svtree_from_Rsubarray_REC(
+					Rarray, subarr_offset, subarr_len,
+					dim, ndim - 1,
+					copy_Rvector_elt_FUN);
+		if (!isNull(ans_elt)) {
+			PROTECT(ans_elt);
+			SET_VECTOR_ELT(ans, k, ans_elt);
+			UNPROTECT(1);
+			empty = 0;
+		}
+		subarr_offset += subarr_len;
+	}
+	UNPROTECT(1);
+	return empty ? R_NilValue : ans;
+}
+
+/* --- .Call ENTRY POINT --- */
+SEXP C_from_Rarray_to_SVT_SparseArray(SEXP x)
+{
+	CopyRVectorEltFunType copy_Rvector_elt_FUN;
+	R_xlen_t x_len;
+	SEXP x_dim;
+	int x_ndim;
+
+	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(TYPEOF(x));
+	if (copy_Rvector_elt_FUN == NULL)
+		error("input array has invalid type");
+	x_len = XLENGTH(x);
+	if (x_len == 0)  /* means that 'any(dim(x) == 0)' is TRUE */
+		return R_NilValue;
+
+	x_dim = GET_DIM(x);  /* does not contain zeros */
+	x_ndim = LENGTH(x_dim);
+	return build_svtree_from_Rsubarray_REC(x, 0, x_len,
+					       INTEGER(x_dim), x_ndim,
+					       copy_Rvector_elt_FUN);
 }
 
