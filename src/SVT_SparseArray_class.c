@@ -24,6 +24,82 @@ static const SEXPTYPE supported_SVT_Rtypes[] = {
  * Low-level utils
  */
 
+/* Returns 1-based positions with respect to 'in'. */
+static int collect_pos_of_nonzero_int_elts(const int *in, int in_len,
+		int *posbuf)
+{
+	int *p = posbuf;
+	for (int pos = 1; pos <= in_len; pos++, in++)
+		if (*in != 0)
+			*(p++) = pos;  /* 1-based */
+	return (int) (p - posbuf);
+}
+
+/* Returns 1-based positions with respect to 'in'. */
+static int collect_pos_of_nonzero_double_elts(const double *in, int in_len,
+		int *posbuf)
+{
+	int *p = posbuf;
+	for (int pos = 1; pos <= in_len; pos++, in++)
+		if (*in != 0.0)
+			*(p++) = pos;  /* 1-based */
+	return (int) (p - posbuf);
+}
+
+/* Returns 1-based positions with respect to 'in'. */
+static int collect_pos_of_nonzero_Rcomplex_elts(const Rcomplex *in, int in_len,
+		int *posbuf)
+{
+	int *p = posbuf;
+	for (int pos = 1; pos <= in_len; pos++, in++)
+		if (in->r != 0.0 || in->i != 0.0)
+			*(p++) = pos;  /* 1-based */
+	return (int) (p - posbuf);
+}
+
+/* Returns 1-based positions with respect to 'in'. */
+static int collect_pos_of_nonzero_Rbyte_elts(const Rbyte *in, int in_len,
+		int *posbuf)
+{
+	int *p = posbuf;
+	for (int pos = 1; pos <= in_len; pos++, in++)
+		if (*in != 0)
+			*(p++) = pos;  /* 1-based */
+	return (int) (p - posbuf);
+}
+
+static void copy_selected_int_elts(const int *in,
+		const int *in_offsets, int n, int *out)
+{
+	for (int k = 0; k < n; k++, out++)
+		*out = *(in + in_offsets[k]);
+	return;
+}
+
+static void copy_selected_double_elts(const double *in,
+		const int *in_offsets, int n, double *out)
+{
+	for (int k = 0; k < n; k++, out++)
+		*out = *(in + in_offsets[k]);
+	return;
+}
+
+static void copy_selected_Rcomplex_elts(const Rcomplex *in,
+		const int *in_offsets, int n, Rcomplex *out)
+{
+	for (int k = 0; k < n; k++, out++)
+		*out = *(in + in_offsets[k]);
+	return;
+}
+
+static void copy_selected_Rbyte_elts(const Rbyte *in,
+		const int *in_offsets, int n, Rbyte *out)
+{
+	for (int k = 0; k < n; k++, out++)
+		*out = *(in + in_offsets[k]);
+	return;
+}
+
 static inline size_t get_Rtype_size(SEXPTYPE Rtype)
 {
 	switch (Rtype) {
@@ -409,6 +485,17 @@ static inline int split_leaf_vector(SEXP lv, SEXP *lv_pos, SEXP *lv_vals)
 	if (XLENGTH(*lv_vals) != lv_pos_len)
 		return -1;
 	return (int) lv_pos_len;
+}
+
+static SEXP alloc_and_split_leaf_vector(int lv_len, SEXPTYPE Rtype,
+		SEXP *lv_pos, SEXP *lv_vals)
+{
+	SEXP ans;
+
+	ans = PROTECT(alloc_leaf_vector(lv_len, Rtype));
+	split_leaf_vector(ans, lv_pos, lv_vals);
+	UNPROTECT(1);
+	return ans;
 }
 
 /* 'pos' must contain 1-based positions. */
@@ -1060,6 +1147,77 @@ SEXP C_from_SVT_SparseArray_to_Rarray(SEXP x_dim, SEXP x_dimnames,
  * From ordinary array to SVT_SparseArray
  */
 
+static int collect_pos_of_nonzero_Rsubvec_elts(
+		SEXP Rvector, R_xlen_t subvec_offset, int subvec_len,
+		int *posbuf,
+		RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN)
+{
+	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
+	switch (TYPEOF(Rvector)) {
+	    case LGLSXP: case INTSXP:
+		return collect_pos_of_nonzero_int_elts(
+				INTEGER(Rvector) + subvec_offset,
+				subvec_len, posbuf);
+	    case REALSXP:
+		return collect_pos_of_nonzero_double_elts(
+				REAL(Rvector) + subvec_offset,
+				subvec_len, posbuf);
+	    case CPLXSXP:
+		return collect_pos_of_nonzero_Rcomplex_elts(
+				COMPLEX(Rvector) + subvec_offset,
+				subvec_len, posbuf);
+	    case RAWSXP:
+		return collect_pos_of_nonzero_Rbyte_elts(
+				RAW(Rvector) + subvec_offset,
+				subvec_len, posbuf);
+	}
+	/* STRSXP and VECSXP cases. */
+	R_xlen_t offset = subvec_offset;
+	int *p = posbuf;
+	for (int pos = 1; pos <= subvec_len; pos++, offset++)
+		if (!Rvector_elt_is_zero_FUN(Rvector, offset))
+			*(p++) = pos;  /* 1-based */
+	return (int) (p - posbuf);
+}
+
+static void copy_selected_Rsubvec_elts(
+		SEXP Rvector, R_xlen_t subvec_offset,
+		const int *pos, SEXP lv_vals,
+		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
+{
+	int lv_len;
+
+	lv_len = LENGTH(lv_vals);
+	subvec_offset--;  /* so we can use the 1-based positions in 'pos'
+			     as offsets below */
+
+	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
+	switch (TYPEOF(Rvector)) {
+	    case LGLSXP: case INTSXP:
+		copy_selected_int_elts(INTEGER(Rvector) + subvec_offset,
+				pos, lv_len, INTEGER(lv_vals));
+		return;
+	    case REALSXP:
+		copy_selected_double_elts(REAL(Rvector) + subvec_offset,
+				pos, lv_len, REAL(lv_vals));
+		return;
+	    case CPLXSXP:
+		copy_selected_Rcomplex_elts(COMPLEX(Rvector) + subvec_offset,
+				pos, lv_len, COMPLEX(lv_vals));
+		return;
+	    case RAWSXP:
+		copy_selected_Rbyte_elts(RAW(Rvector) + subvec_offset,
+				pos, lv_len, RAW(lv_vals));
+		return;
+	}
+	/* STRSXP and VECSXP cases. */
+	for (int k = 0; k < lv_len; k++) {
+		R_xlen_t offset = subvec_offset + pos[k];
+		copy_Rvector_elt_FUN(Rvector, offset, lv_vals, k);
+	}
+	return;
+}
+
 /* Returns R_NilValue or a "leaf vector". */
 static SEXP build_SVT_from_Rsubvec(
 		SEXP Rvector, R_xlen_t subvec_offset, int subvec_len,
@@ -1067,27 +1225,24 @@ static SEXP build_SVT_from_Rsubvec(
 		RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN,
 		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
 {
-	int lv_len, i, k;
-	R_xlen_t offset;
+	int lv_len;
 	SEXP lv, lv_pos, lv_vals;
 
-	lv_len = 0;
-	for (i = 0, offset = subvec_offset; i < subvec_len; i++, offset++) {
-		if (!Rvector_elt_is_zero_FUN(Rvector, offset)) {
-			posbuf[lv_len] = i + 1;  /* 1-based */
-			lv_len++;
-		}
-	}
+	lv_len = collect_pos_of_nonzero_Rsubvec_elts(
+			Rvector, subvec_offset, subvec_len,
+			posbuf,
+			Rvector_elt_is_zero_FUN);
+
 	if (lv_len == 0)
 		return R_NilValue;
-	lv = PROTECT(alloc_leaf_vector(lv_len, TYPEOF(Rvector)));
-	split_leaf_vector(lv, &lv_pos, &lv_vals);
+
+	lv = PROTECT(alloc_and_split_leaf_vector(lv_len, TYPEOF(Rvector),
+						 &lv_pos, &lv_vals));
+	/* Fill 'lv_pos'. */
 	memcpy(INTEGER(lv_pos), posbuf, sizeof(int) * lv_len);
-	subvec_offset--;  /* trick to get 0-based 'offset' values below */
-	for (k = 0; k < lv_len; k++) {
-		offset = subvec_offset + posbuf[k];
-		copy_Rvector_elt_FUN(Rvector, offset, lv_vals, k);
-	}
+	/* Fill 'lv_vals'. */
+	copy_selected_Rsubvec_elts(Rvector, subvec_offset, posbuf, lv_vals,
+				   copy_Rvector_elt_FUN);
 	UNPROTECT(1);
 	return lv;
 }
