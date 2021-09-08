@@ -352,8 +352,8 @@ static SEXPTYPE get_Rtype_from_SVT_SparseArray_type(SEXP type)
  * Basic manipulation of a "leaf vector"
  *
  * A "leaf vector" is a sparse vector represented by a list of 2 parallel
- * vectors: an integer vector of positions and a vector (atomic or list)
- * of nonzero values.
+ * vectors: an integer vector of positions (1-based) and a vector (atomic
+ * or list) of nonzero values.
  * The length of a leaf vector is always <= INT_MAX.
  */
 
@@ -411,6 +411,7 @@ static inline int split_leaf_vector(SEXP lv, SEXP *lv_pos, SEXP *lv_vals)
 	return (int) lv_pos_len;
 }
 
+/* 'pos' must contain 1-based positions. */
 static SEXP make_leaf_vector(const int *pos, SEXP lv_vals, int maxpos)
 {
 	int lv_len, k, p;
@@ -432,7 +433,8 @@ static SEXP make_leaf_vector(const int *pos, SEXP lv_vals, int maxpos)
 	return ans;
 }
 
-/* 'alv' must be an "appendable leaf vector. */
+/* 'alv' must be an "appendable leaf vector.
+   'pos' must be a 1-based position. */
 static inline int append_pos_val_pair_to_leaf_vector(SEXP alv,
 		int pos, SEXP nzdata, int nzdata_offset,
 		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
@@ -856,8 +858,8 @@ static SEXP build_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
 	lv_pos  = PROTECT(NEW_INTEGER(lv_len));
 	lv_vals = PROTECT(NEW_NUMERIC(lv_len));
 	for (k = 0; k < lv_len; k++) {
-		INTEGER(lv_pos)[k]  = INTEGER(x_i)[offset] + 1;
-		REAL(lv_vals)[k]    = REAL(x_x)[offset];
+		INTEGER(lv_pos)[k] = INTEGER(x_i)[offset] + 1;  /* 1-based */
+		REAL(lv_vals)[k]   = REAL(x_x)[offset];
 		offset++;
 	}
 	ans = new_leaf_vector(lv_pos, lv_vals);
@@ -919,8 +921,7 @@ static int dump_SVT_to_CsparseMatrix_slots(SEXP x_SVT, int x_ncol,
 		subSVT = VECTOR_ELT(x_SVT, j);
 		if (!isNull(subSVT)) {
 			/* 'subSVT' is a "leaf vector". */
-			lv_len = split_leaf_vector(subSVT,
-						   &lv_pos, &lv_vals);
+			lv_len = split_leaf_vector(subSVT, &lv_pos, &lv_vals);
 			if (lv_len < 0)
 				return -1;
 			ret = copy_Rvector_elts(lv_vals, (R_xlen_t) 0,
@@ -928,6 +929,7 @@ static int dump_SVT_to_CsparseMatrix_slots(SEXP x_SVT, int x_ncol,
 						XLENGTH(lv_vals));
 			if (ret < 0)
 				return -1;
+			/* Row indices in 'ans_i' must be 0-based. */
 			for (k = 0; k < lv_len; k++) {
 				INTEGER(ans_i)[offset] = INTEGER(lv_pos)[k] - 1;
 				offset++;
@@ -1061,29 +1063,30 @@ SEXP C_from_SVT_SparseArray_to_Rarray(SEXP x_dim, SEXP x_dimnames,
 /* Returns R_NilValue or a "leaf vector". */
 static SEXP build_SVT_from_Rsubvec(
 		SEXP Rvector, R_xlen_t subvec_offset, int subvec_len,
+		int *posbuf,
 		RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN,
 		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
 {
-	int lv_len, i;
+	int lv_len, i, k;
 	R_xlen_t offset;
 	SEXP lv, lv_pos, lv_vals;
 
 	lv_len = 0;
 	for (i = 0, offset = subvec_offset; i < subvec_len; i++, offset++) {
-		if (!Rvector_elt_is_zero_FUN(Rvector, offset))
+		if (!Rvector_elt_is_zero_FUN(Rvector, offset)) {
+			posbuf[lv_len] = i + 1;  /* 1-based */
 			lv_len++;
+		}
 	}
 	if (lv_len == 0)
 		return R_NilValue;
 	lv = PROTECT(alloc_leaf_vector(lv_len, TYPEOF(Rvector)));
 	split_leaf_vector(lv, &lv_pos, &lv_vals);
-	lv_len = 0;
-	for (i = 0, offset = subvec_offset; i < subvec_len; i++, offset++) {
-		if (!Rvector_elt_is_zero_FUN(Rvector, offset)) {
-			INTEGER(lv_pos)[lv_len] = i + 1;
-			copy_Rvector_elt_FUN(Rvector, offset, lv_vals, lv_len);
-			lv_len++;
-		}
+	memcpy(INTEGER(lv_pos), posbuf, sizeof(int) * lv_len);
+	subvec_offset--;  /* trick to get 0-based 'offset' values below */
+	for (k = 0; k < lv_len; k++) {
+		offset = subvec_offset + posbuf[k];
+		copy_Rvector_elt_FUN(Rvector, offset, lv_vals, k);
 	}
 	UNPROTECT(1);
 	return lv;
@@ -1093,6 +1096,7 @@ static SEXP build_SVT_from_Rsubvec(
 static SEXP build_SVT_from_Rsubarray_REC(
 		SEXP Rarray, R_xlen_t subarr_offset, R_xlen_t subarr_len,
 		const int *dim, int ndim,
+		int *posbuf,
 		RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN,
 		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
 {
@@ -1105,6 +1109,7 @@ static SEXP build_SVT_from_Rsubarray_REC(
 			      "in build_SVT_from_Rsubarray_REC():\n"
 			      "  dim[0] != subarr_len");
 		return build_SVT_from_Rsubvec(Rarray, subarr_offset, dim[0],
+					      posbuf,
 					      Rvector_elt_is_zero_FUN,
 					      copy_Rvector_elt_FUN);
 	}
@@ -1117,6 +1122,7 @@ static SEXP build_SVT_from_Rsubarray_REC(
 		ans_elt = build_SVT_from_Rsubarray_REC(
 					Rarray, subarr_offset, subarr_len,
 					dim, ndim - 1,
+					posbuf,
 					Rvector_elt_is_zero_FUN,
 					copy_Rvector_elt_FUN);
 		if (!isNull(ans_elt)) {
@@ -1138,7 +1144,7 @@ SEXP C_build_SVT_from_Rarray(SEXP x)
 	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
 	R_xlen_t x_len;
 	SEXP x_dim;
-	int x_ndim;
+	int x_ndim, *posbuf;
 
 	Rvector_elt_is_zero_FUN = select_Rvector_elt_is_zero_FUN(TYPEOF(x));
 	if (Rvector_elt_is_zero_FUN == NULL)
@@ -1151,8 +1157,10 @@ SEXP C_build_SVT_from_Rarray(SEXP x)
 
 	x_dim = GET_DIM(x);  /* does not contain zeros */
 	x_ndim = LENGTH(x_dim);
+	posbuf = (int *) R_alloc(INTEGER(x_dim)[0], sizeof(int));
 	return build_SVT_from_Rsubarray_REC(x, 0, x_len,
 					    INTEGER(x_dim), x_ndim,
+					    posbuf,
 					    Rvector_elt_is_zero_FUN,
 					    copy_Rvector_elt_FUN);
 }
