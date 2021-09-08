@@ -854,11 +854,16 @@ static int store_nzpos_and_nzval_in_SVT(
 }
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_build_SVT_from_COO_SparseArray(SEXP x_dim, SEXP x_nzindex, SEXP x_nzdata)
+SEXP C_build_SVT_from_COO_SparseArray(SEXP x_dim, SEXP x_nzindex, SEXP x_nzdata,
+		SEXP as_integer)
 {
+	int as_int, x_ndim, nzdata_len, ans_len, i, ret;
 	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
-	int x_ndim, nzdata_len, ans_len, i, ret;
 	SEXP x_nzindex_dim, ans;
+
+	as_int = LOGICAL(as_integer)[0];
+	if (as_int)
+		error("'as.integer=TRUE' is not supported yet");
 
 	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(TYPEOF(x_nzdata));
 	if (copy_Rvector_elt_FUN == NULL)
@@ -927,66 +932,6 @@ SEXP C_build_SVT_from_COO_SparseArray(SEXP x_dim, SEXP x_nzindex, SEXP x_nzdata)
 
 	if (x_ndim == 2)
 		UNPROTECT(1);
-	UNPROTECT(1);
-	return ans;
-}
-
-
-/****************************************************************************
- * C_build_SVT_from_dgCMatrix()
- */
-
-static SEXP build_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
-						 int offset, int lv_len)
-{
-	SEXP lv_pos, lv_vals, ans;
-	int k;
-
-	lv_pos  = PROTECT(NEW_INTEGER(lv_len));
-	lv_vals = PROTECT(NEW_NUMERIC(lv_len));
-	for (k = 0; k < lv_len; k++) {
-		INTEGER(lv_pos)[k] = INTEGER(x_i)[offset] + 1;  /* 1-based */
-		REAL(lv_vals)[k]   = REAL(x_x)[offset];
-		offset++;
-	}
-	ans = new_leaf_vector(lv_pos, lv_vals);
-	UNPROTECT(2);
-	return ans;
-}
-
-/* --- .Call ENTRY POINT --- */
-SEXP C_build_SVT_from_dgCMatrix(SEXP x, SEXP as_integer)
-{
-	SEXP x_Dim, x_p, x_i, x_x, ans, lv;
-	int as_int, x_ncol, j, offset, lv_len;
-
-	as_int = LOGICAL(as_integer)[0];
-	if (as_int)
-		error("'as.integer=TRUE' is not supported yet");
-
-	x_Dim = GET_SLOT(x, install("Dim"));
-	x_ncol = INTEGER(x_Dim)[1];
-	x_p = GET_SLOT(x, install("p"));
-
-	if (INTEGER(x_p)[x_ncol] == 0)
-		return R_NilValue;
-
-	x_i = GET_SLOT(x, install("i"));
-	x_x = GET_SLOT(x, install("x"));
-
-	ans = PROTECT(NEW_LIST(x_ncol));
-	for (j = 0; j < x_ncol; j++) {
-		offset = INTEGER(x_p)[j];
-		lv_len = INTEGER(x_p)[j + 1] - offset;
-		if (lv_len != 0) {
-			lv = PROTECT(
-				build_leaf_vector_from_dgCMatrix_col(x_i, x_x,
-							offset, lv_len)
-			);
-			SET_VECTOR_ELT(ans, j, lv);
-			UNPROTECT(1);
-		}
-	}
 	UNPROTECT(1);
 	return ans;
 }
@@ -1065,6 +1010,66 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
 	SET_VECTOR_ELT(ans, 1, ans_i);
 	SET_VECTOR_ELT(ans, 2, ans_x);
 	UNPROTECT(4);
+	return ans;
+}
+
+
+/****************************************************************************
+ * C_build_SVT_from_dgCMatrix()
+ */
+
+static SEXP build_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
+						 int offset, int lv_len)
+{
+	SEXP lv_pos, lv_vals, ans;
+	int k;
+
+	lv_pos  = PROTECT(NEW_INTEGER(lv_len));
+	lv_vals = PROTECT(NEW_NUMERIC(lv_len));
+	for (k = 0; k < lv_len; k++) {
+		INTEGER(lv_pos)[k] = INTEGER(x_i)[offset] + 1;  /* 1-based */
+		REAL(lv_vals)[k]   = REAL(x_x)[offset];
+		offset++;
+	}
+	ans = new_leaf_vector(lv_pos, lv_vals);
+	UNPROTECT(2);
+	return ans;
+}
+
+/* --- .Call ENTRY POINT --- */
+SEXP C_build_SVT_from_dgCMatrix(SEXP x, SEXP as_integer)
+{
+	SEXP x_Dim, x_p, x_i, x_x, ans, lv;
+	int as_int, x_ncol, j, offset, lv_len;
+
+	as_int = LOGICAL(as_integer)[0];
+	if (as_int)
+		error("'as.integer=TRUE' is not supported yet");
+
+	x_Dim = GET_SLOT(x, install("Dim"));
+	x_ncol = INTEGER(x_Dim)[1];
+	x_p = GET_SLOT(x, install("p"));
+
+	if (INTEGER(x_p)[x_ncol] == 0)
+		return R_NilValue;
+
+	x_i = GET_SLOT(x, install("i"));
+	x_x = GET_SLOT(x, install("x"));
+
+	ans = PROTECT(NEW_LIST(x_ncol));
+	for (j = 0; j < x_ncol; j++) {
+		offset = INTEGER(x_p)[j];
+		lv_len = INTEGER(x_p)[j + 1] - offset;
+		if (lv_len != 0) {
+			lv = PROTECT(
+				build_leaf_vector_from_dgCMatrix_col(x_i, x_x,
+							offset, lv_len)
+			);
+			SET_VECTOR_ELT(ans, j, lv);
+			UNPROTECT(1);
+		}
+	}
+	UNPROTECT(1);
 	return ans;
 }
 

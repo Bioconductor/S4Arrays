@@ -118,48 +118,30 @@ setMethod("type", "SVT_SparseArray", function(x) x@type)
                             check=FALSE)
 }
 
-.from_COO_SparseArray_to_SVT_SparseArray <- function(from)
-{
-    stopifnot(is(from, "COO_SparseArray"))
-    ans_SVT <- .Call2("C_build_SVT_from_COO_SparseArray",
-                      from@dim, from@nzindex, from@nzdata, PACKAGE="S4Arrays")
-    .new_SVT_SparseArray(from@dim, from@dimnames, type(from), ans_SVT,
-                         check=FALSE)
-}
-
 setAs("SVT_SparseArray", "COO_SparseArray",
     .from_SVT_SparseArray_to_COO_SparseArray
 )
+
+.make_SVT_SparseArray_from_COO_SparseArray <- function(x, as.integer=FALSE)
+{
+    stopifnot(is(x, "COO_SparseArray"))
+    if (!isTRUEorFALSE(as.integer))
+        stop(wmsg("'as.integer' must be TRUE or FALSE"))
+    ans_SVT <- .Call2("C_build_SVT_from_COO_SparseArray",
+                      x@dim, x@nzindex, x@nzdata, as.integer,
+                      PACKAGE="S4Arrays")
+    .new_SVT_SparseArray(x@dim, x@dimnames, type(x), ans_SVT,
+                         check=FALSE)
+}
+
 setAs("COO_SparseArray", "SVT_SparseArray",
-    .from_COO_SparseArray_to_SVT_SparseArray
+    function(from) .make_SVT_SparseArray_from_COO_SparseArray(from)
 )
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### Going back and forth between SVT_SparseArray and [d|l]gCMatrix objects
 ###
-
-.make_SVT_SparseArray_from_dgCMatrix <- function(x, as.integer=FALSE)
-{
-    stopifnot(is(x, "dgCMatrix"))
-    if (!isTRUEorFALSE(as.integer))
-        stop(wmsg("'as.integer' must be TRUE or FALSE"))
-    ans_SVT <- .Call2("C_build_SVT_from_dgCMatrix",
-                      x, as.integer, PACKAGE="S4Arrays")
-    .new_SVT_SparseArray(dim(x), dimnames(x), type(x), ans_SVT,
-                         check=FALSE)
-}
-
-setAs("dgCMatrix", "SVT_SparseArray",
-    function(from) .make_SVT_SparseArray_from_dgCMatrix(from)
-)
-
-setAs("lgCMatrix", "SVT_SparseArray",
-    function(from)
-    {
-        stop("not ready yet")
-    }
-)
 
 .from_SVT_SparseArray_to_CsparseMatrix <- function(from)
 {
@@ -184,10 +166,43 @@ setAs("lgCMatrix", "SVT_SparseArray",
 setAs("SVT_SparseArray", "dgCMatrix", .from_SVT_SparseArray_to_CsparseMatrix)
 setAs("SVT_SparseArray", "lgCMatrix", .from_SVT_SparseArray_to_CsparseMatrix)
 
+.make_SVT_SparseArray_from_dgCMatrix <- function(x, as.integer=FALSE)
+{
+    stopifnot(is(x, "dgCMatrix"))
+    if (!isTRUEorFALSE(as.integer))
+        stop(wmsg("'as.integer' must be TRUE or FALSE"))
+    ans_SVT <- .Call2("C_build_SVT_from_dgCMatrix",
+                      x, as.integer, PACKAGE="S4Arrays")
+    .new_SVT_SparseArray(dim(x), dimnames(x), type(x), ans_SVT,
+                         check=FALSE)
+}
+
+setAs("dgCMatrix", "SVT_SparseArray",
+    function(from) .make_SVT_SparseArray_from_dgCMatrix(from)
+)
+
+setAs("lgCMatrix", "SVT_SparseArray",
+    function(from)
+    {
+        stop("not ready yet")
+    }
+)
+
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### Going back and forth between SVT_SparseArray objects and ordinary arrays
 ###
+
+.from_SVT_SparseArray_to_array <- function(from)
+{
+    stopifnot(is(from, "SVT_SparseArray"))
+    .Call2("C_from_SVT_SparseArray_to_Rarray",
+           from@dim, dimnames(from), from@type, from@SVT, PACKAGE="S4Arrays")
+}
+
+### S3/S4 combo for as.array.SVT_SparseArray
+as.array.SVT_SparseArray <- function(x, ...) .from_SVT_SparseArray_to_array(x)
+setMethod("as.array", "SVT_SparseArray", as.array.SVT_SparseArray)
 
 .make_SVT_SparseArray_from_array <- function(x, as.integer=FALSE)
 {
@@ -204,17 +219,6 @@ setAs("array", "SVT_SparseArray",
     function(from) .make_SVT_SparseArray_from_array(from)
 )
 
-.from_SVT_SparseArray_to_array <- function(from)
-{
-    stopifnot(is(from, "SVT_SparseArray"))
-    .Call2("C_from_SVT_SparseArray_to_Rarray",
-           from@dim, dimnames(from), from@type, from@SVT, PACKAGE="S4Arrays")
-}
-
-### S3/S4 combo for as.array.SVT_SparseArray
-as.array.SVT_SparseArray <- function(x, ...) .from_SVT_SparseArray_to_array(x)
-setMethod("as.array", "SVT_SparseArray", as.array.SVT_SparseArray)
-
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### SVT_SparseArray constructor
@@ -228,6 +232,9 @@ SVT_SparseArray <- function(x, as.integer=FALSE)
         return(.make_SVT_SparseArray_from_array(x, as.integer=as.integer))
     if (is(x, "dgCMatrix"))
         return(.make_SVT_SparseArray_from_dgCMatrix(x, as.integer=as.integer))
+    if (is(x, "COO_SparseArray"))
+        return(.make_SVT_SparseArray_from_COO_SparseArray(x,
+                                                       as.integer=as.integer))
     as(x, "SVT_SparseArray")
 }
 
