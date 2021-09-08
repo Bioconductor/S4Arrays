@@ -20,7 +20,7 @@ static const R_CallMethodDef callMethods[] = {
 	CALLMETHOD_DEF(C_build_SVT_from_dgCMatrix, 2),
 	CALLMETHOD_DEF(C_from_SVT_SparseArray_to_CsparseMatrix, 3),
 	CALLMETHOD_DEF(C_from_SVT_SparseArray_to_Rarray, 4),
-	CALLMETHOD_DEF(C_build_SVT_from_Rarray, 1),
+	CALLMETHOD_DEF(C_build_SVT_from_Rarray, 2),
 
 /* readSparseCSV.c */
 	CALLMETHOD_DEF(C_readSparseCSV, 2),

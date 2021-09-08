@@ -1293,17 +1293,22 @@ static SEXP build_SVT_from_Rsubarray_REC(
 }
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_build_SVT_from_Rarray(SEXP x)
+SEXP C_build_SVT_from_Rarray(SEXP x, SEXP as_integer)
 {
+	int as_int, x_ndim, *posbuf;
 	RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN;
 	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
 	R_xlen_t x_len;
 	SEXP x_dim;
-	int x_ndim, *posbuf;
+
+	as_int = LOGICAL(as_integer)[0];
+	if (as_int)
+		error("'as.integer=TRUE' is not supported yet");
 
 	Rvector_elt_is_zero_FUN = select_Rvector_elt_is_zero_FUN(TYPEOF(x));
 	if (Rvector_elt_is_zero_FUN == NULL)
 		error("input array has invalid type");
+
 	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(TYPEOF(x));
 
 	x_len = XLENGTH(x);

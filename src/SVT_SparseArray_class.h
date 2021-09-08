@@ -38,7 +38,10 @@ SEXP C_from_SVT_SparseArray_to_Rarray(
 	SEXP x_SVT
 );
 
-SEXP C_build_SVT_from_Rarray(SEXP x);
+SEXP C_build_SVT_from_Rarray(
+	SEXP x,
+	SEXP as_integer
+);
 
 #endif  /* _SVTSPARSEARRAY_CLASS_H_ */
 
