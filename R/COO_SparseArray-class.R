@@ -83,7 +83,7 @@ setValidity2("COO_SparseArray", .validate_COO_SparseArray)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### COO_SparseArray getters/setters
+### COO_SparseArray getters
 ###
 
 setMethod("type", "COO_SparseArray", function(x) type(x@nzdata))

@@ -399,27 +399,22 @@ static inline int copy_Rvector_elts(
 }
 
 /* Also checks the supplied 'type'. */
-static SEXPTYPE get_Rtype_from_SVT_SparseArray_type(SEXP type)
+static SEXPTYPE get_Rtype_from_Rstring(SEXP type)
 {
-	static const char *msg;
 	SEXP type0;
 	SEXPTYPE Rtype;
 	int ntypes, i;
 
-	msg = "S4Arrays internal error "
-	      "in get_Rtype_from_SVT_SparseArray_type():\n"
-	      "  SVT_SparseArray object has invalid type";
 	if (!IS_CHARACTER(type) || LENGTH(type) != 1)
-		error(msg);
+		return 0;
 	type0 = STRING_ELT(type, 0);
 	if (type0 == NA_STRING)
-		error(msg);
+		return 0;
 	Rtype = str2type(CHAR(type0));
 	ntypes = sizeof(supported_SVT_Rtypes) / sizeof(SEXPTYPE);
 	for (i = 0; i < ntypes; i++)
 		if (Rtype == supported_SVT_Rtypes[i])
 			return Rtype;
-	error(msg);
 	return 0;
 }
 
@@ -586,14 +581,482 @@ SEXP C_get_SVT_SparseArray_nzdata_length(SEXP x_dim, SEXP x_SVT)
 
 
 /****************************************************************************
- * Going from SVT_SparseArray objects to COO_SparseArray objects
+ * type() setter
+ */
+
+/* Recursive. */
+static int set_SVT_type_REC(SEXP SVT, const int *dim, int ndim,
+		SEXPTYPE new_Rtype)
+{
+	int SVT_len, k, ret;
+	SEXP lv_vals, subSVT;
+
+	if (isNull(SVT))
+		return 0;
+
+	if (ndim == 1) {
+		/* 'SVT' is a "leaf vector". */
+		lv_vals = VECTOR_ELT(SVT, 1);
+		lv_vals = PROTECT(coerceVector(lv_vals, new_Rtype));
+		SET_VECTOR_ELT(SVT, 1, lv_vals);
+		UNPROTECT(1);
+		return 0;
+	}
+
+	/* 'SVT' is a regular node (list). */
+	SVT_len = LENGTH(SVT);
+	if (SVT_len != dim[ndim - 1])
+		return -1;
+	for (k = 0; k < SVT_len; k++) {
+		subSVT = VECTOR_ELT(SVT, k);
+		ret = set_SVT_type_REC(subSVT, dim, ndim - 1, new_Rtype);
+		if (ret < 0)
+			return -1;
+	}
+	return 0;
+}
+
+SEXP C_set_SVT_SparseArray_type(SEXP x_dim, SEXP x_type, SEXP x_SVT,
+		SEXP new_type)
+{
+	SEXPTYPE new_Rtype;
+	SEXP ans;
+	int ret;
+
+	new_Rtype = get_Rtype_from_Rstring(new_type);
+	if (new_Rtype == 0)
+		error("invalid supplied type");
+	ans = PROTECT(duplicate(x_SVT));
+	ret = set_SVT_type_REC(ans, INTEGER(x_dim), LENGTH(x_dim),
+			       new_Rtype);
+	UNPROTECT(1);
+	if (ret < 0)
+		error("S4Arrays internal error in "
+		      "C_set_SVT_SparseArray_type():\n"
+		      "  set_SVT_type_REC() returned an error");
+	return ans;
+}
+
+
+/****************************************************************************
+ * Going from SVT_SparseArray to ordinary array
+ */
+
+/* Recursive. */
+static int dump_SVT_to_Rsubarray_REC(SEXP SVT,
+		const int *dim, int ndim,
+		SEXP Rarray, R_xlen_t subarr_offset, R_xlen_t subarr_len,
+		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
+{
+	int lv_len, k, SVT_len, ret;
+	SEXP lv_pos, lv_vals, subSVT;
+	R_xlen_t offset;
+
+	if (isNull(SVT))
+		return 0;
+
+	if (ndim == 1) {
+		/* 'SVT' is a "leaf vector". */
+		lv_len = split_leaf_vector(SVT, &lv_pos, &lv_vals);
+		if (lv_len < 0)
+			return -1;
+		for (k = 0; k < lv_len; k++) {
+			offset = subarr_offset + INTEGER(lv_pos)[k] - 1;
+			copy_Rvector_elt_FUN(lv_vals, (R_xlen_t) k,
+					     Rarray, offset);
+		}
+		return 0;
+	}
+
+	/* 'SVT' is a regular node (list). */
+	SVT_len = LENGTH(SVT);
+	if (SVT_len != dim[ndim - 1])
+		return -1;
+
+	subarr_len /= SVT_len;
+	for (k = 0; k < SVT_len; k++) {
+		subSVT = VECTOR_ELT(SVT, k);
+		ret = dump_SVT_to_Rsubarray_REC(subSVT,
+				dim, ndim - 1,
+				Rarray, subarr_offset, subarr_len,
+				copy_Rvector_elt_FUN);
+		if (ret < 0)
+			return -1;
+		subarr_offset += subarr_len;
+	}
+	return 0;
+}
+
+/* --- .Call ENTRY POINT --- */
+SEXP C_from_SVT_SparseArray_to_Rarray(SEXP x_dim, SEXP x_dimnames,
+		SEXP x_type, SEXP x_SVT)
+{
+	SEXPTYPE Rtype;
+	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
+	SEXP ans;
+	int ret;
+
+	Rtype = get_Rtype_from_Rstring(x_type);
+	if (Rtype == 0)
+		error("S4Arrays internal error in "
+		      "C_from_SVT_SparseArray_to_Rarray():\n"
+		      "  SVT_SparseArray object has invalid type");
+	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(Rtype);
+	ans = PROTECT(new_Rarray(Rtype, x_dim, x_dimnames));
+	ret = dump_SVT_to_Rsubarray_REC(x_SVT,
+				INTEGER(x_dim), LENGTH(x_dim),
+				ans, 0, XLENGTH(ans),
+				copy_Rvector_elt_FUN);
+	UNPROTECT(1);
+	if (ret < 0)
+		error("S4Arrays internal error "
+		      "in C_from_SVT_SparseArray_to_Rarray():\n"
+		      "  invalid SVT_SparseArray object");
+	return ans;
+}
+
+
+/****************************************************************************
+ * Going from ordinary array to SVT_SparseArray
+ */
+
+static int collect_pos_of_nonzero_Rsubvec_elts(
+		SEXP Rvector, R_xlen_t subvec_offset, int subvec_len,
+		int *posbuf,
+		RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN)
+{
+	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
+	switch (TYPEOF(Rvector)) {
+	    case LGLSXP: case INTSXP:
+		return collect_pos_of_nonzero_int_elts(
+				INTEGER(Rvector) + subvec_offset,
+				subvec_len, posbuf);
+	    case REALSXP:
+		return collect_pos_of_nonzero_double_elts(
+				REAL(Rvector) + subvec_offset,
+				subvec_len, posbuf);
+	    case CPLXSXP:
+		return collect_pos_of_nonzero_Rcomplex_elts(
+				COMPLEX(Rvector) + subvec_offset,
+				subvec_len, posbuf);
+	    case RAWSXP:
+		return collect_pos_of_nonzero_Rbyte_elts(
+				RAW(Rvector) + subvec_offset,
+				subvec_len, posbuf);
+	}
+	/* STRSXP and VECSXP cases. */
+	R_xlen_t offset = subvec_offset;
+	int *p = posbuf;
+	for (int pos = 1; pos <= subvec_len; pos++, offset++)
+		if (!Rvector_elt_is_zero_FUN(Rvector, offset))
+			*(p++) = pos;  /* 1-based */
+	return (int) (p - posbuf);
+}
+
+static void copy_selected_Rsubvec_elts(
+		SEXP Rvector, R_xlen_t subvec_offset,
+		const int *pos, SEXP lv_vals,
+		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
+{
+	int lv_len;
+
+	lv_len = LENGTH(lv_vals);
+	subvec_offset--;  /* so we can use the 1-based positions in 'pos'
+			     as offsets below */
+
+	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
+	switch (TYPEOF(Rvector)) {
+	    case LGLSXP: case INTSXP:
+		copy_selected_int_elts(INTEGER(Rvector) + subvec_offset,
+				pos, lv_len, INTEGER(lv_vals));
+		return;
+	    case REALSXP:
+		copy_selected_double_elts(REAL(Rvector) + subvec_offset,
+				pos, lv_len, REAL(lv_vals));
+		return;
+	    case CPLXSXP:
+		copy_selected_Rcomplex_elts(COMPLEX(Rvector) + subvec_offset,
+				pos, lv_len, COMPLEX(lv_vals));
+		return;
+	    case RAWSXP:
+		copy_selected_Rbyte_elts(RAW(Rvector) + subvec_offset,
+				pos, lv_len, RAW(lv_vals));
+		return;
+	}
+	/* STRSXP and VECSXP cases. */
+	for (int k = 0; k < lv_len; k++) {
+		R_xlen_t offset = subvec_offset + pos[k];
+		copy_Rvector_elt_FUN(Rvector, offset, lv_vals, k);
+	}
+	return;
+}
+
+/* Returns R_NilValue or a "leaf vector". */
+static SEXP build_SVT_from_Rsubvec(
+		SEXP Rvector, R_xlen_t subvec_offset, int subvec_len,
+		int *posbuf,
+		RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN,
+		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
+{
+	int lv_len;
+	SEXP lv, lv_pos, lv_vals;
+
+	lv_len = collect_pos_of_nonzero_Rsubvec_elts(
+			Rvector, subvec_offset, subvec_len,
+			posbuf,
+			Rvector_elt_is_zero_FUN);
+
+	if (lv_len == 0)
+		return R_NilValue;
+
+	lv = PROTECT(alloc_and_split_leaf_vector(lv_len, TYPEOF(Rvector),
+						 &lv_pos, &lv_vals));
+	/* Fill 'lv_pos'. */
+	memcpy(INTEGER(lv_pos), posbuf, sizeof(int) * lv_len);
+	/* Fill 'lv_vals'. */
+	copy_selected_Rsubvec_elts(Rvector, subvec_offset, posbuf, lv_vals,
+				   copy_Rvector_elt_FUN);
+	UNPROTECT(1);
+	return lv;
+}
+
+/* Recursive. */
+static SEXP build_SVT_from_Rsubarray_REC(
+		SEXP Rarray, R_xlen_t subarr_offset, R_xlen_t subarr_len,
+		const int *dim, int ndim,
+		int *posbuf,
+		RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN,
+		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
+{
+	int SVT_len, k, empty;
+	SEXP ans, ans_elt;
+
+	if (ndim == 1) { /* Sanity check (should never fail). */
+		if (dim[0] != subarr_len)
+			error("S4Arrays internal error "
+			      "in build_SVT_from_Rsubarray_REC():\n"
+			      "  dim[0] != subarr_len");
+		return build_SVT_from_Rsubvec(Rarray, subarr_offset, dim[0],
+					      posbuf,
+					      Rvector_elt_is_zero_FUN,
+					      copy_Rvector_elt_FUN);
+	}
+
+	SVT_len = dim[ndim - 1];  /* cannot be 0 so safe to divide below */
+	subarr_len /= SVT_len;
+	ans = PROTECT(NEW_LIST(SVT_len));
+	empty = 1;
+	for (k = 0; k < SVT_len; k++) {
+		ans_elt = build_SVT_from_Rsubarray_REC(
+					Rarray, subarr_offset, subarr_len,
+					dim, ndim - 1,
+					posbuf,
+					Rvector_elt_is_zero_FUN,
+					copy_Rvector_elt_FUN);
+		if (!isNull(ans_elt)) {
+			PROTECT(ans_elt);
+			SET_VECTOR_ELT(ans, k, ans_elt);
+			UNPROTECT(1);
+			empty = 0;
+		}
+		subarr_offset += subarr_len;
+	}
+	UNPROTECT(1);
+	return empty ? R_NilValue : ans;
+}
+
+/* --- .Call ENTRY POINT --- */
+SEXP C_build_SVT_from_Rarray(SEXP x, SEXP as_integer)
+{
+	int as_int, x_ndim, *posbuf;
+	RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN;
+	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
+	R_xlen_t x_len;
+	SEXP x_dim;
+
+	as_int = LOGICAL(as_integer)[0];
+	if (as_int)
+		error("'as.integer=TRUE' is not supported yet");
+
+	Rvector_elt_is_zero_FUN = select_Rvector_elt_is_zero_FUN(TYPEOF(x));
+	if (Rvector_elt_is_zero_FUN == NULL)
+		error("input array has invalid type");
+
+	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(TYPEOF(x));
+
+	x_len = XLENGTH(x);
+	if (x_len == 0)  /* means that 'any(dim(x) == 0)' is TRUE */
+		return R_NilValue;
+
+	x_dim = GET_DIM(x);  /* does not contain zeros */
+	x_ndim = LENGTH(x_dim);
+	posbuf = (int *) R_alloc(INTEGER(x_dim)[0], sizeof(int));
+	return build_SVT_from_Rsubarray_REC(x, 0, x_len,
+					    INTEGER(x_dim), x_ndim,
+					    posbuf,
+					    Rvector_elt_is_zero_FUN,
+					    copy_Rvector_elt_FUN);
+}
+
+
+/****************************************************************************
+ * Going from SVT_SparseArray to [d|l]gCMatrix
+ */
+
+static int dump_SVT_to_CsparseMatrix_slots(SEXP x_SVT, int x_ncol,
+		SEXP ans_p, SEXP ans_i, SEXP ans_x)
+{
+	int offset, j, lv_len, ret, k;
+	SEXP subSVT, lv_pos, lv_vals;
+
+	INTEGER(ans_p)[0] = 0;
+	offset = 0;
+	for (j = 0; j < x_ncol; j++) {
+		subSVT = VECTOR_ELT(x_SVT, j);
+		if (!isNull(subSVT)) {
+			/* 'subSVT' is a "leaf vector". */
+			lv_len = split_leaf_vector(subSVT, &lv_pos, &lv_vals);
+			if (lv_len < 0)
+				return -1;
+			ret = copy_Rvector_elts(lv_vals, (R_xlen_t) 0,
+						ans_x, (R_xlen_t) offset,
+						XLENGTH(lv_vals));
+			if (ret < 0)
+				return -1;
+			/* Row indices in 'ans_i' must be 0-based. */
+			for (k = 0; k < lv_len; k++) {
+				INTEGER(ans_i)[offset] = INTEGER(lv_pos)[k] - 1;
+				offset++;
+			}
+		}
+		INTEGER(ans_p)[j + 1] = offset;
+	}
+	return 0;
+}
+
+/* --- .Call ENTRY POINT --- */
+SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
+		SEXP x_type, SEXP x_SVT)
+{
+	R_xlen_t nzdata_len;
+	SEXPTYPE Rtype;
+	int x_ncol, ret;
+	SEXP ans_p, ans_i, ans_x, ans;
+
+	if (LENGTH(x_dim) != 2)
+		error("object to coerce to dgCMatrix "
+		      "must have exactly 2 dimensions");
+
+	nzdata_len = sum_leaf_vector_lengths_REC(x_SVT, 2);
+	if (nzdata_len > INT_MAX)
+		error("SVT_SparseArray object contains too many nonzero "
+		      "values to be turned into a COO_SparseArray object");
+
+	Rtype = get_Rtype_from_Rstring(x_type);
+	if (Rtype == 0)
+		error("S4Arrays internal error in "
+		      "C_from_SVT_SparseArray_to_CsparseMatrix():\n"
+		      "  SVT_SparseArray object has invalid type");
+	x_ncol = INTEGER(x_dim)[1];
+
+	ans_i = PROTECT(NEW_INTEGER(nzdata_len));
+	ans_x = PROTECT(allocVector(Rtype, nzdata_len));
+	if (nzdata_len == 0) {
+		ans_p = PROTECT(new_Rvector(INTSXP, (R_xlen_t) x_ncol + 1));
+	} else {
+		ans_p = PROTECT(NEW_INTEGER(x_ncol + 1));
+		ret = dump_SVT_to_CsparseMatrix_slots(x_SVT, x_ncol,
+							 ans_p, ans_i, ans_x);
+		if (ret < 0) {
+			UNPROTECT(3);
+			error("S4Arrays internal error "
+			      "in C_from_SVT_SparseArray_to_CsparseMatrix():\n"
+			      "  invalid SVT_SparseArray object");
+		}
+	}
+
+	ans = PROTECT(NEW_LIST(3));
+	SET_VECTOR_ELT(ans, 0, ans_p);
+	SET_VECTOR_ELT(ans, 1, ans_i);
+	SET_VECTOR_ELT(ans, 2, ans_x);
+	UNPROTECT(4);
+	return ans;
+}
+
+
+/****************************************************************************
+ * Going from dgCMatrix to SVT_SparseArray
+ */
+
+static SEXP build_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
+						 int offset, int lv_len)
+{
+	SEXP lv_pos, lv_vals, ans;
+	int k;
+
+	lv_pos  = PROTECT(NEW_INTEGER(lv_len));
+	lv_vals = PROTECT(NEW_NUMERIC(lv_len));
+	for (k = 0; k < lv_len; k++) {
+		INTEGER(lv_pos)[k] = INTEGER(x_i)[offset] + 1;  /* 1-based */
+		REAL(lv_vals)[k]   = REAL(x_x)[offset];
+		offset++;
+	}
+	ans = new_leaf_vector(lv_pos, lv_vals);
+	UNPROTECT(2);
+	return ans;
+}
+
+/* --- .Call ENTRY POINT --- */
+SEXP C_build_SVT_from_dgCMatrix(SEXP x, SEXP as_integer)
+{
+	SEXP x_Dim, x_p, x_i, x_x, ans, lv;
+	int as_int, x_ncol, j, offset, lv_len;
+
+	as_int = LOGICAL(as_integer)[0];
+	if (as_int)
+		error("'as.integer=TRUE' is not supported yet");
+
+	x_Dim = GET_SLOT(x, install("Dim"));
+	x_ncol = INTEGER(x_Dim)[1];
+	x_p = GET_SLOT(x, install("p"));
+
+	if (INTEGER(x_p)[x_ncol] == 0)
+		return R_NilValue;
+
+	x_i = GET_SLOT(x, install("i"));
+	x_x = GET_SLOT(x, install("x"));
+
+	ans = PROTECT(NEW_LIST(x_ncol));
+	for (j = 0; j < x_ncol; j++) {
+		offset = INTEGER(x_p)[j];
+		lv_len = INTEGER(x_p)[j + 1] - offset;
+		if (lv_len != 0) {
+			lv = PROTECT(
+				build_leaf_vector_from_dgCMatrix_col(x_i, x_x,
+							offset, lv_len)
+			);
+			SET_VECTOR_ELT(ans, j, lv);
+			UNPROTECT(1);
+		}
+	}
+	UNPROTECT(1);
+	return ans;
+}
+
+
+/****************************************************************************
+ * Going from SVT_SparseArray to COO_SparseArray
  */
 
 static SEXP alloc_nzdata(R_xlen_t nzdata_len, SEXP type)
 {
 	SEXPTYPE Rtype;
 
-	Rtype = get_Rtype_from_SVT_SparseArray_type(type);
+	Rtype = get_Rtype_from_Rstring(type);
+	if (Rtype == 0)
+		error("S4Arrays internal error in "
+		      "alloc_nzdata():\n"
+		      "  SVT_SparseArray object has invalid type");
 	return allocVector(Rtype, nzdata_len);
 }
 
@@ -702,7 +1165,7 @@ SEXP C_from_SVT_SparseArray_to_COO_SparseArray(SEXP x_dim,
 
 
 /****************************************************************************
- * Going from COO_SparseArray objects to SVT_SparseArray objects
+ * Going from COO_SparseArray to SVT_SparseArray
  */
 
 static int grow_SVT(SEXP SVT,
@@ -934,399 +1397,5 @@ SEXP C_build_SVT_from_COO_SparseArray(SEXP x_dim, SEXP x_nzindex, SEXP x_nzdata,
 		UNPROTECT(1);
 	UNPROTECT(1);
 	return ans;
-}
-
-
-/****************************************************************************
- * From SVT_SparseArray to [d|l]gCMatrix
- */
-
-static int dump_SVT_to_CsparseMatrix_slots(SEXP x_SVT, int x_ncol,
-		SEXP ans_p, SEXP ans_i, SEXP ans_x)
-{
-	int offset, j, lv_len, ret, k;
-	SEXP subSVT, lv_pos, lv_vals;
-
-	INTEGER(ans_p)[0] = 0;
-	offset = 0;
-	for (j = 0; j < x_ncol; j++) {
-		subSVT = VECTOR_ELT(x_SVT, j);
-		if (!isNull(subSVT)) {
-			/* 'subSVT' is a "leaf vector". */
-			lv_len = split_leaf_vector(subSVT, &lv_pos, &lv_vals);
-			if (lv_len < 0)
-				return -1;
-			ret = copy_Rvector_elts(lv_vals, (R_xlen_t) 0,
-						ans_x, (R_xlen_t) offset,
-						XLENGTH(lv_vals));
-			if (ret < 0)
-				return -1;
-			/* Row indices in 'ans_i' must be 0-based. */
-			for (k = 0; k < lv_len; k++) {
-				INTEGER(ans_i)[offset] = INTEGER(lv_pos)[k] - 1;
-				offset++;
-			}
-		}
-		INTEGER(ans_p)[j + 1] = offset;
-	}
-	return 0;
-}
-
-/* --- .Call ENTRY POINT --- */
-SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
-		SEXP x_type, SEXP x_SVT)
-{
-	int x_ncol, ret;
-	R_xlen_t nzdata_len;
-	SEXP ans_p, ans_i, ans_x, ans;
-
-	if (LENGTH(x_dim) != 2)
-		error("object to coerce to dgCMatrix "
-		      "must have exactly 2 dimensions");
-	x_ncol = INTEGER(x_dim)[1];
-	nzdata_len = sum_leaf_vector_lengths_REC(x_SVT, 2);
-	if (nzdata_len > INT_MAX)
-		error("SVT_SparseArray object contains too many nonzero "
-		      "values to be turned into a COO_SparseArray object");
-
-	ans_i = PROTECT(NEW_INTEGER(nzdata_len));
-	ans_x = PROTECT(alloc_nzdata(nzdata_len, x_type));
-	if (nzdata_len == 0) {
-		ans_p = PROTECT(new_Rvector(INTSXP, (R_xlen_t) x_ncol + 1));
-	} else {
-		ans_p = PROTECT(NEW_INTEGER(x_ncol + 1));
-		ret = dump_SVT_to_CsparseMatrix_slots(x_SVT, x_ncol,
-							 ans_p, ans_i, ans_x);
-		if (ret < 0) {
-			UNPROTECT(3);
-			error("S4Arrays internal error "
-			      "in C_from_SVT_SparseArray_to_CsparseMatrix():\n"
-			      "  invalid SVT_SparseArray object");
-		}
-	}
-
-	ans = PROTECT(NEW_LIST(3));
-	SET_VECTOR_ELT(ans, 0, ans_p);
-	SET_VECTOR_ELT(ans, 1, ans_i);
-	SET_VECTOR_ELT(ans, 2, ans_x);
-	UNPROTECT(4);
-	return ans;
-}
-
-
-/****************************************************************************
- * C_build_SVT_from_dgCMatrix()
- */
-
-static SEXP build_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
-						 int offset, int lv_len)
-{
-	SEXP lv_pos, lv_vals, ans;
-	int k;
-
-	lv_pos  = PROTECT(NEW_INTEGER(lv_len));
-	lv_vals = PROTECT(NEW_NUMERIC(lv_len));
-	for (k = 0; k < lv_len; k++) {
-		INTEGER(lv_pos)[k] = INTEGER(x_i)[offset] + 1;  /* 1-based */
-		REAL(lv_vals)[k]   = REAL(x_x)[offset];
-		offset++;
-	}
-	ans = new_leaf_vector(lv_pos, lv_vals);
-	UNPROTECT(2);
-	return ans;
-}
-
-/* --- .Call ENTRY POINT --- */
-SEXP C_build_SVT_from_dgCMatrix(SEXP x, SEXP as_integer)
-{
-	SEXP x_Dim, x_p, x_i, x_x, ans, lv;
-	int as_int, x_ncol, j, offset, lv_len;
-
-	as_int = LOGICAL(as_integer)[0];
-	if (as_int)
-		error("'as.integer=TRUE' is not supported yet");
-
-	x_Dim = GET_SLOT(x, install("Dim"));
-	x_ncol = INTEGER(x_Dim)[1];
-	x_p = GET_SLOT(x, install("p"));
-
-	if (INTEGER(x_p)[x_ncol] == 0)
-		return R_NilValue;
-
-	x_i = GET_SLOT(x, install("i"));
-	x_x = GET_SLOT(x, install("x"));
-
-	ans = PROTECT(NEW_LIST(x_ncol));
-	for (j = 0; j < x_ncol; j++) {
-		offset = INTEGER(x_p)[j];
-		lv_len = INTEGER(x_p)[j + 1] - offset;
-		if (lv_len != 0) {
-			lv = PROTECT(
-				build_leaf_vector_from_dgCMatrix_col(x_i, x_x,
-							offset, lv_len)
-			);
-			SET_VECTOR_ELT(ans, j, lv);
-			UNPROTECT(1);
-		}
-	}
-	UNPROTECT(1);
-	return ans;
-}
-
-
-/****************************************************************************
- * From SVT_SparseArray to ordinary array
- */
-
-/* Recursive. */
-static int dump_SVT_to_Rsubarray_REC(SEXP SVT,
-		const int *dim, int ndim,
-		SEXP Rarray, R_xlen_t subarr_offset, R_xlen_t subarr_len,
-		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
-{
-	int lv_len, k, SVT_len, ret;
-	SEXP lv_pos, lv_vals, subSVT;
-	R_xlen_t offset;
-
-	if (isNull(SVT))
-		return 0;
-
-	if (ndim == 1) {
-		/* 'SVT' is a "leaf vector". */
-		lv_len = split_leaf_vector(SVT, &lv_pos, &lv_vals);
-		if (lv_len < 0)
-			return -1;
-		for (k = 0; k < lv_len; k++) {
-			offset = subarr_offset + INTEGER(lv_pos)[k] - 1;
-			copy_Rvector_elt_FUN(lv_vals, (R_xlen_t) k,
-					     Rarray, offset);
-		}
-		return 0;
-	}
-
-	/* 'SVT' is a regular node (list). */
-	SVT_len = LENGTH(SVT);
-	if (SVT_len != dim[ndim - 1])
-		return -1;
-	subarr_len /= SVT_len;
-	for (k = 0; k < SVT_len; k++) {
-		subSVT = VECTOR_ELT(SVT, k);
-		ret = dump_SVT_to_Rsubarray_REC(subSVT,
-				dim, ndim - 1,
-				Rarray, subarr_offset, subarr_len,
-				copy_Rvector_elt_FUN);
-		if (ret < 0)
-			return -1;
-		subarr_offset += subarr_len;
-	}
-	return 0;
-}
-
-
-/* --- .Call ENTRY POINT --- */
-SEXP C_from_SVT_SparseArray_to_Rarray(SEXP x_dim, SEXP x_dimnames,
-		SEXP x_type, SEXP x_SVT)
-{
-	SEXPTYPE Rtype;
-	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
-	SEXP ans;
-	int ret;
-
-	Rtype = get_Rtype_from_SVT_SparseArray_type(x_type);
-	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(Rtype);
-	ans = PROTECT(new_Rarray(Rtype, x_dim, x_dimnames));
-	ret = dump_SVT_to_Rsubarray_REC(x_SVT,
-				INTEGER(x_dim), LENGTH(x_dim),
-				ans, 0, XLENGTH(ans),
-				copy_Rvector_elt_FUN);
-	UNPROTECT(1);
-	if (ret < 0)
-		error("S4Arrays internal error "
-		      "in C_from_SVT_SparseArray_to_Rarray():\n"
-		      "  invalid SVT_SparseArray object");
-	return ans;
-}
-
-
-/****************************************************************************
- * From ordinary array to SVT_SparseArray
- */
-
-static int collect_pos_of_nonzero_Rsubvec_elts(
-		SEXP Rvector, R_xlen_t subvec_offset, int subvec_len,
-		int *posbuf,
-		RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN)
-{
-	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
-	switch (TYPEOF(Rvector)) {
-	    case LGLSXP: case INTSXP:
-		return collect_pos_of_nonzero_int_elts(
-				INTEGER(Rvector) + subvec_offset,
-				subvec_len, posbuf);
-	    case REALSXP:
-		return collect_pos_of_nonzero_double_elts(
-				REAL(Rvector) + subvec_offset,
-				subvec_len, posbuf);
-	    case CPLXSXP:
-		return collect_pos_of_nonzero_Rcomplex_elts(
-				COMPLEX(Rvector) + subvec_offset,
-				subvec_len, posbuf);
-	    case RAWSXP:
-		return collect_pos_of_nonzero_Rbyte_elts(
-				RAW(Rvector) + subvec_offset,
-				subvec_len, posbuf);
-	}
-	/* STRSXP and VECSXP cases. */
-	R_xlen_t offset = subvec_offset;
-	int *p = posbuf;
-	for (int pos = 1; pos <= subvec_len; pos++, offset++)
-		if (!Rvector_elt_is_zero_FUN(Rvector, offset))
-			*(p++) = pos;  /* 1-based */
-	return (int) (p - posbuf);
-}
-
-static void copy_selected_Rsubvec_elts(
-		SEXP Rvector, R_xlen_t subvec_offset,
-		const int *pos, SEXP lv_vals,
-		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
-{
-	int lv_len;
-
-	lv_len = LENGTH(lv_vals);
-	subvec_offset--;  /* so we can use the 1-based positions in 'pos'
-			     as offsets below */
-
-	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
-	switch (TYPEOF(Rvector)) {
-	    case LGLSXP: case INTSXP:
-		copy_selected_int_elts(INTEGER(Rvector) + subvec_offset,
-				pos, lv_len, INTEGER(lv_vals));
-		return;
-	    case REALSXP:
-		copy_selected_double_elts(REAL(Rvector) + subvec_offset,
-				pos, lv_len, REAL(lv_vals));
-		return;
-	    case CPLXSXP:
-		copy_selected_Rcomplex_elts(COMPLEX(Rvector) + subvec_offset,
-				pos, lv_len, COMPLEX(lv_vals));
-		return;
-	    case RAWSXP:
-		copy_selected_Rbyte_elts(RAW(Rvector) + subvec_offset,
-				pos, lv_len, RAW(lv_vals));
-		return;
-	}
-	/* STRSXP and VECSXP cases. */
-	for (int k = 0; k < lv_len; k++) {
-		R_xlen_t offset = subvec_offset + pos[k];
-		copy_Rvector_elt_FUN(Rvector, offset, lv_vals, k);
-	}
-	return;
-}
-
-/* Returns R_NilValue or a "leaf vector". */
-static SEXP build_SVT_from_Rsubvec(
-		SEXP Rvector, R_xlen_t subvec_offset, int subvec_len,
-		int *posbuf,
-		RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN,
-		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
-{
-	int lv_len;
-	SEXP lv, lv_pos, lv_vals;
-
-	lv_len = collect_pos_of_nonzero_Rsubvec_elts(
-			Rvector, subvec_offset, subvec_len,
-			posbuf,
-			Rvector_elt_is_zero_FUN);
-
-	if (lv_len == 0)
-		return R_NilValue;
-
-	lv = PROTECT(alloc_and_split_leaf_vector(lv_len, TYPEOF(Rvector),
-						 &lv_pos, &lv_vals));
-	/* Fill 'lv_pos'. */
-	memcpy(INTEGER(lv_pos), posbuf, sizeof(int) * lv_len);
-	/* Fill 'lv_vals'. */
-	copy_selected_Rsubvec_elts(Rvector, subvec_offset, posbuf, lv_vals,
-				   copy_Rvector_elt_FUN);
-	UNPROTECT(1);
-	return lv;
-}
-
-/* Recursive. */
-static SEXP build_SVT_from_Rsubarray_REC(
-		SEXP Rarray, R_xlen_t subarr_offset, R_xlen_t subarr_len,
-		const int *dim, int ndim,
-		int *posbuf,
-		RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN,
-		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
-{
-	int SVT_len, k, empty;
-	SEXP ans, ans_elt;
-
-	if (ndim == 1) { /* Sanity check (should never fail). */
-		if (dim[0] != subarr_len)
-			error("S4Arrays internal error "
-			      "in build_SVT_from_Rsubarray_REC():\n"
-			      "  dim[0] != subarr_len");
-		return build_SVT_from_Rsubvec(Rarray, subarr_offset, dim[0],
-					      posbuf,
-					      Rvector_elt_is_zero_FUN,
-					      copy_Rvector_elt_FUN);
-	}
-
-	SVT_len = dim[ndim - 1];  /* cannot be 0 so safe to divide below */
-	subarr_len /= SVT_len;
-	ans = PROTECT(NEW_LIST(SVT_len));
-	empty = 1;
-	for (k = 0; k < SVT_len; k++) {
-		ans_elt = build_SVT_from_Rsubarray_REC(
-					Rarray, subarr_offset, subarr_len,
-					dim, ndim - 1,
-					posbuf,
-					Rvector_elt_is_zero_FUN,
-					copy_Rvector_elt_FUN);
-		if (!isNull(ans_elt)) {
-			PROTECT(ans_elt);
-			SET_VECTOR_ELT(ans, k, ans_elt);
-			UNPROTECT(1);
-			empty = 0;
-		}
-		subarr_offset += subarr_len;
-	}
-	UNPROTECT(1);
-	return empty ? R_NilValue : ans;
-}
-
-/* --- .Call ENTRY POINT --- */
-SEXP C_build_SVT_from_Rarray(SEXP x, SEXP as_integer)
-{
-	int as_int, x_ndim, *posbuf;
-	RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN;
-	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
-	R_xlen_t x_len;
-	SEXP x_dim;
-
-	as_int = LOGICAL(as_integer)[0];
-	if (as_int)
-		error("'as.integer=TRUE' is not supported yet");
-
-	Rvector_elt_is_zero_FUN = select_Rvector_elt_is_zero_FUN(TYPEOF(x));
-	if (Rvector_elt_is_zero_FUN == NULL)
-		error("input array has invalid type");
-
-	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(TYPEOF(x));
-
-	x_len = XLENGTH(x);
-	if (x_len == 0)  /* means that 'any(dim(x) == 0)' is TRUE */
-		return R_NilValue;
-
-	x_dim = GET_DIM(x);  /* does not contain zeros */
-	x_ndim = LENGTH(x_dim);
-	posbuf = (int *) R_alloc(INTEGER(x_dim)[0], sizeof(int));
-	return build_SVT_from_Rsubarray_REC(x, 0, x_len,
-					    INTEGER(x_dim), x_ndim,
-					    posbuf,
-					    Rvector_elt_is_zero_FUN,
-					    copy_Rvector_elt_FUN);
 }
 

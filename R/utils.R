@@ -201,6 +201,29 @@ simplify_NULL_dimnames <- function(dimnames)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### normarg_array_type()
+###
+### Typical usage in a type() setter:
+###     value <- normarg_array_type(value, "the supplied type")
+###
+
+normarg_array_type <- function(type, what="'type'")
+{
+    if (!isSingleString(type))
+        stop(wmsg(what, " must be a single string"))
+    if (type == "list")
+        return(type)
+    if (type == "numeric")
+        return("double")
+    tmp <- try(vector(type), silent=TRUE)
+    if (inherits(tmp, "try-error") || !is.atomic(tmp))
+            stop(wmsg(what, " must be an R atomic type ",
+                      "(e.g. \"integer\") or \"list\""))
+    type
+}
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### combine_array_objects()
 ###
 ### NOT exported but used in unit tests.

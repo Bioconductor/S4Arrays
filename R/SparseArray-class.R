@@ -32,7 +32,7 @@ setValidity2("SparseArray", .validate_SparseArray)
 
 ### SparseArray API:
 ### - Getters: dim(), length(), dimnames(), type().
-### - Setter: dimnames<-().
+### - Setters: `dimnames<-`(), `type<-`().
 ### - is_sparse().
 
 setMethod("dimnames", "SparseArray",

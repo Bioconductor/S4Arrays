@@ -150,7 +150,7 @@ exportMethods(
     ## Methods for generics defined in the BiocGenerics package:
     cbind, rbind,
     dims,
-    type,
+    type, "type<-",
 
     ## Methods for generics defined in the S4Vectors package:
     showAsCell, isEmpty,

@@ -8,16 +8,22 @@ SEXP C_get_SVT_SparseArray_nzdata_length(
 	SEXP x_SVT
 );
 
-SEXP C_from_SVT_SparseArray_to_COO_SparseArray(
+SEXP C_set_SVT_SparseArray_type(
 	SEXP x_dim,
+	SEXP x_type,
+	SEXP x_SVT,
+	SEXP new_type
+);
+
+SEXP C_from_SVT_SparseArray_to_Rarray(
+	SEXP x_dim,
+	SEXP x_dimnames,
 	SEXP x_type,
 	SEXP x_SVT
 );
 
-SEXP C_build_SVT_from_COO_SparseArray(
-	SEXP x_dim,
-	SEXP x_nzindex,
-	SEXP x_nzdata,
+SEXP C_build_SVT_from_Rarray(
+	SEXP x,
 	SEXP as_integer
 );
 
@@ -32,15 +38,16 @@ SEXP C_build_SVT_from_dgCMatrix(
 	SEXP as_integer
 );
 
-SEXP C_from_SVT_SparseArray_to_Rarray(
+SEXP C_from_SVT_SparseArray_to_COO_SparseArray(
 	SEXP x_dim,
-	SEXP x_dimnames,
 	SEXP x_type,
 	SEXP x_SVT
 );
 
-SEXP C_build_SVT_from_Rarray(
-	SEXP x,
+SEXP C_build_SVT_from_COO_SparseArray(
+	SEXP x_dim,
+	SEXP x_nzindex,
+	SEXP x_nzdata,
 	SEXP as_integer
 );
 
