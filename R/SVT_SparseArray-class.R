@@ -105,18 +105,29 @@ setMethod("type", "SVT_SparseArray", function(x) x@type)
 ### Setters
 ###
 
-setReplaceMethod("type", c("SVT_SparseArray", "ANY"),
-    function(x, value)
-    {
-        value <- normarg_array_type(value, "the supplied type")
-        x_type <- type(x)
-        if (value == x_type)
-            return(x)
-        ans_SVT <- .Call2("C_set_SVT_SparseArray_type",
-                          x@dim, x@type, x@SVT, value, PACKAGE="S4Arrays")
-        BiocGenerics:::replaceSlots(x, type=value, SVT=ans_SVT, check=FALSE)
-    }
-)
+.set_SVT_SparseArray_type <- function(x, value)
+{
+    stopifnot(is(x, "SVT_SparseArray"))
+    value <- normarg_array_type(value, "the supplied type")
+    x_type <- type(x)
+    if (value == x_type)
+        return(x)
+    #warn <- NULL
+    #ans_SVT <- withCallingHandlers(
+    #    .Call2("C_set_SVT_SparseArray_type",
+    #           x@dim, x@type, x@SVT, value, PACKAGE="S4Arrays"),
+    #    warning=function(w) {
+    #        warn <<- append(warn, conditionMessage(w))
+    #        invokeRestart("muffleWarning")
+    #    }
+    #)
+    #cat("nb of warnings:", length(warn), "\n")
+    ans_SVT <- .Call2("C_set_SVT_SparseArray_type",
+                      x@dim, x@type, x@SVT, value, PACKAGE="S4Arrays")
+    BiocGenerics:::replaceSlots(x, type=value, SVT=ans_SVT, check=FALSE)
+}
+
+setReplaceMethod("type", "SVT_SparseArray", .set_SVT_SparseArray_type)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
