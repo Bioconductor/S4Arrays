@@ -413,10 +413,11 @@ static inline Rbyte RawFromReal(double x, int *warn)
 {
 	int tmp;
 
-	if (ISNAN(x) || (tmp = (int) x) < 0 || tmp > 255) {
+	if (ISNAN(x) || x <= -1.0 || x >= 256.0) {
 		*warn |= WARN_RAW;
 		return 0;
 	}
+	tmp = (int) x;
 	return (Rbyte) tmp;
 }
 
@@ -424,10 +425,11 @@ static inline Rbyte RawFromComplex(Rcomplex x, int *warn)
 {
 	int tmp;
 
-        if (ISNAN(x.r) || ISNAN(x.i) || (tmp = (int) x.r) < 0 || tmp > 255) {
+        if (ISNAN(x.r) || ISNAN(x.i) || x.r <= -1.0 || x.r >= 256.0) {
 		*warn |= WARN_RAW;
 		return 0;
 	}
+	tmp = (int) x.r;
 	if (x.i != 0.0)
 		*warn |= WARN_IMAG;
 	return (Rbyte) tmp;
@@ -493,23 +495,33 @@ static SEXP coerceToRaw(SEXP v, int *warn)
 /****************************************************************************
  * _coerceVector2()
  *
- * A simplified version of coerceVector() that supports the 'warn' argument.
- * See R/src/main/coerce.c for implementation of the original coerceVector().
- * Yeah it's a shame that we have to do this.
+ * Like coerceVector() in R/src/main/coerce.c but with the 'warn' argument.
  */
 
 SEXP _coerceVector2(SEXP v, SEXPTYPE type, int *warn)
 {
+	if (TYPEOF(v) == VECSXP) {
+		/* Coercion from list to atomic vector.
+		   Not a common use case and typically quite inefficient.
+		   Supported for completeness only.
+		   We just use coerceVector() to handle this case, which will
+		   call coerceVectorList() from R/src/main/coerce.c.
+		   IMPORTANT NOTE: Will possibly issue tons of warnings e.g.
+		   one per list element in 'v' in the almost-worst-case
+		   scenario! */
+		return coerceVector(v, type);
+	}
 	switch (type) {
 	    case LGLSXP:  return coerceToLogical(v);
 	    case INTSXP:  return coerceToInteger(v, warn);
 	    case REALSXP: return coerceToReal(v, warn);
 	    case CPLXSXP: return coerceToComplex(v, warn);
 	    case RAWSXP:  return coerceToRaw(v, warn);
-	    //case STRSXP:  return coerceToString(v, warn);
-	    //case VECSXP:  return coerceToList(v, warn);
 	}
-	COERCE_ERROR(TYPEOF(v), type);
-	return R_NilValue;
+	/* We use coerceVector() to handle the remaining cases (type==STRSXP
+	   and type==VECSXP). This is ok because these cases never issue
+	   warnings (see coerceToString() and coerceToVectorList() in
+	   R/src/main/coerce.c). */
+	return coerceVector(v, type);
 }
 
