@@ -135,14 +135,14 @@ setReplaceMethod("type", "SVT_SparseArray", .set_SVT_SparseArray_type)
 as.array.SVT_SparseArray <- function(x, ...) .from_SVT_SparseArray_to_array(x)
 setMethod("as.array", "SVT_SparseArray", as.array.SVT_SparseArray)
 
-.make_SVT_SparseArray_from_array <- function(x, as.integer=FALSE)
+.make_SVT_SparseArray_from_array <- function(x, type=NA)
 {
     stopifnot(is.array(x))
+    if (identical(type, NA))
+        type <- type(x)
     ans_SVT <- .Call2("C_build_SVT_from_Rarray",
-                      x, as.integer, PACKAGE="S4Arrays")
-    ans_type <- if (as.integer) "integer" else type(x)
-    .new_SVT_SparseArray(dim(x), dimnames(x), ans_type, ans_SVT,
-                         check=FALSE)
+                      x, type, PACKAGE="S4Arrays")
+    .new_SVT_SparseArray(dim(x), dimnames(x), type, ans_SVT, check=FALSE)
 }
 
 setAs("array", "SVT_SparseArray",
@@ -177,14 +177,14 @@ setAs("array", "SVT_SparseArray",
 setAs("SVT_SparseArray", "dgCMatrix", .from_SVT_SparseArray_to_CsparseMatrix)
 setAs("SVT_SparseArray", "lgCMatrix", .from_SVT_SparseArray_to_CsparseMatrix)
 
-.make_SVT_SparseArray_from_dgCMatrix <- function(x, as.integer=FALSE)
+.make_SVT_SparseArray_from_dgCMatrix <- function(x, type=NA)
 {
     stopifnot(is(x, "dgCMatrix"))
+    if (identical(type, NA))
+        type <- type(x)
     ans_SVT <- .Call2("C_build_SVT_from_dgCMatrix",
-                      x, as.integer, PACKAGE="S4Arrays")
-    ans_type <- if (as.integer) "integer" else type(x)
-    .new_SVT_SparseArray(dim(x), dimnames(x), ans_type, ans_SVT,
-                         check=FALSE)
+                      x, type, PACKAGE="S4Arrays")
+    .new_SVT_SparseArray(dim(x), dimnames(x), type, ans_SVT, check=FALSE)
 }
 
 setAs("dgCMatrix", "SVT_SparseArray",
@@ -220,15 +220,15 @@ setAs("SVT_SparseArray", "COO_SparseArray",
     .from_SVT_SparseArray_to_COO_SparseArray
 )
 
-.make_SVT_SparseArray_from_COO_SparseArray <- function(x, as.integer=FALSE)
+.make_SVT_SparseArray_from_COO_SparseArray <- function(x, type=NA)
 {
     stopifnot(is(x, "COO_SparseArray"))
+    if (identical(type, NA))
+        type <- type(x)
     ans_SVT <- .Call2("C_build_SVT_from_COO_SparseArray",
-                      x@dim, x@nzindex, x@nzdata, as.integer,
+                      x@dim, x@nzindex, x@nzdata, type,
                       PACKAGE="S4Arrays")
-    ans_type <- if (as.integer) "integer" else type(x)
-    .new_SVT_SparseArray(x@dim, x@dimnames, ans_type, ans_SVT,
-                         check=FALSE)
+    .new_SVT_SparseArray(x@dim, x@dimnames, type, ans_SVT, check=FALSE)
 }
 
 setAs("COO_SparseArray", "SVT_SparseArray",
@@ -240,19 +240,21 @@ setAs("COO_SparseArray", "SVT_SparseArray",
 ### SVT_SparseArray constructor
 ###
 
-SVT_SparseArray <- function(x, as.integer=FALSE)
+SVT_SparseArray <- function(x, type=NA)
 {
-    if (!isTRUEorFALSE(as.integer))
-        stop(wmsg("'as.integer' must be TRUE or FALSE"))
-    if (missing(x))
-        return(new2("SVT_SparseArray", check=FALSE))
+    if (!identical(type, NA))
+        type <- normarg_array_type(type, "the requested type")
+    if (missing(x)) {
+        if (identical(type, NA))
+            type <- "logical"
+        return(new2("SVT_SparseArray", type=type, check=FALSE))
+    }
     if (is.array(x))
-        return(.make_SVT_SparseArray_from_array(x, as.integer=as.integer))
+        return(.make_SVT_SparseArray_from_array(x, type=type))
     if (is(x, "dgCMatrix"))
-        return(.make_SVT_SparseArray_from_dgCMatrix(x, as.integer=as.integer))
+        return(.make_SVT_SparseArray_from_dgCMatrix(x, type=type))
     if (is(x, "COO_SparseArray"))
-        return(.make_SVT_SparseArray_from_COO_SparseArray(x,
-                                                    as.integer=as.integer))
+        return(.make_SVT_SparseArray_from_COO_SparseArray(x, type=type))
     as(x, "SVT_SparseArray")
 }
 

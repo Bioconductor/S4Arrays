@@ -24,7 +24,7 @@ SEXP C_from_SVT_SparseArray_to_Rarray(
 
 SEXP C_build_SVT_from_Rarray(
 	SEXP x,
-	SEXP as_integer
+	SEXP new_type
 );
 
 SEXP C_from_SVT_SparseArray_to_CsparseMatrix(
@@ -35,7 +35,7 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(
 
 SEXP C_build_SVT_from_dgCMatrix(
 	SEXP x,
-	SEXP as_integer
+	SEXP new_type
 );
 
 SEXP C_from_SVT_SparseArray_to_COO_SparseArray(
@@ -48,7 +48,7 @@ SEXP C_build_SVT_from_COO_SparseArray(
 	SEXP x_dim,
 	SEXP x_nzindex,
 	SEXP x_nzdata,
-	SEXP as_integer
+	SEXP new_type
 );
 
 #endif  /* _SVTSPARSEARRAY_CLASS_H_ */

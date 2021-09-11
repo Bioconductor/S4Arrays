@@ -933,6 +933,7 @@ SEXP C_from_SVT_SparseArray_to_Rarray(SEXP x_dim, SEXP x_dimnames,
 		      "C_from_SVT_SparseArray_to_Rarray():\n"
 		      "  SVT_SparseArray object has invalid type");
 	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(Rtype);
+
 	ans = PROTECT(new_Rarray(Rtype, x_dim, x_dimnames));
 	ret = REC_dump_SVT_to_Rsubarray(x_SVT,
 				INTEGER(x_dim), LENGTH(x_dim),
@@ -955,7 +956,7 @@ SEXP C_from_SVT_SparseArray_to_Rarray(SEXP x_dim, SEXP x_dimnames,
 static SEXP REC_build_SVT_from_Rsubarray(
 		SEXP Rarray, R_xlen_t subarr_offset, R_xlen_t subarr_len,
 		const int *dim, int ndim,
-		int as_int, int *warn, int *posbuf)
+		SEXPTYPE new_Rtype, int *warn, int *posbuf)
 {
 	SEXP ans, ans_elt;
 	int SVT_len, empty, k;
@@ -968,10 +969,10 @@ static SEXP REC_build_SVT_from_Rsubarray(
 		ans = make_leaf_vector_from_Rsubvec(
 					Rarray, subarr_offset, dim[0],
 					posbuf);
-		if (!as_int || ans == R_NilValue)
+		if (new_Rtype == TYPEOF(Rarray) || ans == R_NilValue)
 			return ans;
 		PROTECT(ans);
-		ans = coerce_leaf_vector(ans, INTSXP, warn, posbuf);
+		ans = coerce_leaf_vector(ans, new_Rtype, warn, posbuf);
 		UNPROTECT(1);
 		return ans;
 	}
@@ -984,7 +985,7 @@ static SEXP REC_build_SVT_from_Rsubarray(
 		ans_elt = REC_build_SVT_from_Rsubarray(
 					Rarray, subarr_offset, subarr_len,
 					dim, ndim - 1,
-					as_int, warn, posbuf);
+					new_Rtype, warn, posbuf);
 		if (ans_elt != R_NilValue) {
 			PROTECT(ans_elt);
 			SET_VECTOR_ELT(ans, k, ans_elt);
@@ -998,14 +999,17 @@ static SEXP REC_build_SVT_from_Rsubarray(
 }
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_build_SVT_from_Rarray(SEXP x, SEXP as_integer)
+SEXP C_build_SVT_from_Rarray(SEXP x, SEXP new_type)
 {
-	int as_int, x_ndim, warn, *posbuf;
+	SEXPTYPE new_Rtype;
 	RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN;
+	int x_ndim, warn, *posbuf;
 	R_xlen_t x_len;
 	SEXP x_dim, ans;
 
-	as_int = LOGICAL(as_integer)[0];
+	new_Rtype = get_Rtype_from_Rstring(new_type);
+	if (new_Rtype == 0)
+		error("invalid requested type");
 
 	Rvector_elt_is_zero_FUN = select_Rvector_elt_is_zero_FUN(TYPEOF(x));
 	if (Rvector_elt_is_zero_FUN == NULL)
@@ -1021,7 +1025,7 @@ SEXP C_build_SVT_from_Rarray(SEXP x, SEXP as_integer)
 	posbuf = (int *) R_alloc(INTEGER(x_dim)[0], sizeof(int));
 	ans = REC_build_SVT_from_Rsubarray(x, 0, x_len,
 					   INTEGER(x_dim), x_ndim,
-					   as_int, &warn, posbuf);
+					   new_Rtype, &warn, posbuf);
 	if (warn) {
 		if (ans != R_NilValue)
 			PROTECT(ans);
@@ -1141,14 +1145,15 @@ static SEXP build_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
 }
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_build_SVT_from_dgCMatrix(SEXP x, SEXP as_integer)
+SEXP C_build_SVT_from_dgCMatrix(SEXP x, SEXP new_type)
 {
+	SEXPTYPE new_Rtype;
 	SEXP x_Dim, x_p, x_i, x_x, ans, lv;
-	int as_int, x_ncol, j, offset, lv_len;
+	int x_ncol, j, offset, lv_len;
 
-	as_int = LOGICAL(as_integer)[0];
-	if (as_int)
-		error("'as.integer=TRUE' is not supported yet");
+	new_Rtype = get_Rtype_from_Rstring(new_type);
+	if (new_Rtype == 0)
+		error("invalid requested type");
 
 	x_Dim = GET_SLOT(x, install("Dim"));
 	x_ncol = INTEGER(x_Dim)[1];
@@ -1412,16 +1417,18 @@ static int store_nzpos_and_nzval_in_SVT(
 }
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_build_SVT_from_COO_SparseArray(SEXP x_dim, SEXP x_nzindex, SEXP x_nzdata,
-		SEXP as_integer)
+SEXP C_build_SVT_from_COO_SparseArray(
+		SEXP x_dim, SEXP x_nzindex, SEXP x_nzdata,
+		SEXP new_type)
 {
-	int as_int, x_ndim, nzdata_len, ans_len, i, ret;
+	SEXPTYPE new_Rtype;
 	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
+	int x_ndim, nzdata_len, ans_len, i, ret;
 	SEXP x_nzindex_dim, ans;
 
-	as_int = LOGICAL(as_integer)[0];
-	if (as_int)
-		error("'as.integer=TRUE' is not supported yet");
+	new_Rtype = get_Rtype_from_Rstring(new_type);
+	if (new_Rtype == 0)
+		error("invalid requested type");
 
 	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(TYPEOF(x_nzdata));
 	if (copy_Rvector_elt_FUN == NULL)
