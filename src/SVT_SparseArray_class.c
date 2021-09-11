@@ -1127,7 +1127,8 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
  */
 
 static SEXP build_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
-						 int offset, int lv_len)
+		int offset, int lv_len,
+		SEXPTYPE new_Rtype, int *warn, int *posbuf)
 {
 	SEXP lv_pos, lv_vals, ans;
 	int k;
@@ -1140,7 +1141,13 @@ static SEXP build_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
 		offset++;
 	}
 	ans = new_leaf_vector(lv_pos, lv_vals);
-	UNPROTECT(2);
+	if (new_Rtype == REALSXP) {
+		UNPROTECT(2);
+		return ans;
+	}
+	PROTECT(ans);
+	ans = coerce_leaf_vector(ans, new_Rtype, warn, posbuf);
+	UNPROTECT(3);
 	return ans;
 }
 
@@ -1149,13 +1156,14 @@ SEXP C_build_SVT_from_dgCMatrix(SEXP x, SEXP new_type)
 {
 	SEXPTYPE new_Rtype;
 	SEXP x_Dim, x_p, x_i, x_x, ans, lv;
-	int x_ncol, j, offset, lv_len;
+	int x_nrow, x_ncol, j, offset, lv_len, warn, *posbuf;
 
 	new_Rtype = get_Rtype_from_Rstring(new_type);
 	if (new_Rtype == 0)
 		error("invalid requested type");
 
 	x_Dim = GET_SLOT(x, install("Dim"));
+	x_nrow = INTEGER(x_Dim)[0];
 	x_ncol = INTEGER(x_Dim)[1];
 	x_p = GET_SLOT(x, install("p"));
 
@@ -1165,19 +1173,25 @@ SEXP C_build_SVT_from_dgCMatrix(SEXP x, SEXP new_type)
 	x_i = GET_SLOT(x, install("i"));
 	x_x = GET_SLOT(x, install("x"));
 
+	warn = 0;
+	posbuf = (int *) R_alloc(x_nrow, sizeof(int));
 	ans = PROTECT(NEW_LIST(x_ncol));
 	for (j = 0; j < x_ncol; j++) {
 		offset = INTEGER(x_p)[j];
 		lv_len = INTEGER(x_p)[j + 1] - offset;
 		if (lv_len != 0) {
 			lv = PROTECT(
-				build_leaf_vector_from_dgCMatrix_col(x_i, x_x,
-							offset, lv_len)
+				build_leaf_vector_from_dgCMatrix_col(
+						x_i, x_x,
+						offset, lv_len,
+						new_Rtype, &warn, posbuf)
 			);
 			SET_VECTOR_ELT(ans, j, lv);
 			UNPROTECT(1);
 		}
 	}
+	if (warn)
+		_CoercionWarning(warn);
 	UNPROTECT(1);
 	return ans;
 }

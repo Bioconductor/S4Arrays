@@ -218,7 +218,7 @@ normarg_array_type <- function(type, what="'type'")
     tmp <- try(vector(type), silent=TRUE)
     if (inherits(tmp, "try-error") || !is.atomic(tmp))
             stop(wmsg(what, " must be an R atomic type ",
-                      "(e.g. \"integer\") or \"list\""))
+                      "(e.g. \"integer\"), or \"list\""))
     type
 }
 
