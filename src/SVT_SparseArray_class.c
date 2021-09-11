@@ -314,7 +314,7 @@ static inline void copy_CHARACTER_elts(
 /* Compare with 'vector("list", length=1)[[1]]' (which is a NULL). */
 static inline int LIST_elt_is_zero(SEXP x, R_xlen_t i)
 {
-	return isNull(VECTOR_ELT(x, i));
+	return VECTOR_ELT(x, i) == R_NilValue;
 }
 
 static inline void copy_LIST_elt(
@@ -641,7 +641,7 @@ static SEXP remove_zeros_from_leaf_vector(SEXP lv, int *posbuf)
 
 	lv_len = split_leaf_vector(lv, &lv_pos, &lv_vals);
 	new_lv = make_leaf_vector_from_Rsubvec(lv_vals, 0, lv_len, posbuf);
-	if (isNull(new_lv))
+	if (new_lv == R_NilValue)
 		return new_lv;
 
 	PROTECT(new_lv);
@@ -651,6 +651,33 @@ static SEXP remove_zeros_from_leaf_vector(SEXP lv, int *posbuf)
 		*p = INTEGER(lv_pos)[*p - 1];
 	UNPROTECT(1);
 	return new_lv;
+}
+
+/* Returns R_NilValue or a "leaf vector" of the same length or shorter than
+   the input "leaf vector". */
+static SEXP coerce_leaf_vector(SEXP lv, SEXPTYPE new_Rtype,
+		int *warn, int *posbuf)
+{
+	SEXP lv_pos, lv_vals, ans_vals, ans;
+	SEXPTYPE old_Rtype;
+	int can_add_zeros;
+
+	split_leaf_vector(lv, &lv_pos, &lv_vals);
+	ans_vals = PROTECT(_coerceVector2(lv_vals, new_Rtype, warn));
+	ans = PROTECT(new_leaf_vector(lv_pos, ans_vals));
+	/* The above coercion can introduce zeros in 'ans_vals' e.g. when
+	   going from double/complex to int/raw. We need to remove them. */
+	old_Rtype = TYPEOF(lv_vals);
+	can_add_zeros = new_Rtype == RAWSXP
+		|| (old_Rtype == REALSXP && new_Rtype == INTSXP)
+		|| (old_Rtype == CPLXSXP && (new_Rtype == INTSXP ||
+					     new_Rtype == REALSXP))
+		|| old_Rtype == STRSXP
+		|| old_Rtype == VECSXP;
+	if (can_add_zeros)
+		ans = remove_zeros_from_leaf_vector(ans, posbuf);
+	UNPROTECT(2);
+	return ans;
 }
 
 
@@ -732,7 +759,7 @@ static R_xlen_t REC_sum_leaf_vector_lengths(SEXP SVT, int ndim)
 	int SVT_len, k;
 	SEXP subSVT;
 
-	if (isNull(SVT))
+	if (SVT == R_NilValue)
 		return 0;
 
 	if (ndim == 1) {
@@ -770,37 +797,17 @@ SEXP C_get_SVT_SparseArray_nzdata_length(SEXP x_dim, SEXP x_SVT)
 static int REC_set_SVT_type(SEXP SVT, const int *dim, int ndim,
 		SEXPTYPE new_Rtype, int *warn, int *posbuf)
 {
-	SEXP lv_vals, new_lv, subSVT;
-	SEXPTYPE Rtype;
-	int can_add_zeros, SVT_len, empty, k, ret;
+	SEXP new_lv, subSVT;
+	int SVT_len, empty, k, ret;
 
-	if (isNull(SVT))
+	if (SVT == R_NilValue)
 		return 1;
 
 	if (ndim == 1) {
 		/* 'SVT' is a "leaf vector". */
-		lv_vals = VECTOR_ELT(SVT, 1);
-		Rtype = TYPEOF(lv_vals);
-		lv_vals = PROTECT(_coerceVector2(lv_vals, new_Rtype, warn));
-		SET_VECTOR_ELT(SVT, 1, lv_vals);
-		UNPROTECT(1);
-
-		/* The above coercion can introduce zeros in 'lv_vals' e.g.
-		   when going from double/complex to int/raw.
-		   We need to remove them. */
-		can_add_zeros = new_Rtype == RAWSXP
-			|| (Rtype == REALSXP && new_Rtype == INTSXP)
-			|| (Rtype == CPLXSXP && (new_Rtype == INTSXP ||
-						 new_Rtype == REALSXP))
-			|| Rtype == STRSXP
-			|| Rtype == VECSXP;
-		if (!can_add_zeros)
-			return 0;
-
-		new_lv = remove_zeros_from_leaf_vector(SVT, posbuf);
-		if (isNull(new_lv))
+		new_lv = coerce_leaf_vector(SVT, new_Rtype, warn, posbuf);
+		if (new_lv == R_NilValue)
 			return 1;
-
 		PROTECT(new_lv);
 		SET_VECTOR_ELT(SVT, 0, VECTOR_ELT(new_lv, 0));
 		SET_VECTOR_ELT(SVT, 1, VECTOR_ELT(new_lv, 1));
@@ -841,7 +848,7 @@ SEXP C_set_SVT_SparseArray_type(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	if (new_Rtype == 0)
 		error("invalid supplied type");
 
-	if (isNull(x_SVT))
+	if (x_SVT == R_NilValue)
 		return x_SVT;
 
 	warn = 0;
@@ -876,7 +883,7 @@ static int REC_dump_SVT_to_Rsubarray(SEXP SVT,
 	SEXP lv_pos, lv_vals, subSVT;
 	R_xlen_t offset;
 
-	if (isNull(SVT))
+	if (SVT == R_NilValue)
 		return 0;
 
 	if (ndim == 1) {
@@ -948,19 +955,25 @@ SEXP C_from_SVT_SparseArray_to_Rarray(SEXP x_dim, SEXP x_dimnames,
 static SEXP REC_build_SVT_from_Rsubarray(
 		SEXP Rarray, R_xlen_t subarr_offset, R_xlen_t subarr_len,
 		const int *dim, int ndim,
-		int *posbuf)
+		int as_int, int *warn, int *posbuf)
 {
-	int SVT_len, empty, k;
 	SEXP ans, ans_elt;
+	int SVT_len, empty, k;
 
 	if (ndim == 1) { /* Sanity check (should never fail). */
 		if (dim[0] != subarr_len)
 			error("S4Arrays internal error "
 			      "in REC_build_SVT_from_Rsubarray():\n"
 			      "  dim[0] != subarr_len");
-		return make_leaf_vector_from_Rsubvec(
+		ans = make_leaf_vector_from_Rsubvec(
 					Rarray, subarr_offset, dim[0],
 					posbuf);
+		if (!as_int || ans == R_NilValue)
+			return ans;
+		PROTECT(ans);
+		ans = coerce_leaf_vector(ans, INTSXP, warn, posbuf);
+		UNPROTECT(1);
+		return ans;
 	}
 
 	SVT_len = dim[ndim - 1];  /* cannot be 0 so safe to divide below */
@@ -971,8 +984,8 @@ static SEXP REC_build_SVT_from_Rsubarray(
 		ans_elt = REC_build_SVT_from_Rsubarray(
 					Rarray, subarr_offset, subarr_len,
 					dim, ndim - 1,
-					posbuf);
-		if (!isNull(ans_elt)) {
+					as_int, warn, posbuf);
+		if (ans_elt != R_NilValue) {
 			PROTECT(ans_elt);
 			SET_VECTOR_ELT(ans, k, ans_elt);
 			UNPROTECT(1);
@@ -987,14 +1000,12 @@ static SEXP REC_build_SVT_from_Rsubarray(
 /* --- .Call ENTRY POINT --- */
 SEXP C_build_SVT_from_Rarray(SEXP x, SEXP as_integer)
 {
-	int as_int, x_ndim, *posbuf;
+	int as_int, x_ndim, warn, *posbuf;
 	RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN;
 	R_xlen_t x_len;
-	SEXP x_dim;
+	SEXP x_dim, ans;
 
 	as_int = LOGICAL(as_integer)[0];
-	if (as_int)
-		error("'as.integer=TRUE' is not supported yet");
 
 	Rvector_elt_is_zero_FUN = select_Rvector_elt_is_zero_FUN(TYPEOF(x));
 	if (Rvector_elt_is_zero_FUN == NULL)
@@ -1006,10 +1017,19 @@ SEXP C_build_SVT_from_Rarray(SEXP x, SEXP as_integer)
 
 	x_dim = GET_DIM(x);  /* does not contain zeros */
 	x_ndim = LENGTH(x_dim);
+	warn = 0;
 	posbuf = (int *) R_alloc(INTEGER(x_dim)[0], sizeof(int));
-	return REC_build_SVT_from_Rsubarray(x, 0, x_len,
-					    INTEGER(x_dim), x_ndim,
-					    posbuf);
+	ans = REC_build_SVT_from_Rsubarray(x, 0, x_len,
+					   INTEGER(x_dim), x_ndim,
+					   as_int, &warn, posbuf);
+	if (warn) {
+		if (ans != R_NilValue)
+			PROTECT(ans);
+		_CoercionWarning(warn);
+		if (ans != R_NilValue)
+			UNPROTECT(1);
+	}
+	return ans;
 }
 
 
@@ -1027,7 +1047,7 @@ static int dump_SVT_to_CsparseMatrix_slots(SEXP x_SVT, int x_ncol,
 	offset = 0;
 	for (j = 0; j < x_ncol; j++) {
 		subSVT = VECTOR_ELT(x_SVT, j);
-		if (!isNull(subSVT)) {
+		if (subSVT != R_NilValue) {
 			/* 'subSVT' is a "leaf vector". */
 			lv_len = split_leaf_vector(subSVT, &lv_pos, &lv_vals);
 			if (lv_len < 0)
@@ -1183,7 +1203,7 @@ static int REC_extract_nzindex_and_nzdata_from_SVT(SEXP SVT,
 	int SVT_len, k, ret, lv_len, *p, j;
 	SEXP subSVT, lv_pos, lv_vals;
 
-	if (isNull(SVT))
+	if (SVT == R_NilValue)
 		return 0;
 
 	if (rowbuf_offset > 0) {
@@ -1305,7 +1325,7 @@ static int grow_SVT(SEXP SVT,
 			if (j == 1)
 				break;
 			/* 'subSVT' is NULL or a list. */
-			if (isNull(subSVT)) {
+			if (subSVT == R_NilValue) {
 				subSVT = PROTECT(NEW_LIST(dim[j]));
 				SET_VECTOR_ELT(SVT, k, subSVT);
 				UNPROTECT(1);
@@ -1313,7 +1333,7 @@ static int grow_SVT(SEXP SVT,
 			SVT = subSVT;
 		}
 		/* 'subSVT' is NULL or an integer vector of counts. */
-		if (isNull(subSVT)) {
+		if (subSVT == R_NilValue) {
 			subSVT = PROTECT(
 				new_Rvector(INTSXP, (R_xlen_t) dim[j])
 			);

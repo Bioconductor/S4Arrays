@@ -11,7 +11,7 @@ static R_xlen_t count_tree_leaves_REC(SEXP tree)
 	int tree_len, k;
 	SEXP subtree;
 
-	if (isNull(tree))
+	if (tree == R_NilValue)
 		return 0;
 
 	if (IS_INTEGER(tree))
@@ -55,7 +55,7 @@ static int dump_tree_as_matrix_REC(SEXP tree,
 	SEXP subtree;
 	R_xlen_t nrow;
 
-	if (isNull(tree))
+	if (tree == R_NilValue)
 		return 0;
 	if (rowbuf_offset > 0) {
 		if (!isVectorList(tree))  // IS_LIST() is broken

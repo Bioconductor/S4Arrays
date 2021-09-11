@@ -138,11 +138,10 @@ setMethod("as.array", "SVT_SparseArray", as.array.SVT_SparseArray)
 .make_SVT_SparseArray_from_array <- function(x, as.integer=FALSE)
 {
     stopifnot(is.array(x))
-    if (!isTRUEorFALSE(as.integer))
-        stop(wmsg("'as.integer' must be TRUE or FALSE"))
     ans_SVT <- .Call2("C_build_SVT_from_Rarray",
                       x, as.integer, PACKAGE="S4Arrays")
-    .new_SVT_SparseArray(dim(x), dimnames(x), type(x), ans_SVT,
+    ans_type <- if (as.integer) "integer" else type(x)
+    .new_SVT_SparseArray(dim(x), dimnames(x), ans_type, ans_SVT,
                          check=FALSE)
 }
 
@@ -181,11 +180,10 @@ setAs("SVT_SparseArray", "lgCMatrix", .from_SVT_SparseArray_to_CsparseMatrix)
 .make_SVT_SparseArray_from_dgCMatrix <- function(x, as.integer=FALSE)
 {
     stopifnot(is(x, "dgCMatrix"))
-    if (!isTRUEorFALSE(as.integer))
-        stop(wmsg("'as.integer' must be TRUE or FALSE"))
     ans_SVT <- .Call2("C_build_SVT_from_dgCMatrix",
                       x, as.integer, PACKAGE="S4Arrays")
-    .new_SVT_SparseArray(dim(x), dimnames(x), type(x), ans_SVT,
+    ans_type <- if (as.integer) "integer" else type(x)
+    .new_SVT_SparseArray(dim(x), dimnames(x), ans_type, ans_SVT,
                          check=FALSE)
 }
 
@@ -225,12 +223,11 @@ setAs("SVT_SparseArray", "COO_SparseArray",
 .make_SVT_SparseArray_from_COO_SparseArray <- function(x, as.integer=FALSE)
 {
     stopifnot(is(x, "COO_SparseArray"))
-    if (!isTRUEorFALSE(as.integer))
-        stop(wmsg("'as.integer' must be TRUE or FALSE"))
     ans_SVT <- .Call2("C_build_SVT_from_COO_SparseArray",
                       x@dim, x@nzindex, x@nzdata, as.integer,
                       PACKAGE="S4Arrays")
-    .new_SVT_SparseArray(x@dim, x@dimnames, type(x), ans_SVT,
+    ans_type <- if (as.integer) "integer" else type(x)
+    .new_SVT_SparseArray(x@dim, x@dimnames, ans_type, ans_SVT,
                          check=FALSE)
 }
 
@@ -245,6 +242,8 @@ setAs("COO_SparseArray", "SVT_SparseArray",
 
 SVT_SparseArray <- function(x, as.integer=FALSE)
 {
+    if (!isTRUEorFALSE(as.integer))
+        stop(wmsg("'as.integer' must be TRUE or FALSE"))
     if (missing(x))
         return(new2("SVT_SparseArray", check=FALSE))
     if (is.array(x))
@@ -253,7 +252,7 @@ SVT_SparseArray <- function(x, as.integer=FALSE)
         return(.make_SVT_SparseArray_from_dgCMatrix(x, as.integer=as.integer))
     if (is(x, "COO_SparseArray"))
         return(.make_SVT_SparseArray_from_COO_SparseArray(x,
-                                                       as.integer=as.integer))
+                                                    as.integer=as.integer))
     as(x, "SVT_SparseArray")
 }
 
