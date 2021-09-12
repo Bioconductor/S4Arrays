@@ -2,7 +2,7 @@
 ### SVT_SparseArray objects
 ### -------------------------------------------------------------------------
 ###
-### SparseArray objects using the SVT layout to store the nonzero data.
+### Use SVT layout to store the sparse data.
 ###
 ### An SVT_SparseArray object stores its nonzero data in a "Sparse Vector
 ### Tree" (SVT).
@@ -247,7 +247,7 @@ setAs("COO_SparseArray", "SVT_SparseArray",
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### SVT_SparseArray constructor
+### Constructor
 ###
 
 SVT_SparseArray <- function(x, type=NA)
@@ -273,4 +273,27 @@ SVT_SparseArray <- function(x, type=NA)
         type(ans) <- type
     ans
 }
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### Transposition
+###
+
+### S3/S4 combo for t.SVT_SparseArray
+t.SVT_SparseArray <- function(x)
+{
+    x_dim <- dim(x)
+    if (length(x_dim) != 2L)
+        stop(wmsg("the ", class(x), " object to transpose ",
+                  "must have exactly 2 dimensions"))
+
+    new_SVT <- .Call2("C_transpose_SVT_SparseArray",
+                      x_dim, x@type, x@SVT, PACKAGE="S4Arrays")
+
+    BiocGenerics:::replaceSlots(x, dim=rev(x_dim),
+                                   dimnames=rev(x@dimnames),
+                                   SVT=new_SVT,
+                                   check=FALSE)
+}
+setMethod("t", "SVT_SparseArray", t.SVT_SparseArray)
 

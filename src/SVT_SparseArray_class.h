@@ -51,5 +51,11 @@ SEXP C_build_SVT_from_COO_SparseArray(
 	SEXP new_type
 );
 
+SEXP C_transpose_SVT_SparseArray(
+	SEXP x_dim,
+	SEXP x_type,
+	SEXP x_SVT
+);
+
 #endif  /* _SVTSPARSEARRAY_CLASS_H_ */
 

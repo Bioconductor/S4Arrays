@@ -2,7 +2,7 @@
 ### COO_SparseArray objects
 ### -------------------------------------------------------------------------
 ###
-### SparseArray objects using the COO layout to store the nonzero data.
+### Use COO layout to store the sparse data.
 ###
 ### Same as SparseArraySeed objects in the DelayedArray package.
 ### Extends the Coordinate List (COO) layout used for sparse matrices to

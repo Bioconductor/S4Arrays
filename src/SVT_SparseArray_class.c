@@ -928,11 +928,11 @@ SEXP C_from_SVT_SparseArray_to_Rarray(SEXP x_dim, SEXP x_dimnames,
 	int ret;
 
 	Rtype = get_Rtype_from_Rstring(x_type);
-	if (Rtype == 0)
+	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(Rtype);
+	if (copy_Rvector_elt_FUN == NULL)
 		error("S4Arrays internal error in "
 		      "C_from_SVT_SparseArray_to_Rarray():\n"
 		      "  SVT_SparseArray object has invalid type");
-	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(Rtype);
 
 	ans = PROTECT(new_Rarray(Rtype, x_dim, x_dimnames));
 	ret = REC_dump_SVT_to_Rsubarray(x_SVT,
@@ -1518,6 +1518,95 @@ SEXP C_build_SVT_from_COO_SparseArray(
 
 	if (x_ndim == 2)
 		UNPROTECT(1);
+	UNPROTECT(1);
+	return ans;
+}
+
+
+/****************************************************************************
+ * Transposition
+ */
+
+SEXP C_transpose_SVT_SparseArray(SEXP x_dim, SEXP x_type, SEXP x_SVT)
+{
+	SEXPTYPE Rtype;
+	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
+	int x_nrow, x_ncol, *counts, j, lv_len, k, ret;
+	SEXP subSVT, lv_pos, lv_vals, ans, ans_elt;
+	const int *p;
+
+	Rtype = get_Rtype_from_Rstring(x_type);
+	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(Rtype);
+	if (copy_Rvector_elt_FUN == NULL)
+		error("S4Arrays internal error in "
+		      "C_transpose_SVT_SparseArray():\n"
+		      "  SVT_SparseArray object has invalid type");
+
+	if (LENGTH(x_dim) != 2)
+		error("object to transpose must have exactly 2 dimensions");
+
+	if (x_SVT == R_NilValue)
+		return x_SVT;
+
+	x_nrow = INTEGER(x_dim)[0];
+	x_ncol = INTEGER(x_dim)[1];
+
+	/* 1st pass: Count the number of nonzero values per row in the
+	   input object. */
+	counts = (int *) R_alloc(x_nrow, sizeof(int));
+	memset(counts, 0, sizeof(int) * x_nrow);
+	for (j = 0; j < x_ncol; j++) {
+		subSVT = VECTOR_ELT(x_SVT, j);
+		if (subSVT == R_NilValue)
+			continue;
+		/* 'subSVT' is a "leaf vector". */
+		lv_len = split_leaf_vector(subSVT, &lv_pos, &lv_vals);
+		if (lv_len < 0)
+			error("S4Arrays internal error in "
+			      "C_transpose_SVT_SparseArray():\n"
+			      "  invalid SVT_SparseArray object");
+		for (k = 0, p = INTEGER(lv_pos); k < lv_len; k++, p++)
+			counts[*p - 1]++;
+	}
+
+	/* 2nd pass: Build the transposed SVT. */
+	ans = PROTECT(
+		alloc_list_of_appendable_leaf_vectors(counts, x_nrow, Rtype)
+	);
+	for (j = 0; j < x_ncol; j++) {
+		subSVT = VECTOR_ELT(x_SVT, j);
+		if (subSVT == R_NilValue)
+			continue;
+		/* 'subSVT' is a "leaf vector". */
+		lv_len = split_leaf_vector(subSVT, &lv_pos, &lv_vals);
+		if (lv_len < 0)
+			error("S4Arrays internal error in "
+			      "C_transpose_SVT_SparseArray():\n"
+			      "  invalid SVT_SparseArray object");
+		for (k = 0, p = INTEGER(lv_pos); k < lv_len; k++, p++) {
+			ans_elt = VECTOR_ELT(ans, *p - 1);
+			ret = append_pos_val_pair_to_leaf_vector(ans_elt,
+						j + 1,
+						lv_vals, k,
+						copy_Rvector_elt_FUN);
+			if (ret < 0)
+				error("S4Arrays internal error in "
+				      "C_transpose_SVT_SparseArray():\n"
+				      "  append_pos_val_pair_to_leaf_vector() "
+				      "returned an error");
+			if (ret == 1) {
+				/* Appendable leaf vector 'ans_elt' is now full.
+				   Replace it with a regular (i.e.
+				   non-appendable) "leaf vector". */
+				ans_elt = PROTECT(
+					new_leaf_vector(VECTOR_ELT(ans_elt, 0),
+							VECTOR_ELT(ans_elt, 1))
+				);
+				SET_VECTOR_ELT(ans, *p - 1, ans_elt);
+				UNPROTECT(1);
+			}
+		}
+	}
 	UNPROTECT(1);
 	return ans;
 }
