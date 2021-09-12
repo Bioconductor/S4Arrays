@@ -109,20 +109,20 @@ readSparseCSV <- function(filepath, sep=",", transpose=FALSE)
     if (transpose) {
         ans_rownames <- line1[-1L]
         ans_colnames <- C_ans[[1L]]
-        ans_nzindex1 <- C_ans[[3L]]
-        ans_nzindex2 <- C_ans[[2L]]
+        ans_nzcoo1 <- C_ans[[3L]]
+        ans_nzcoo2 <- C_ans[[2L]]
     } else {
         ans_rownames <- C_ans[[1L]]
         ans_colnames <- line1[-1L]
-        ans_nzindex1 <- C_ans[[2L]]
-        ans_nzindex2 <- C_ans[[3L]]
+        ans_nzcoo1 <- C_ans[[2L]]
+        ans_nzcoo2 <- C_ans[[3L]]
     }
     ans_nzdata <- C_ans[[4L]]
     ans_dim <- c(length(ans_rownames), length(ans_colnames))
     ans_dimnames <- list(ans_rownames, ans_colnames)
 
     ## Construct dgCMatrix object.
-    CsparseMatrix(ans_dim, ans_nzindex1, ans_nzindex2, ans_nzdata,
+    CsparseMatrix(ans_dim, ans_nzcoo1, ans_nzcoo2, ans_nzdata,
                   dimnames=ans_dimnames)
 }
 

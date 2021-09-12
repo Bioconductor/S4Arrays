@@ -203,7 +203,7 @@ export(
     ## SparseArray-class.R:
     is_sparse,
     "is_sparse<-",
-    nzindex, nzdata, sparsity,
+    nzcoo, nzdata, sparsity,
     extract_sparse_array
 )
 
@@ -214,7 +214,7 @@ exportMethods(
     refdim, maxlength, aperm, downsample,
     is_sparse,
     #"is_sparse<-",  # no methods defined in S4Arrays!
-    nzindex, nzdata, sparsity,
+    nzcoo, nzdata, sparsity,
     extract_sparse_array
 )
 

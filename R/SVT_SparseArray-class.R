@@ -112,9 +112,9 @@ setMethod("type", "SVT_SparseArray", function(x) x@type)
     x_type <- type(x)
     if (value == x_type)
         return(x)
-    ans_SVT <- .Call2("C_set_SVT_SparseArray_type",
+    new_SVT <- .Call2("C_set_SVT_SparseArray_type",
                       x@dim, x@type, x@SVT, value, PACKAGE="S4Arrays")
-    BiocGenerics:::replaceSlots(x, type=value, SVT=ans_SVT, check=FALSE)
+    BiocGenerics:::replaceSlots(x, type=value, SVT=new_SVT, check=FALSE)
 }
 
 setReplaceMethod("type", "SVT_SparseArray", .set_SVT_SparseArray_type)
@@ -206,13 +206,13 @@ setAs("lgCMatrix", "SVT_SparseArray",
 .from_SVT_SparseArray_to_COO_SparseArray <- function(from)
 {
     stopifnot(is(from, "SVT_SparseArray"))
-    ## Returns 'ans_nzindex' and 'ans_nzdata' in a list of length 2.
+    ## Returns 'ans_nzcoo' and 'ans_nzdata' in a list of length 2.
     C_ans <- .Call2("C_from_SVT_SparseArray_to_COO_SparseArray",
                     from@dim, from@type, from@SVT, PACKAGE="S4Arrays")
-    ans_nzindex <- C_ans[[1L]]
-    ans_nzdata  <- C_ans[[2L]]
+    ans_nzcoo <- C_ans[[1L]]
+    ans_nzdata <- C_ans[[2L]]
     new2("COO_SparseArray", dim=from@dim, dimnames=from@dimnames,
-                            nzindex=ans_nzindex, nzdata=ans_nzdata,
+                            nzcoo=ans_nzcoo, nzdata=ans_nzdata,
                             check=FALSE)
 }
 
@@ -226,7 +226,7 @@ setAs("SVT_SparseArray", "COO_SparseArray",
     if (identical(type, NA))
         type <- type(x)
     ans_SVT <- .Call2("C_build_SVT_from_COO_SparseArray",
-                      x@dim, x@nzindex, x@nzdata, type,
+                      x@dim, x@nzcoo, x@nzdata, type,
                       PACKAGE="S4Arrays")
     .new_SVT_SparseArray(x@dim, x@dimnames, type, ans_SVT, check=FALSE)
 }

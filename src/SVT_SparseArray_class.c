@@ -1126,16 +1126,17 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
  * Going from dgCMatrix to SVT_SparseArray
  */
 
+/* Returns R_NilValue or a "leaf vector" of length <= nzcount. */
 static SEXP build_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
-		int offset, int lv_len,
+		int offset, int nzcount,
 		SEXPTYPE new_Rtype, int *warn, int *posbuf)
 {
 	SEXP lv_pos, lv_vals, ans;
 	int k;
 
-	lv_pos  = PROTECT(NEW_INTEGER(lv_len));
-	lv_vals = PROTECT(NEW_NUMERIC(lv_len));
-	for (k = 0; k < lv_len; k++) {
+	lv_pos  = PROTECT(NEW_INTEGER(nzcount));
+	lv_vals = PROTECT(NEW_NUMERIC(nzcount));
+	for (k = 0; k < nzcount; k++) {
 		INTEGER(lv_pos)[k] = INTEGER(x_i)[offset] + 1;  /* 1-based */
 		REAL(lv_vals)[k]   = REAL(x_x)[offset];
 		offset++;
@@ -1155,8 +1156,8 @@ static SEXP build_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
 SEXP C_build_SVT_from_dgCMatrix(SEXP x, SEXP new_type)
 {
 	SEXPTYPE new_Rtype;
-	SEXP x_Dim, x_p, x_i, x_x, ans, lv;
-	int x_nrow, x_ncol, j, offset, lv_len, warn, *posbuf;
+	SEXP x_Dim, x_p, x_i, x_x, ans, ans_elt;
+	int x_nrow, x_ncol, j, offset, nzcount, warn, *posbuf, empty;
 
 	new_Rtype = get_Rtype_from_Rstring(new_type);
 	if (new_Rtype == 0)
@@ -1176,24 +1177,27 @@ SEXP C_build_SVT_from_dgCMatrix(SEXP x, SEXP new_type)
 	warn = 0;
 	posbuf = (int *) R_alloc(x_nrow, sizeof(int));
 	ans = PROTECT(NEW_LIST(x_ncol));
+	empty = 1;
 	for (j = 0; j < x_ncol; j++) {
 		offset = INTEGER(x_p)[j];
-		lv_len = INTEGER(x_p)[j + 1] - offset;
-		if (lv_len != 0) {
-			lv = PROTECT(
-				build_leaf_vector_from_dgCMatrix_col(
+		nzcount = INTEGER(x_p)[j + 1] - offset;
+		if (nzcount != 0) {
+			ans_elt = build_leaf_vector_from_dgCMatrix_col(
 						x_i, x_x,
-						offset, lv_len,
-						new_Rtype, &warn, posbuf)
-			);
-			SET_VECTOR_ELT(ans, j, lv);
-			UNPROTECT(1);
+						offset, nzcount,
+						new_Rtype, &warn, posbuf);
+			if (ans_elt != R_NilValue) {
+				PROTECT(ans_elt);
+				SET_VECTOR_ELT(ans, j, ans_elt);
+				UNPROTECT(1);
+				empty = 0;
+			}
 		}
 	}
 	if (warn)
 		_CoercionWarning(warn);
 	UNPROTECT(1);
-	return ans;
+	return empty ? R_NilValue : ans;
 }
 
 
@@ -1214,9 +1218,9 @@ static SEXP alloc_nzdata(R_xlen_t nzdata_len, SEXP type)
 }
 
 /* Recursive. */
-static int REC_extract_nzindex_and_nzdata_from_SVT(SEXP SVT,
+static int REC_extract_nzcoo_and_nzdata_from_SVT(SEXP SVT,
 		SEXP nzdata, int *nzdata_offset,
-		int *nzindex, int nzindex_nrow, int nzindex_ncol,
+		int *nzcoo, int nzcoo_nrow, int nzcoo_ncol,
 		int *rowbuf, int rowbuf_offset)
 {
 	int SVT_len, k, ret, lv_len, *p, j;
@@ -1232,10 +1236,10 @@ static int REC_extract_nzindex_and_nzdata_from_SVT(SEXP SVT,
 		for (k = 0; k < SVT_len; k++) {
 			subSVT = VECTOR_ELT(SVT, k);
 			rowbuf[rowbuf_offset] = k + 1;
-			ret = REC_extract_nzindex_and_nzdata_from_SVT(
+			ret = REC_extract_nzcoo_and_nzdata_from_SVT(
 					subSVT,
 					nzdata, nzdata_offset,
-					nzindex, nzindex_nrow, nzindex_ncol,
+					nzcoo, nzcoo_nrow, nzcoo_ncol,
 					rowbuf, rowbuf_offset - 1);
 			if (ret < 0)
 				return -1;
@@ -1257,11 +1261,11 @@ static int REC_extract_nzindex_and_nzdata_from_SVT(SEXP SVT,
 	for (k = 0; k < lv_len; k++) {
 		rowbuf[0] = INTEGER(lv_pos)[k];
 
-		/* Copy 'rowbuf' to 'nzindex'. */
-		p = nzindex + *nzdata_offset;
-		for (j = 0; j < nzindex_ncol; j++) {
+		/* Copy 'rowbuf' to 'nzcoo'. */
+		p = nzcoo + *nzdata_offset;
+		for (j = 0; j < nzcoo_ncol; j++) {
 			*p = rowbuf[j];
-			p += nzindex_nrow;
+			p += nzcoo_nrow;
 		}
 
 		(*nzdata_offset)++;
@@ -1274,8 +1278,8 @@ SEXP C_from_SVT_SparseArray_to_COO_SparseArray(SEXP x_dim,
 		SEXP x_type, SEXP x_SVT)
 {
 	R_xlen_t nzdata_len;
-	int nzindex_nrow, nzindex_ncol, *rowbuf, nzdata_offset, ret;
-	SEXP nzindex, nzdata, ans;
+	int nzcoo_nrow, nzcoo_ncol, *rowbuf, nzdata_offset, ret;
+	SEXP nzcoo, nzdata, ans;
 
 	nzdata_len = REC_sum_leaf_vector_lengths(x_SVT, LENGTH(x_dim));
 	if (nzdata_len > INT_MAX)
@@ -1284,16 +1288,16 @@ SEXP C_from_SVT_SparseArray_to_COO_SparseArray(SEXP x_dim,
 
 	nzdata = PROTECT(alloc_nzdata(nzdata_len, x_type));
 
-	nzindex_nrow = (int) nzdata_len;
-	nzindex_ncol = LENGTH(x_dim);
-	rowbuf = (int *) R_alloc(nzindex_ncol, sizeof(int));
-	nzindex = PROTECT(allocMatrix(INTSXP, nzindex_nrow, nzindex_ncol));
+	nzcoo_nrow = (int) nzdata_len;
+	nzcoo_ncol = LENGTH(x_dim);
+	rowbuf = (int *) R_alloc(nzcoo_ncol, sizeof(int));
+	nzcoo = PROTECT(allocMatrix(INTSXP, nzcoo_nrow, nzcoo_ncol));
 
 	nzdata_offset = 0;
-	ret = REC_extract_nzindex_and_nzdata_from_SVT(x_SVT,
+	ret = REC_extract_nzcoo_and_nzdata_from_SVT(x_SVT,
 			nzdata, &nzdata_offset,
-			INTEGER(nzindex), nzindex_nrow, nzindex_ncol,
-			rowbuf, nzindex_ncol - 1);
+			INTEGER(nzcoo), nzcoo_nrow, nzcoo_ncol,
+			rowbuf, nzcoo_ncol - 1);
 	if (ret < 0) {
 		UNPROTECT(2);
 		error("S4Arrays internal error "
@@ -1302,15 +1306,15 @@ SEXP C_from_SVT_SparseArray_to_COO_SparseArray(SEXP x_dim,
 	}
 
 	/* Sanity check (should never fail). */
-	if (nzdata_offset != nzindex_nrow) {
+	if (nzdata_offset != nzcoo_nrow) {
 		UNPROTECT(2);
 		error("S4Arrays internal error "
 		      "in C_from_SVT_SparseArray_to_COO_SparseArray():\n"
-		      "  *out_offset != nzindex_nrow");
+		      "  *out_offset != nzcoo_nrow");
 	}
 
 	ans = PROTECT(NEW_LIST(2));
-	SET_VECTOR_ELT(ans, 0, nzindex);
+	SET_VECTOR_ELT(ans, 0, nzcoo);
 	SET_VECTOR_ELT(ans, 1, nzdata);
 	UNPROTECT(3);
 	return ans;
@@ -1323,13 +1327,13 @@ SEXP C_from_SVT_SparseArray_to_COO_SparseArray(SEXP x_dim,
 
 static int grow_SVT(SEXP SVT,
 		const int *dim, int ndim,
-		const int *nzindex, int nzdata_len, int nzdata_offset)
+		const int *nzcoo, int nzdata_len, int nzdata_offset)
 {
 	const int *p;
 	int j, k;
 	SEXP subSVT;
 
-	p = nzindex + nzdata_offset;
+	p = nzcoo + nzdata_offset;
 	if (*p < 1  || *p > dim[0])
 		return -1;
 
@@ -1362,7 +1366,7 @@ static int grow_SVT(SEXP SVT,
 		SVT = subSVT;
 	}
 
-	p = nzindex + nzdata_offset + nzdata_len;
+	p = nzcoo + nzdata_offset + nzdata_len;
 	k = *p - 1;
 	if (k < 0 || k >= LENGTH(SVT))
 		return -1;
@@ -1371,7 +1375,7 @@ static int grow_SVT(SEXP SVT,
 }
 
 static int store_nzpos_and_nzval_in_SVT(
-		const int *nzindex, int nzdata_len, int nzindex_ncol,
+		const int *nzcoo, int nzdata_len, int nzcoo_ncol,
 		SEXP nzdata, int nzdata_offset,
 		SEXP SVT,
 		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
@@ -1380,10 +1384,9 @@ static int store_nzpos_and_nzval_in_SVT(
 	int j, k, ret;
 	SEXP subSVT;
 
-	if (nzindex_ncol >= 3) {
-		p = nzindex + nzdata_offset +
-			      (size_t) nzdata_len * nzindex_ncol;
-		for (j = nzindex_ncol - 2; j >= 1; j--) {
+	if (nzcoo_ncol >= 3) {
+		p = nzcoo + nzdata_offset + (size_t) nzdata_len * nzcoo_ncol;
+		for (j = nzcoo_ncol - 2; j >= 1; j--) {
 			p -= nzdata_len;
 			k = *p - 1;
 			subSVT = VECTOR_ELT(SVT, k);
@@ -1405,13 +1408,13 @@ static int store_nzpos_and_nzval_in_SVT(
 		SVT = subSVT;
 	}
 
-	p = nzindex + nzdata_offset + nzdata_len;
+	p = nzcoo + nzdata_offset + nzdata_len;
 	k = *p - 1;
 	subSVT = VECTOR_ELT(SVT, k);
 
 	/* 'subSVT' is an "appendable leaf vector". */
 	ret = append_pos_val_pair_to_leaf_vector(subSVT,
-						 nzindex[nzdata_offset],
+						 nzcoo[nzdata_offset],
 						 nzdata, nzdata_offset,
 						 copy_Rvector_elt_FUN);
 	if (ret < 0)
@@ -1432,17 +1435,21 @@ static int store_nzpos_and_nzval_in_SVT(
 
 /* --- .Call ENTRY POINT --- */
 SEXP C_build_SVT_from_COO_SparseArray(
-		SEXP x_dim, SEXP x_nzindex, SEXP x_nzdata,
+		SEXP x_dim, SEXP x_nzcoo, SEXP x_nzdata,
 		SEXP new_type)
 {
-	SEXPTYPE new_Rtype;
+	//SEXPTYPE new_Rtype;
 	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
 	int x_ndim, nzdata_len, ans_len, i, ret;
-	SEXP x_nzindex_dim, ans;
+	SEXP x_nzcoo_dim, ans;
 
-	new_Rtype = get_Rtype_from_Rstring(new_type);
-	if (new_Rtype == 0)
-		error("invalid requested type");
+	/* The 'new_type' argument is ignored at the moment.
+	   For now we take care of honoring the user-requested type at the R
+	   level and it's not clear that there's much to gain by handling this
+	   at the C level. */
+	//new_Rtype = get_Rtype_from_Rstring(new_type);
+	//if (new_Rtype == 0)
+	//	error("invalid requested type");
 
 	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(TYPEOF(x_nzdata));
 	if (copy_Rvector_elt_FUN == NULL)
@@ -1451,20 +1458,20 @@ SEXP C_build_SVT_from_COO_SparseArray(
 	x_ndim = LENGTH(x_dim);
 	nzdata_len = LENGTH(x_nzdata);
 
-	/* Check 'x_nzindex' dimensions. */
-	x_nzindex_dim = GET_DIM(x_nzindex);
-	if (LENGTH(x_nzindex_dim) != 2)
-		error("'x@nzindex' must be a matrix");
-	if (INTEGER(x_nzindex_dim)[0] != nzdata_len)
-		error("nrow(x@nzindex) != length(x@nzdata)");
-	if (INTEGER(x_nzindex_dim)[1] != x_ndim)
-		error("ncol(x@nzindex) != length(x@dim)");
+	/* Check 'x_nzcoo' dimensions. */
+	x_nzcoo_dim = GET_DIM(x_nzcoo);
+	if (LENGTH(x_nzcoo_dim) != 2)
+		error("'x@nzcoo' must be a matrix");
+	if (INTEGER(x_nzcoo_dim)[0] != nzdata_len)
+		error("nrow(x@nzcoo) != length(x@nzdata)");
+	if (INTEGER(x_nzcoo_dim)[1] != x_ndim)
+		error("ncol(x@nzcoo) != length(x@dim)");
 
 	if (nzdata_len == 0)
 		return R_NilValue;
 
 	if (x_ndim == 1)
-		return make_leaf_vector(INTEGER(x_nzindex), x_nzdata,
+		return make_leaf_vector(INTEGER(x_nzcoo), x_nzdata,
 					INTEGER(x_dim)[0]);
 
 	ans_len = INTEGER(x_dim)[x_ndim - 1];
@@ -1479,7 +1486,7 @@ SEXP C_build_SVT_from_COO_SparseArray(
 	for (i = 0; i < nzdata_len; i++) {
 		ret = grow_SVT(ans,
 			       INTEGER(x_dim), x_ndim,
-			       INTEGER(x_nzindex), nzdata_len, i);
+			       INTEGER(x_nzcoo), nzdata_len, i);
 		if (ret < 0) {
 			UNPROTECT(1);
 			error("the supplied matrix contains "
@@ -1496,7 +1503,7 @@ SEXP C_build_SVT_from_COO_SparseArray(
 		);
 	for (i = 0; i < nzdata_len; i++) {
 		ret = store_nzpos_and_nzval_in_SVT(
-				INTEGER(x_nzindex), nzdata_len, x_ndim,
+				INTEGER(x_nzcoo), nzdata_len, x_ndim,
 				x_nzdata, i,
 				ans,
 				copy_Rvector_elt_FUN);

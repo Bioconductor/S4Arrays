@@ -26,24 +26,24 @@ abind_COO_SparseArray_objects <- function(objects, along)
     ans_dim <- combine_dims_along(dims, along)
     ans_dimnames <- combine_dimnames_along(objects, dims, along)
 
-    ## Combine the "nzindex" slots.
+    ## Combine the "nzcoo" slots.
     offsets <- cumsum(dims[along, -ncol(dims)])
-    nzindex_list <- lapply(seq_along(objects),
+    nzcoo_list <- lapply(seq_along(objects),
         function(i) {
             object <- objects[[i]]
-            nzindex <- object@nzindex
+            nzcoo <- object@nzcoo
             if (i >= 2L)
-                nzindex[ , along] = nzindex[ , along, drop=FALSE] +
-                                    offsets[[i - 1L]]
-            nzindex
+                nzcoo[ , along] = nzcoo[ , along, drop=FALSE] +
+                                  offsets[[i - 1L]]
+            nzcoo
 	}
     )
-    ans_nzindex <- do.call(rbind, nzindex_list)
+    ans_nzcoo <- do.call(rbind, nzcoo_list)
 
     ## Combine the "nzdata" slots.
     ans_nzdata <- unlist(lapply(objects, slot, "nzdata"), use.names=FALSE)
 
-    COO_SparseArray(ans_dim, ans_nzindex, ans_nzdata, ans_dimnames, check=FALSE)
+    COO_SparseArray(ans_dim, ans_nzcoo, ans_nzdata, ans_dimnames, check=FALSE)
 }
 
 setMethod("rbind", "COO_SparseArray",
@@ -113,8 +113,8 @@ setMethod("anyNA", "COO_SparseArray",
 ### which()
 ###
 
-.nzindex_order <- function(nzindex)
-    do.call(order, lapply(ncol(nzindex):1L, function(along) nzindex[ , along]))
+.nzcoo_order <- function(nzcoo)
+    do.call(order, lapply(ncol(nzcoo):1L, function(along) nzcoo[ , along]))
 
 setMethod("which", "COO_SparseArray",
     function(x, arr.ind=FALSE, useNames=TRUE)
@@ -125,9 +125,9 @@ setMethod("which", "COO_SparseArray",
         if (!isTRUEorFALSE(arr.ind))
             stop(wmsg("'arr.ind' must be TRUE or FALSE"))
         idx1 <- which(x@nzdata)
-        nzindex1 <- x@nzindex[idx1, , drop=FALSE]
-        oo <- .nzindex_order(nzindex1)
-        ans <- nzindex1[oo, , drop=FALSE]
+        nzcoo1 <- x@nzcoo[idx1, , drop=FALSE]
+        oo <- .nzcoo_order(nzcoo1)
+        ans <- nzcoo1[oo, , drop=FALSE]
         if (arr.ind)
             return(ans)
         Mindex2Lindex(ans, dim=dim(x))

@@ -101,15 +101,15 @@ static void load_rowname(const char *data, int data_len,
 
 static void load_table_data(const char *data, int data_len,
 		int row_idx, int col_idx,
-		IntAE *nzindex1_buf, IntAE *nzindex2_buf, IntAE *nzdata_buf)
+		IntAE *nzcoo1_buf, IntAE *nzcoo2_buf, IntAE *nzdata_buf)
 {
 	int val;
 
 	data_len = delete_trailing_LF_or_CRLF(data, data_len);
 	val = as_int(data, data_len);
 	if (val != 0) {
-		IntAE_fast_append(nzindex1_buf, row_idx);
-		IntAE_fast_append(nzindex2_buf, col_idx);
+		IntAE_fast_append(nzcoo1_buf, row_idx);
+		IntAE_fast_append(nzcoo2_buf, col_idx);
 		IntAE_fast_append(nzdata_buf, val);
 	}
 	return;
@@ -117,7 +117,7 @@ static void load_table_data(const char *data, int data_len,
 
 static void load_table_row(const char *line, char sep, int row_idx,
 		CharAEAE *rownames_buf,
-		IntAE *nzindex1_buf, IntAE *nzindex2_buf, IntAE *nzdata_buf)
+		IntAE *nzcoo1_buf, IntAE *nzcoo2_buf, IntAE *nzdata_buf)
 {
 	int col_idx, i, data_len;
 	const char *data;
@@ -136,7 +136,7 @@ static void load_table_row(const char *line, char sep, int row_idx,
 		} else {
 			load_table_data(data, data_len,
 					row_idx, col_idx,
-					nzindex1_buf, nzindex2_buf,
+					nzcoo1_buf, nzcoo2_buf,
 					nzdata_buf);
 		}
 		col_idx++;
@@ -145,14 +145,14 @@ static void load_table_row(const char *line, char sep, int row_idx,
 	}
 	load_table_data(data, data_len,
 			row_idx, col_idx,
-			nzindex1_buf, nzindex2_buf,
+			nzcoo1_buf, nzcoo2_buf,
 			nzdata_buf);
 	return;
 }
 
 static const char *read_sparse_csv(SEXP filexp, char sep,
 		CharAEAE *rownames_buf,
-		IntAE *nzindex1_buf, IntAE *nzindex2_buf,
+		IntAE *nzcoo1_buf, IntAE *nzcoo2_buf,
 		IntAE *nzdata_buf)
 {
 	int row_idx, lineno, ret_code, EOL_in_buf;
@@ -181,7 +181,7 @@ static const char *read_sparse_csv(SEXP filexp, char sep,
 			continue;
 		load_table_row(buf, sep, row_idx,
 			       rownames_buf,
-			       nzindex1_buf, nzindex2_buf, nzdata_buf);
+			       nzcoo1_buf, nzcoo2_buf, nzdata_buf);
 		row_idx++;
 	}
 	return NULL;
@@ -203,25 +203,23 @@ static char get_sep_char(SEXP sep)
  *   filexp: A "file external pointer" (see src/io_utils.c in the XVector
  *           package). TODO: Support connections (see src/readGFF.c in the
  *           rtracklayer package for how to do that).
- * Return 'list(rownames, nzindex1, nzindex2, nzdata)'.
+ * Return 'list(rownames, nzcoo1, nzcoo2, nzdata)'.
  */
 SEXP C_readSparseCSV(SEXP filexp, SEXP sep)
 {
 	CharAEAE *rownames_buf;
-	IntAE *nzindex1_buf;
-	IntAE *nzindex2_buf;
-	IntAE *nzdata_buf;
+	IntAE *nzcoo1_buf, *nzcoo2_buf, *nzdata_buf;
 	const char *errmsg;
 	SEXP ans, ans_elt;
 
 	rownames_buf = new_CharAEAE(0, 0);
-	nzindex1_buf = new_IntAE(0, 0, 0);
-	nzindex2_buf = new_IntAE(0, 0, 0);
+	nzcoo1_buf = new_IntAE(0, 0, 0);
+	nzcoo2_buf = new_IntAE(0, 0, 0);
 	nzdata_buf = new_IntAE(0, 0, 0);
 
 	errmsg = read_sparse_csv(filexp, get_sep_char(sep),
 				 rownames_buf,
-				 nzindex1_buf, nzindex2_buf,
+				 nzcoo1_buf, nzcoo2_buf,
 				 nzdata_buf);
 	if (errmsg != NULL)
 		error("reading file: %s", errmsg);
@@ -232,11 +230,11 @@ SEXP C_readSparseCSV(SEXP filexp, SEXP sep)
 	SET_VECTOR_ELT(ans, 0, ans_elt);
 	UNPROTECT(1);
 
-	ans_elt = PROTECT(new_INTEGER_from_IntAE(nzindex1_buf));
+	ans_elt = PROTECT(new_INTEGER_from_IntAE(nzcoo1_buf));
 	SET_VECTOR_ELT(ans, 1, ans_elt);
 	UNPROTECT(1);
 
-	ans_elt = PROTECT(new_INTEGER_from_IntAE(nzindex2_buf));
+	ans_elt = PROTECT(new_INTEGER_from_IntAE(nzcoo2_buf));
 	SET_VECTOR_ELT(ans, 2, ans_elt);
 	UNPROTECT(1);
 
