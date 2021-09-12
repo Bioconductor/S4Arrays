@@ -2,7 +2,7 @@
 ### COO_SparseArray objects
 ### -------------------------------------------------------------------------
 ###
-### SparseArray objects using the COO layout.
+### SparseArray objects using the COO layout to store the nonzero data.
 ###
 ### Same as SparseArraySeed objects in the DelayedArray package.
 ### Extends the Coordinate List (COO) layout used for sparse matrices to
@@ -37,7 +37,7 @@ setClass("COO_SparseArray",
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### COO_SparseArray validity
+### Validity
 ###
 
 .validate_nzcoo_slot <- function(x)
@@ -84,7 +84,7 @@ setValidity2("COO_SparseArray", .validate_COO_SparseArray)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### COO_SparseArray getters
+### Getters
 ###
 
 setMethod("type", "COO_SparseArray", function(x) type(x@nzdata))
@@ -94,6 +94,35 @@ setMethod("nzcoo", "COO_SparseArray", function(x) x@nzcoo)
 
 setGeneric("nzdata", function(x) standardGeneric("nzdata"))
 setMethod("nzdata", "COO_SparseArray", function(x) x@nzdata)
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### type() setter
+###
+
+.set_COO_SparseArray_type <- function(x, value)
+{
+    stopifnot(is(x, "COO_SparseArray"))
+
+    value <- normarg_array_type(value, "the supplied type")
+    x_type <- type(x)
+    if (value == x_type)
+        return(x)
+
+    new_nzdata <- x@nzdata
+    storage.mode(new_nzdata) <- value
+    zero <- vector(value, length=1L)
+    is_not_zero <- new_nzdata != zero
+    nzidx <- which(is_not_zero | is.na(is_not_zero))
+    new_nzcoo <- x@nzcoo[nzidx, , drop=FALSE]
+    new_nzdata <- new_nzdata[nzidx]
+
+    BiocGenerics:::replaceSlots(x, nzcoo=new_nzcoo,
+                                   nzdata=new_nzdata,
+                                   check=FALSE)
+}
+
+setReplaceMethod("type", "COO_SparseArray", .set_COO_SparseArray_type)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -175,7 +204,8 @@ dense2sparse <- function(x)
         stop(wmsg("'x' must be an array-like object"))
     ## Make sure to use 'type()' and not 'typeof()'.
     zero <- vector(type(x), length=1L)
-    nzcoo <- which(x != zero, arr.ind=TRUE)  # M-index
+    is_not_zero <- x != zero
+    nzcoo <- which(is_not_zero | is.na(is_not_zero), arr.ind=TRUE)  # M-index
     COO_SparseArray(x_dim, nzcoo, x[nzcoo], dimnames(x), check=FALSE)
 }
 
@@ -232,8 +262,7 @@ setGeneric("extract_sparse_array",
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### is_sparse(), extract_sparse_array(), and extract_array() methods for
-### COO_SparseArray objects
+### is_sparse(), extract_sparse_array(), and extract_array() methods
 ###
 
 ### IMPORTANT NOTE: The returned COO_SparseArray object is guaranteed to be
@@ -479,8 +508,8 @@ setMethod("extract_sparse_array", "lgRMatrix",
     new_nzcoo[ , is.na(perm)] <- 1L
     new_dimnames <- a@dimnames[perm]
     BiocGenerics:::replaceSlots(a, dim=new_dim,
-                                   nzcoo=new_nzcoo,
                                    dimnames=new_dimnames,
+                                   nzcoo=new_nzcoo,
                                    check=FALSE)
 }
 

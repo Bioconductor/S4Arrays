@@ -2,7 +2,7 @@
 ### SVT_SparseArray objects
 ### -------------------------------------------------------------------------
 ###
-### SparseArray objects using the SVT layout.
+### SparseArray objects using the SVT layout to store the nonzero data.
 ###
 ### An SVT_SparseArray object stores its nonzero data in a "Sparse Vector
 ### Tree" (SVT).
@@ -102,18 +102,21 @@ setMethod("type", "SVT_SparseArray", function(x) x@type)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Setters
+### type() setter
 ###
 
 .set_SVT_SparseArray_type <- function(x, value)
 {
     stopifnot(is(x, "SVT_SparseArray"))
+
     value <- normarg_array_type(value, "the supplied type")
     x_type <- type(x)
     if (value == x_type)
         return(x)
+
     new_SVT <- .Call2("C_set_SVT_SparseArray_type",
                       x@dim, x@type, x@SVT, value, PACKAGE="S4Arrays")
+
     BiocGenerics:::replaceSlots(x, type=value, SVT=new_SVT, check=FALSE)
 }
 
@@ -223,8 +226,15 @@ setAs("SVT_SparseArray", "COO_SparseArray",
 .make_SVT_SparseArray_from_COO_SparseArray <- function(x, type=NA)
 {
     stopifnot(is(x, "COO_SparseArray"))
-    if (identical(type, NA))
+    if (identical(type, NA)) {
         type <- type(x)
+    } else {
+        ## Some quick testing/benchmarking seemed to suggest that it's
+        ## slightly more efficient to change the type of the input
+        ## COO_SparseArray object than that of the output SVT_SparseArray
+        ## object.
+        type(x) <- type
+    }
     ans_SVT <- .Call2("C_build_SVT_from_COO_SparseArray",
                       x@dim, x@nzcoo, x@nzdata, type,
                       PACKAGE="S4Arrays")
@@ -244,17 +254,23 @@ SVT_SparseArray <- function(x, type=NA)
 {
     if (!identical(type, NA))
         type <- normarg_array_type(type, "the requested type")
+
     if (missing(x)) {
         if (identical(type, NA))
             type <- "logical"
         return(new2("SVT_SparseArray", type=type, check=FALSE))
     }
+
     if (is.array(x))
         return(.make_SVT_SparseArray_from_array(x, type=type))
     if (is(x, "dgCMatrix"))
         return(.make_SVT_SparseArray_from_dgCMatrix(x, type=type))
     if (is(x, "COO_SparseArray"))
         return(.make_SVT_SparseArray_from_COO_SparseArray(x, type=type))
-    as(x, "SVT_SparseArray")
+
+    ans <- as(x, "SVT_SparseArray")
+    if (!identical(type, NA))
+        type(ans) <- type
+    ans
 }
 
