@@ -15,8 +15,8 @@ static const SEXPTYPE supported_SVT_Rtypes[] = {
 	INTSXP,   // "integer"
 	REALSXP,  // "double"
 	CPLXSXP,  // "complex"
-	STRSXP,   // "character"
 	RAWSXP,   // "raw"
+	STRSXP,   // "character"
 
 	VECSXP    // "list"
 };
@@ -122,7 +122,7 @@ static SEXP new_Rvector(SEXPTYPE Rtype, R_xlen_t len)
 	ans = PROTECT(allocVector(Rtype, len));
 	/* allocVector() does NOT initialize the vector elements, except
 	   for a list or a character vector. */
-	if (Rtype != VECSXP && Rtype != STRSXP) {
+	if (Rtype != STRSXP && Rtype != VECSXP) {
 		Rtype_size = get_Rtype_size(Rtype);
 		if (Rtype_size == 0) {
 			UNPROTECT(1);
@@ -146,7 +146,7 @@ static SEXP new_Rarray(SEXPTYPE Rtype, SEXP dim, SEXP dimnames)
 	/* allocArray() is just a thin wrapper for allocVector() and the
 	   latter does NOT initialize the vector elements, except for a
 	   list or a character vector. */
-	if (Rtype != VECSXP && Rtype != STRSXP) {
+	if (Rtype != STRSXP && Rtype != VECSXP) {
 		Rtype_size = get_Rtype_size(Rtype);
 		if (Rtype_size == 0) {
 			UNPROTECT(1);
@@ -344,8 +344,8 @@ static RVectorEltIsZero_FUNType select_Rvector_elt_is_zero_FUN(SEXPTYPE Rtype)
 	    case REALSXP:             return NUMERIC_elt_is_zero;
 	    case CPLXSXP:             return COMPLEX_elt_is_zero;
 	    case RAWSXP:              return RAW_elt_is_zero;
-	    case VECSXP:              return LIST_elt_is_zero;
 	    case STRSXP:              return CHARACTER_elt_is_zero;
+	    case VECSXP:              return LIST_elt_is_zero;
 	}
 	return NULL;
 }
@@ -357,8 +357,8 @@ static CopyRVectorElt_FUNType select_copy_Rvector_elt_FUN(SEXPTYPE Rtype)
 	    case REALSXP:             return copy_NUMERIC_elt;
 	    case CPLXSXP:             return copy_COMPLEX_elt;
 	    case RAWSXP:              return copy_RAW_elt;
-	    case VECSXP:              return copy_LIST_elt;
 	    case STRSXP:              return copy_CHARACTER_elt;
+	    case VECSXP:              return copy_LIST_elt;
 	}
 	return NULL;
 }
@@ -370,8 +370,8 @@ static CopyRVectorElts_FUNType select_copy_Rvector_elts_FUN(SEXPTYPE Rtype)
 	    case REALSXP:             return copy_NUMERIC_elts;
 	    case CPLXSXP:             return copy_COMPLEX_elts;
 	    case RAWSXP:              return copy_RAW_elts;
-	    case VECSXP:              return copy_LIST_elts;
 	    case STRSXP:              return copy_CHARACTER_elts;
+	    case VECSXP:              return copy_LIST_elts;
 	}
 	return NULL;
 }
@@ -1551,87 +1551,236 @@ static void count_nonzero_vals_per_row(SEXP SVT, int nrow, int ncol,
 	return;
 }
 
-/* Based on "appendable leaf vectors". */
-static SEXP SLOW_transpose_SVT(SEXP SVT, int nrow, int ncol, SEXPTYPE Rtype,
-		const int *counts)
+static void **set_out_vals_p_cache(SEXP out_SVT, SEXPTYPE Rtype)
 {
-	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
-	SEXP ans, subSVT, lv_pos, lv_vals, ans_elt;
-	int j, lv_len, k, ret;
-	const int *p;
+	int out_SVT_len, k;
+	SEXP lv;
 
-	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(Rtype);
-	if (copy_Rvector_elt_FUN == NULL)
-		error("S4Arrays internal error in "
-		      "SLOW_transpose_SVT():\n"
-		      "  SVT_SparseArray object has invalid type");
-	ans = PROTECT(
-		alloc_list_of_appendable_leaf_vectors(counts, nrow, Rtype)
-	);
-	for (j = 0; j < ncol; j++) {
-		subSVT = VECTOR_ELT(SVT, j);
-		if (subSVT == R_NilValue)
-			continue;
-		/* 'subSVT' is a "leaf vector". */
-		lv_len = split_leaf_vector(subSVT, &lv_pos, &lv_vals);
-		if (lv_len < 0) {
-			UNPROTECT(1);
-			error("S4Arrays internal error in "
-			      "SLOW_transpose_SVT():\n"
-			      "  invalid SVT_SparseArray object");
+	out_SVT_len = LENGTH(out_SVT);
+	switch (Rtype) {
+	    case LGLSXP: case INTSXP: {
+		int **cache, **p;
+		cache = (int **) R_alloc(out_SVT_len, sizeof(int *));
+		for (k = 0, p = cache; k < out_SVT_len; k++, p++) {
+			lv = VECTOR_ELT(out_SVT, k);
+			if (lv != R_NilValue)
+				*p = INTEGER(VECTOR_ELT(lv, 1));
 		}
-		for (k = 0, p = INTEGER(lv_pos); k < lv_len; k++, p++) {
-			ans_elt = VECTOR_ELT(ans, *p - 1);
-			ret = append_pos_val_pair_to_leaf_vector(ans_elt,
-						j + 1,
-						lv_vals, k,
-						copy_Rvector_elt_FUN);
-			if (ret < 0) {
-				UNPROTECT(1);
-				error("S4Arrays internal error in "
-				      "SLOW_transpose_SVT():\n"
-				      "  append_pos_val_pair_to_leaf_vector() "
-				      "returned an error");
-			}
-			if (ret == 1) {
-				/* Appendable leaf vector 'ans_elt' is now full.
-				   Replace it with a regular (i.e.
-				   non-appendable) "leaf vector". */
-				ans_elt = PROTECT(
-					new_leaf_vector(VECTOR_ELT(ans_elt, 0),
-							VECTOR_ELT(ans_elt, 1))
-				);
-				SET_VECTOR_ELT(ans, *p - 1, ans_elt);
-				UNPROTECT(1);
-			}
+		return (void **) cache;
+	    }
+	    case REALSXP: {
+		double **cache, **p;
+		cache = (double **) R_alloc(out_SVT_len, sizeof(double *));
+		for (k = 0, p = cache; k < out_SVT_len; k++, p++) {
+			lv = VECTOR_ELT(out_SVT, k);
+			if (lv != R_NilValue)
+				*p = REAL(VECTOR_ELT(lv, 1));
 		}
+		return (void **) cache;
+	    }
+	    case CPLXSXP: {
+		Rcomplex **cache, **p;
+		cache = (Rcomplex **) R_alloc(out_SVT_len, sizeof(Rcomplex *));
+		for (k = 0, p = cache; k < out_SVT_len; k++, p++) {
+			lv = VECTOR_ELT(out_SVT, k);
+			if (lv != R_NilValue)
+				*p = COMPLEX(VECTOR_ELT(lv, 1));
+		}
+		return (void **) cache;
+	    }
+	    case RAWSXP: {
+		Rbyte **cache, **p;
+		cache = (Rbyte **) R_alloc(out_SVT_len, sizeof(Rbyte *));
+		for (k = 0, p = cache; k < out_SVT_len; k++, p++) {
+			lv = VECTOR_ELT(out_SVT, k);
+			if (lv != R_NilValue)
+				*p = RAW(VECTOR_ELT(lv, 1));
+		}
+		return (void **) cache;
+	    }
 	}
-	UNPROTECT(1);
-	return ans;
+	/* STRSXP and VECSXP cases. */
+	return NULL;
 }
 
-static SEXP transpose_SVT(SEXP SVT, int nrow, int ncol, SEXPTYPE Rtype,
+typedef void (*TransposeCol_FUNType)(int col_idx,
+		const int *pos, int pos_len, SEXP vals,
+		SEXP out_SVT, int **out_pos_p_cache, void **out_vals_p_cache,
+		int *counts);
+
+/* Ignores 'out_SVT'. */
+static void transpose_INTEGER_col(int col_idx,
+		const int *pos, int pos_len, SEXP vals,
+		SEXP out_SVT, int **out_pos_p_cache, void **out_vals_p_cache,
 		int *counts)
 {
-	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
-	SEXP ans, ans_elt, subSVT, lv_pos, lv_vals, ans_elt_pos, ans_elt_vals;
-	int i, j, lv_len, k, *nelt;
-	const int *p;
+	int k, row_idx, *count_p;
+	int **vals_p_cache;
+	const int *v;
 
-	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(Rtype);
-	if (copy_Rvector_elt_FUN == NULL)
+	vals_p_cache = (int **) out_vals_p_cache;
+	for (k = 0, v = INTEGER(vals); k < pos_len; k++, v++) {
+		row_idx = *pos - 1;
+		count_p = counts + row_idx;
+		out_pos_p_cache[row_idx][*count_p] = col_idx + 1;
+		vals_p_cache[row_idx][*count_p] = *v;
+		(*count_p)++;
+		pos++;
+	}
+	return;
+}
+
+/* Ignores 'out_SVT'. */
+static void transpose_NUMERIC_col(int col_idx,
+		const int *pos, int pos_len, SEXP vals,
+		SEXP out_SVT, int **out_pos_p_cache, void **out_vals_p_cache,
+		int *counts)
+{
+	int k, row_idx, *count_p;
+	double **vals_p_cache;
+	const double *v;
+
+	vals_p_cache = (double **) out_vals_p_cache;
+	for (k = 0, v = REAL(vals); k < pos_len; k++, v++) {
+		row_idx = *pos - 1;
+		count_p = counts + row_idx;
+		out_pos_p_cache[row_idx][*count_p] = col_idx + 1;
+		vals_p_cache[row_idx][*count_p] = *v;
+		(*count_p)++;
+		pos++;
+	}
+	return;
+}
+
+/* Ignores 'out_SVT'. */
+static void transpose_COMPLEX_col(int col_idx,
+		const int *pos, int pos_len, SEXP vals,
+		SEXP out_SVT, int **out_pos_p_cache, void **out_vals_p_cache,
+		int *counts)
+{
+	int k, row_idx, *count_p;
+	Rcomplex **vals_p_cache;
+	const Rcomplex *v;
+
+	vals_p_cache = (Rcomplex **) out_vals_p_cache;
+	for (k = 0, v = COMPLEX(vals); k < pos_len; k++, v++) {
+		row_idx = *pos - 1;
+		count_p = counts + row_idx;
+		out_pos_p_cache[row_idx][*count_p] = col_idx + 1;
+		vals_p_cache[row_idx][*count_p] = *v;
+		(*count_p)++;
+		pos++;
+	}
+	return;
+}
+
+/* Ignores 'out_SVT'. */
+static void transpose_RAW_col(int col_idx,
+		const int *pos, int pos_len, SEXP vals,
+		SEXP out_SVT, int **out_pos_p_cache, void **out_vals_p_cache,
+		int *counts)
+{
+	int k, row_idx, *count_p;
+	Rbyte **vals_p_cache;
+	const Rbyte *v;
+
+	vals_p_cache = (Rbyte **) out_vals_p_cache;
+	for (k = 0, v = RAW(vals); k < pos_len; k++, v++) {
+		row_idx = *pos - 1;
+		count_p = counts + row_idx;
+		out_pos_p_cache[row_idx][*count_p] = col_idx + 1;
+		vals_p_cache[row_idx][*count_p] = *v;
+		(*count_p)++;
+		pos++;
+	}
+	return;
+}
+
+/* Ignores 'out_vals_p_cache'. */
+static void transpose_CHARACTER_col(int col_idx,
+		const int *pos, int pos_len, SEXP vals,
+		SEXP out_SVT, int **out_pos_p_cache, void **out_vals_p_cache,
+		int *counts)
+{
+	int k, row_idx, *count_p;
+	SEXP out_lv;
+
+	for (k = 0; k < pos_len; k++) {
+		row_idx = *pos - 1;
+		count_p = counts + row_idx;
+		out_pos_p_cache[row_idx][*count_p] = col_idx + 1;
+		out_lv = VECTOR_ELT(out_SVT, row_idx);
+		copy_CHARACTER_elt(vals, (R_xlen_t) k,
+			VECTOR_ELT(out_lv, 1), (R_xlen_t) *count_p);
+		(*count_p)++;
+		pos++;
+	}
+	return;
+}
+
+/* Ignores 'out_vals_p_cache'. */
+static void transpose_LIST_col(int col_idx,
+		const int *pos, int pos_len, SEXP vals,
+		SEXP out_SVT, int **out_pos_p_cache, void **out_vals_p_cache,
+		int *counts)
+{
+	int k, row_idx, *count_p;
+	SEXP out_lv;
+
+	for (k = 0; k < pos_len; k++) {
+		row_idx = *pos - 1;
+		count_p = counts + row_idx;
+		out_pos_p_cache[row_idx][*count_p] = col_idx + 1;
+		out_lv = VECTOR_ELT(out_SVT, row_idx);
+		copy_LIST_elt(vals, (R_xlen_t) k,
+			VECTOR_ELT(out_lv, 1), (R_xlen_t) *count_p);
+		(*count_p)++;
+		pos++;
+	}
+	return;
+}
+
+static TransposeCol_FUNType select_transpose_col_FUN(SEXPTYPE Rtype)
+{
+	switch (Rtype) {
+	    case LGLSXP: case INTSXP: return transpose_INTEGER_col;
+	    case REALSXP:             return transpose_NUMERIC_col;
+	    case CPLXSXP:             return transpose_COMPLEX_col;
+	    case RAWSXP:              return transpose_RAW_col;
+	    case STRSXP:              return transpose_CHARACTER_col;
+	    case VECSXP:              return transpose_LIST_col;
+	}
+	return NULL;
+}
+
+static SEXP transpose_SVT(SEXP SVT, SEXPTYPE Rtype, int nrow, int ncol,
+		int *counts)
+{
+	TransposeCol_FUNType transpose_col_FUN;
+	SEXP ans, ans_elt, subSVT, lv_pos, lv_vals;
+	int **out_pos_p_cache;
+	void **out_vals_p_cache;
+	int i, j, lv_len;
+
+	transpose_col_FUN = select_transpose_col_FUN(Rtype);
+	if (transpose_col_FUN == NULL)
 		error("S4Arrays internal error in "
 		      "transpose_SVT():\n"
 		      "  SVT_SparseArray object has invalid type");
+
 	ans = PROTECT(NEW_LIST(nrow));
+	out_pos_p_cache = (int **) R_alloc(nrow, sizeof(int *));
 	for (i = 0; i < nrow; i++) {
 		lv_len = counts[i];
 		if (lv_len != 0) {
 			ans_elt = PROTECT(alloc_leaf_vector(lv_len, Rtype));
 			SET_VECTOR_ELT(ans, i, ans_elt);
 			UNPROTECT(1);
+			out_pos_p_cache[i] = INTEGER(VECTOR_ELT(ans_elt, 0));
 		}
 	}
+	out_vals_p_cache = set_out_vals_p_cache(ans, Rtype);
+
 	memset(counts, 0, sizeof(int) * nrow);
 	for (j = 0; j < ncol; j++) {
 		subSVT = VECTOR_ELT(SVT, j);
@@ -1645,17 +1794,10 @@ static SEXP transpose_SVT(SEXP SVT, int nrow, int ncol, SEXPTYPE Rtype,
 			      "transpose_SVT():\n"
 			      "  invalid SVT_SparseArray object");
 		}
-		for (k = 0, p = INTEGER(lv_pos); k < lv_len; k++, p++) {
-			i = *p - 1;
-			ans_elt = VECTOR_ELT(ans, i);
-			ans_elt_pos  = VECTOR_ELT(ans_elt, 0);
-			ans_elt_vals = VECTOR_ELT(ans_elt, 1);
-			nelt = counts + i;
-			INTEGER(ans_elt_pos)[*nelt] = j + 1;
-			copy_Rvector_elt_FUN(lv_vals, (R_xlen_t) k,
-					     ans_elt_vals, (R_xlen_t) *nelt);
-			(*nelt)++;
-		}
+		transpose_col_FUN(j,
+			INTEGER(lv_pos), lv_len, lv_vals,
+			ans, out_pos_p_cache, out_vals_p_cache,
+			counts);
 	}
 	UNPROTECT(1);
 	return ans;
@@ -1687,6 +1829,6 @@ SEXP C_transpose_SVT_SparseArray(SEXP x_dim, SEXP x_type, SEXP x_SVT)
 	count_nonzero_vals_per_row(x_SVT, x_nrow, x_ncol, counts);
 
 	/* 2nd pass: Build the transposed SVT. */
-	return transpose_SVT(x_SVT, x_nrow, x_ncol, Rtype, counts);
+	return transpose_SVT(x_SVT, Rtype, x_nrow, x_ncol, counts);
 }
 
