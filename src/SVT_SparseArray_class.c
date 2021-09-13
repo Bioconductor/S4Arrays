@@ -950,7 +950,7 @@ SEXP C_from_SVT_SparseArray_to_Rarray(SEXP x_dim, SEXP x_dimnames,
 static SEXP REC_build_SVT_from_Rsubarray(
 		SEXP Rarray, R_xlen_t subarr_offset, R_xlen_t subarr_len,
 		const int *dim, int ndim,
-		SEXPTYPE new_Rtype, int *warn, int *offs_buf)
+		SEXPTYPE ans_Rtype, int *warn, int *offs_buf)
 {
 	SEXP ans, ans_elt;
 	int SVT_len, empty, k;
@@ -963,10 +963,10 @@ static SEXP REC_build_SVT_from_Rsubarray(
 		ans = make_leaf_vector_from_Rsubvec(
 					Rarray, subarr_offset, dim[0],
 					offs_buf);
-		if (new_Rtype == TYPEOF(Rarray) || ans == R_NilValue)
+		if (ans_Rtype == TYPEOF(Rarray) || ans == R_NilValue)
 			return ans;
 		PROTECT(ans);
-		ans = coerce_leaf_vector(ans, new_Rtype, warn, offs_buf);
+		ans = coerce_leaf_vector(ans, ans_Rtype, warn, offs_buf);
 		UNPROTECT(1);
 		return ans;
 	}
@@ -979,7 +979,7 @@ static SEXP REC_build_SVT_from_Rsubarray(
 		ans_elt = REC_build_SVT_from_Rsubarray(
 					Rarray, subarr_offset, subarr_len,
 					dim, ndim - 1,
-					new_Rtype, warn, offs_buf);
+					ans_Rtype, warn, offs_buf);
 		if (ans_elt != R_NilValue) {
 			PROTECT(ans_elt);
 			SET_VECTOR_ELT(ans, k, ans_elt);
@@ -993,16 +993,16 @@ static SEXP REC_build_SVT_from_Rsubarray(
 }
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_build_SVT_from_Rarray(SEXP x, SEXP new_type)
+SEXP C_build_SVT_from_Rarray(SEXP x, SEXP ans_type)
 {
-	SEXPTYPE new_Rtype;
+	SEXPTYPE ans_Rtype;
 	RVectorEltIsZero_FUNType Rvector_elt_is_zero_FUN;
 	int x_ndim, warn, *offs_buf;
 	R_xlen_t x_len;
 	SEXP x_dim, ans;
 
-	new_Rtype = get_Rtype_from_Rstring(new_type);
-	if (new_Rtype == 0)
+	ans_Rtype = get_Rtype_from_Rstring(ans_type);
+	if (ans_Rtype == 0)
 		error("invalid requested type");
 
 	Rvector_elt_is_zero_FUN = select_Rvector_elt_is_zero_FUN(TYPEOF(x));
@@ -1019,7 +1019,7 @@ SEXP C_build_SVT_from_Rarray(SEXP x, SEXP new_type)
 	offs_buf = (int *) R_alloc(INTEGER(x_dim)[0], sizeof(int));
 	ans = REC_build_SVT_from_Rsubarray(x, 0, x_len,
 					   INTEGER(x_dim), x_ndim,
-					   new_Rtype, &warn, offs_buf);
+					   ans_Rtype, &warn, offs_buf);
 	if (warn) {
 		if (ans != R_NilValue)
 			PROTECT(ans);
@@ -1139,9 +1139,10 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
  */
 
 /* Returns R_NilValue or a "leaf vector" of length <= nzcount. */
-static SEXP build_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
+static SEXP build_leaf_vector_from_CsparseMatrix_col(SEXP x_i, SEXP x_x,
 		int offset, int nzcount,
-		SEXPTYPE new_Rtype, int *warn, int *offs_buf)
+		SEXPTYPE ans_Rtype, int *warn, int *offs_buf,
+		CopyRVectorElts_FUNType copy_Rvector_elts_FUN)
 {
 	SEXP lv_offs, lv_vals, ans;
 
@@ -1150,30 +1151,36 @@ static SEXP build_leaf_vector_from_dgCMatrix_col(SEXP x_i, SEXP x_x,
 	copy_INTEGER_elts(x_i, (R_xlen_t) offset,
 			  lv_offs, (R_xlen_t) 0,
 			  XLENGTH(lv_offs));
-	lv_vals = PROTECT(NEW_NUMERIC(nzcount));
-	copy_NUMERIC_elts(x_x, (R_xlen_t) offset,
-			  lv_vals, (R_xlen_t) 0,
-			  XLENGTH(lv_vals));
+	lv_vals = PROTECT(allocVector(TYPEOF(x_x), nzcount));
+	copy_Rvector_elts_FUN(x_x, (R_xlen_t) offset,
+			      lv_vals, (R_xlen_t) 0,
+			      XLENGTH(lv_vals));
 	ans = new_leaf_vector(lv_offs, lv_vals);
-	if (new_Rtype == REALSXP) {
+	if (ans_Rtype == TYPEOF(x_x)) {
 		UNPROTECT(2);
 		return ans;
 	}
 	PROTECT(ans);
-	ans = coerce_leaf_vector(ans, new_Rtype, warn, offs_buf);
+	ans = coerce_leaf_vector(ans, ans_Rtype, warn, offs_buf);
 	UNPROTECT(3);
 	return ans;
 }
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_build_SVT_from_dgCMatrix(SEXP x, SEXP new_type)
+SEXP C_build_SVT_from_CsparseMatrix(SEXP x, SEXP ans_type)
 {
-	SEXPTYPE new_Rtype;
-	SEXP x_Dim, x_p, x_i, x_x, ans, ans_elt;
+	SEXP x_x, x_Dim, x_p, x_i, ans, ans_elt;
+	CopyRVectorElts_FUNType copy_Rvector_elts_FUN;
+	SEXPTYPE ans_Rtype;
 	int x_nrow, x_ncol, j, offset, nzcount, warn, *offs_buf, empty;
 
-	new_Rtype = get_Rtype_from_Rstring(new_type);
-	if (new_Rtype == 0)
+	x_x = GET_SLOT(x, install("x"));
+	copy_Rvector_elts_FUN = select_copy_Rvector_elts_FUN(TYPEOF(x_x));
+	if (copy_Rvector_elts_FUN == NULL)
+		error("unsupported CsparseMatrix type");
+
+	ans_Rtype = get_Rtype_from_Rstring(ans_type);
+	if (ans_Rtype == 0)
 		error("invalid requested type");
 
 	x_Dim = GET_SLOT(x, install("Dim"));
@@ -1185,7 +1192,6 @@ SEXP C_build_SVT_from_dgCMatrix(SEXP x, SEXP new_type)
 		return R_NilValue;
 
 	x_i = GET_SLOT(x, install("i"));
-	x_x = GET_SLOT(x, install("x"));
 
 	warn = 0;
 	offs_buf = (int *) R_alloc(x_nrow, sizeof(int));
@@ -1195,10 +1201,11 @@ SEXP C_build_SVT_from_dgCMatrix(SEXP x, SEXP new_type)
 		offset = INTEGER(x_p)[j];
 		nzcount = INTEGER(x_p)[j + 1] - offset;
 		if (nzcount != 0) {
-			ans_elt = build_leaf_vector_from_dgCMatrix_col(
+			ans_elt = build_leaf_vector_from_CsparseMatrix_col(
 						x_i, x_x,
 						offset, nzcount,
-						new_Rtype, &warn, offs_buf);
+						ans_Rtype, &warn, offs_buf,
+						copy_Rvector_elts_FUN);
 			if (ans_elt != R_NilValue) {
 				PROTECT(ans_elt);
 				SET_VECTOR_ELT(ans, j, ans_elt);
@@ -1449,19 +1456,19 @@ static int store_nzoff_and_nzval_in_SVT(
 /* --- .Call ENTRY POINT --- */
 SEXP C_build_SVT_from_COO_SparseArray(
 		SEXP x_dim, SEXP x_nzcoo, SEXP x_nzvals,
-		SEXP new_type)
+		SEXP ans_type)
 {
-	//SEXPTYPE new_Rtype;
+	//SEXPTYPE ans_Rtype;
 	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
 	int x_ndim, nzdata_len, ans_len, i, ret;
 	SEXP x_nzcoo_dim, ans;
 
-	/* The 'new_type' argument is currently ignored.
+	/* The 'ans_type' argument is currently ignored.
 	   For now we take care of honoring the user-requested type at the R
 	   level and it's not clear that there's much to gain by handling this
 	   at the C level. */
-	//new_Rtype = get_Rtype_from_Rstring(new_type);
-	//if (new_Rtype == 0)
+	//ans_Rtype = get_Rtype_from_Rstring(ans_type);
+	//if (ans_Rtype == 0)
 	//	error("invalid requested type");
 
 	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(TYPEOF(x_nzvals));
