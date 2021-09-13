@@ -365,55 +365,97 @@ setAs("ANY", "COO_SparseArray", function(from) dense2sparse(from))
 ### Going back and forth between COO_SparseArray and dg[C|R]Matrix or
 ### lg[C|R]Matrix objects from the Matrix package:
 
-.from_COO_SparseArray_to_CsparseMatrix <- function(from)
+### Supports COO_SparseArray objects of any atomic type except "character".
+.from_COO_SparseArray_to_dgCMatrix <- function(from)
 {
     from_dim <- dim(from)
     if (length(from_dim) != 2L)
         stop(wmsg("the ", class(from), " object to coerce to dgCMatrix ",
-                  "or lgCMatrix must have exactly 2 dimensions"))
+                  "must have exactly 2 dimensions"))
+
+    ## If 'type(from)' is "integer" or "raw", we'll coerce 'nzvals' to
+    ## "double" right before passing it to CsparseMatrix() below. This is
+    ## ok because it won't introduce zeros in 'nzvals'. Also it should be
+    ## slightly more efficient than switching the type of 'from' now.
+    ## However, if 'type(from)' is "complex", we need to do the switch now,
+    ## because coercing 'nzvals' to "double" would potentially introduce
+    ## zeros in it.
+    if (type(from) == "complex")
+        type(from) <- "double"
+
     i <- from@nzcoo[ , 1L]
     j <- from@nzcoo[ , 2L]
-    CsparseMatrix(from_dim, i, j, from@nzvals, dimnames=dimnames(from))
+    nzvals <- from@nzvals
+    if (storage.mode(nzvals) != "double")
+        storage.mode(nzvals) <- "double"  # won't introduce zeros
+
+    CsparseMatrix(from_dim, i, j, nzvals, dimnames=dimnames(from))
 }
 
-.from_COO_SparseArray_to_RsparseMatrix <- function(from)
+### Supports COO_SparseArray objects of any atomic type except "character".
+.from_COO_SparseArray_to_lgCMatrix <- function(from)
+{
+    from_dim <- dim(from)
+    if (length(from_dim) != 2L)
+        stop(wmsg("the ", class(from), " object to coerce to lgCMatrix ",
+                  "must have exactly 2 dimensions"))
+
+    i <- from@nzcoo[ , 1L]
+    j <- from@nzcoo[ , 2L]
+    nzvals <- from@nzvals
+    if (storage.mode(nzvals) != "logical")
+        storage.mode(nzvals) <- "logical"  # won't introduce FALSEs
+
+    CsparseMatrix(from_dim, i, j, nzvals, dimnames=dimnames(from))
+}
+
+setAs("COO_SparseArray", "dgCMatrix", .from_COO_SparseArray_to_dgCMatrix)
+setAs("COO_SparseArray", "lgCMatrix", .from_COO_SparseArray_to_lgCMatrix)
+
+.from_COO_SparseArray_to_dgRMatrix <- function(from)
 {
     from_dim <- dim(from)
     if (length(from_dim) != 2L)
         stop(wmsg("the ", class(from), " object to coerce to dgRMatrix ",
-                  "or lgRMatrix must have exactly 2 dimensions"))
+                  "must have exactly 2 dimensions"))
+
+    ## If 'type(from)' is "integer" or "raw", we'll coerce 'nzvals' to
+    ## "double" right before passing it to RsparseMatrix() below. This is
+    ## ok because it won't introduce zeros in 'nzvals'. Also it should be
+    ## slightly more efficient than switching the type of 'from' now.
+    ## However, if 'type(from)' is "complex", we need to do the switch now,
+    ## because coercing 'nzvals' to "double" would potentially introduce
+    ## zeros in it.
+    if (type(from) == "complex")
+        type(from) <- "double"
+
     i <- from@nzcoo[ , 1L]
     j <- from@nzcoo[ , 2L]
-    RsparseMatrix(from_dim, i, j, from@nzvals, dimnames=dimnames(from))
+    nzvals <- from@nzvals
+    if (storage.mode(nzvals) != "double")
+        storage.mode(nzvals) <- "double"  # won't introduce zeros
+
+    RsparseMatrix(from_dim, i, j, nzvals, dimnames=dimnames(from))
 }
 
-setAs("COO_SparseArray", "CsparseMatrix",
-    .from_COO_SparseArray_to_CsparseMatrix
-)
-setAs("COO_SparseArray", "RsparseMatrix",
-    .from_COO_SparseArray_to_RsparseMatrix
-)
-setAs("COO_SparseArray", "sparseMatrix",
-    .from_COO_SparseArray_to_CsparseMatrix
-)
-setAs("COO_SparseArray", "dgCMatrix",
-    function(from) as(as(from, "CsparseMatrix"), "dgCMatrix")
-)
-setAs("COO_SparseArray", "dgRMatrix",
-    function(from) as(as(from, "RsparseMatrix"), "dgRMatrix")
-)
-setAs("COO_SparseArray", "lgCMatrix",
-    function(from) as(as(from, "CsparseMatrix"), "lgCMatrix")
-)
-### Will fail if 'as(from, "RsparseMatrix")' returns a dgRMatrix object
-### because the Matrix package doesn't support coercion from dgRMatrix
-### to lgRMatrix at the moment:
-###   > as(COO_SparseArray(4:3, rbind(c(4, 3)), -2), "lgRMatrix")
-###   Error in as(as(from, "RsparseMatrix"), "lgRMatrix") :
-###     no method or default for coercing “dgRMatrix” to “lgRMatrix”
-setAs("COO_SparseArray", "lgRMatrix",
-    function(from) as(as(from, "RsparseMatrix"), "lgRMatrix")
-)
+.from_COO_SparseArray_to_lgRMatrix <- function(from)
+{
+    from_dim <- dim(from)
+    if (length(from_dim) != 2L)
+        stop(wmsg("the ", class(from), " object to coerce to lgRMatrix ",
+                  "must have exactly 2 dimensions"))
+
+    i <- from@nzcoo[ , 1L]
+    j <- from@nzcoo[ , 2L]
+    nzvals <- from@nzvals
+    if (storage.mode(nzvals) != "logical")
+        storage.mode(nzvals) <- "logical"  # won't introduce FALSEs
+
+    RsparseMatrix(from_dim, i, j, nzvals, dimnames=dimnames(from))
+}
+
+setAs("COO_SparseArray", "dgRMatrix", .from_COO_SparseArray_to_dgRMatrix)
+setAs("COO_SparseArray", "lgRMatrix", .from_COO_SparseArray_to_lgRMatrix)
 
 .make_COO_SparseArray_from_dgCMatrix_or_lgCMatrix <-
     function(from, use.dimnames=TRUE)

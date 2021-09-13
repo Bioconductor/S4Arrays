@@ -5,34 +5,62 @@
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### Low-level CsparseMatrix and RsparseMatrix constructors
+###
+### NOT exported
+###
+
+### Returns "double" or "logical".
+infer_sparseMatrix_type_from_input_type <- function(input_type)
+{
+    switch(input_type, 'double'=, 'integer'=, 'raw'="double",
+                       'logical'="logical",
+           stop(wmsg("unsupported input type: ", input_type)))
+}
+
+new_CsparseMatrix <- function(dim, p, i, x, dimnames=NULL)
+{
+    stopifnot(is.integer(dim), length(dim) == 2L)
+    x_type <- typeof(x)
+    ans_type <- infer_sparseMatrix_type_from_input_type(x_type)
+    ans_class <- if (ans_type == "double") "dgCMatrix" else "lgCMatrix"
+    if (ans_type != x_type)
+        storage.mode(x) <- ans_type
+    ans_dimnames <- normarg_dimnames(dimnames, dim)
+    new(ans_class, Dim=dim, p=p, i=i, x=x, Dimnames=ans_dimnames)
+}
+
+new_RsparseMatrix <- function(dim, p, j, x, dimnames=NULL)
+{
+    stopifnot(is.integer(dim), length(dim) == 2L)
+    x_type <- typeof(x)
+    ans_type <- infer_sparseMatrix_type_from_input_type(x_type)
+    ans_class <- if (ans_type == "double") "dgRMatrix" else "lgRMatrix"
+    if (ans_type != x_type)
+        storage.mode(x) <- ans_type
+    ans_dimnames <- normarg_dimnames(dimnames, dim)
+    new(ans_class, Dim=dim, p=p, j=j, x=x, Dimnames=ans_dimnames)
+}
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### CsparseMatrix() -- NOT exported
 ###
-### A replacement for Matrix::sparseMatrix() that is typically 50%-60% faster
-### and more memory efficient. Like Matrix::sparseMatrix(), it only supports
-### numeric or logical input data at the moment. If 'is.numeric(nzvals)' is
-### TRUE, it returns a dgCMatrix object. If 'is.logical(nzvals)' is TRUE, it
-### returns a lgCMatrix object. Any other type of input triggers an error.
+### A simpler version of Matrix::sparseMatrix() that is typically 50%-60%
+### faster and more memory efficient.
 
-### 'i', 'j', 'nzvals' must be **parallel** atomic vectors (integer vectors
-### with no NAs for 'i' and 'j', and integer, double or logical vector for
-### 'nzvals', possibly with NAs).
+### 'i', 'j', 'nzvals' must be **parallel** atomic vectors.
+### 'i' and 'j' must be integer vectors with no NAs.
+### 'nzvals' must be a double, integer, raw, or logical vector, with no
+### zeros and possibly with NAs.
 CsparseMatrix <- function(dim, i, j, nzvals, dimnames=NULL)
 {
     stopifnot(is.integer(dim), length(dim) == 2L,
-              is.integer(i), is.integer(j))
-    nzvals_type <- typeof(nzvals)
-    ans_class <- switch(nzvals_type,
-                        'integer'=, 'double'="dgCMatrix",
-                        'logical'="lgCMatrix",
-                        stop(wmsg("unsupported data type: ", nzvals_type)))
-    dimnames <- normarg_dimnames(dimnames, dim)
+              is.integer(i), is.integer(j), is.atomic(nzvals))
     oo <- order(j, i)
-    ans_i <- i[oo] - 1L  # dgCMatrix and lgCMatrix objects want this zero-based
+    ans_i <- i[oo] - 1L  # CsparseMatrix objects want this zero-based
     ans_p <- c(0L, cumsum(tabulate(j[oo], nbins=dim[[2L]])))
     ans_x <- nzvals[oo]
-    if (is.integer(ans_x))
-        ans_x <- as.double(ans_x)
-    new(ans_class, Dim=dim, i=ans_i, p=ans_p, x=ans_x, Dimnames=dimnames)
+    new_CsparseMatrix(dim, ans_p, ans_i, ans_x, dimnames=dimnames)
 }
 
 
@@ -43,20 +71,12 @@ CsparseMatrix <- function(dim, i, j, nzvals, dimnames=NULL)
 RsparseMatrix <- function(dim, i, j, nzvals, dimnames=NULL)
 {
     stopifnot(is.integer(dim), length(dim) == 2L,
-              is.integer(i), is.integer(j))
-    nzvals_type <- typeof(nzvals)
-    ans_class <- switch(nzvals_type,
-                        'integer'=, 'double'="dgRMatrix",
-                        'logical'="lgRMatrix",
-                        stop(wmsg("unsupported data type: ", nzvals_type)))
-    dimnames <- normarg_dimnames(dimnames, dim)
+              is.integer(i), is.integer(j), is.atomic(nzvals))
     oo <- order(i, j)
-    ans_j <- j[oo] - 1L  # dgRMatrix and lgRMatrix objects want this zero-based
+    ans_j <- j[oo] - 1L  # RsparseMatrix objects want this zero-based
     ans_p <- c(0L, cumsum(tabulate(i[oo], nbins=dim[[1L]])))
     ans_x <- nzvals[oo]
-    if (is.integer(ans_x))
-        ans_x <- as.double(ans_x)
-    new(ans_class, Dim=dim, j=ans_j, p=ans_p, x=ans_x, Dimnames=dimnames)
+    new_RsparseMatrix(dim, ans_p, ans_j, ans_x, dimnames=dimnames)
 }
 
 

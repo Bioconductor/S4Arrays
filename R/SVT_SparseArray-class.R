@@ -159,28 +159,56 @@ setAs("array", "SVT_SparseArray",
 ### Going back and forth between SVT_SparseArray and [d|l]gCMatrix objects
 ###
 
-.from_SVT_SparseArray_to_CsparseMatrix <- function(from)
+### Supports SVT_SparseArray objects of any atomic type except "character".
+.from_SVT_SparseArray_to_dgCMatrix <- function(from)
 {
     stopifnot(is(from, "SVT_SparseArray"))
     if (length(from@dim) != 2L)
         stop(wmsg("the ", class(from), " object to coerce to dgCMatrix ",
-                  "or lgCMatrix must have exactly 2 dimensions"))
-    ans_class <- switch(from@type,
-                        'integer'=, 'double'="dgCMatrix",
-                        'logical'="lgCMatrix",
-                        stop(wmsg("unsupported data type: ", from@type)))
+                  "must have exactly 2 dimensions"))
+
+    ## If 'from@type' is "integer" or "raw", we'll coerce 'ans_x' to "double"
+    ## right before passing it to new_CsparseMatrix() below. This is ok
+    ## because it won't introduce zeros in 'ans_x'. Also it should be slightly
+    ## more efficient than switching the type of 'from' now.
+    ## However, if 'from@type' is "complex", we need to do the switch now,
+    ## because coercing 'ans_x' to "double" would potentially introduce
+    ## zeros in it.
+    if (from@type == "complex")
+        type(from) <- "double"
+
     ## Returns 'ans_p', 'ans_i', and 'ans_x', in a list of length 3.
     C_ans <- .Call2("C_from_SVT_SparseArray_to_CsparseMatrix",
                     from@dim, from@type, from@SVT, PACKAGE="S4Arrays")
     ans_p <- C_ans[[1L]]
     ans_i <- C_ans[[2L]]
-    ans_x <- C_ans[[3L]]
-    new(ans_class, Dim=from@dim, p=ans_p, i=ans_i, x=ans_x,
-                   Dimnames=from@dimnames)
+    ans_x <- C_ans[[3L]]  # same type as 'from'
+    if (storage.mode(ans_x) != "double")
+        storage.mode(ans_x) <- "double"  # won't introduce zeros
+    new_CsparseMatrix(from@dim, ans_p, ans_i, ans_x, dimnames=from@dimnames)
 }
 
-setAs("SVT_SparseArray", "dgCMatrix", .from_SVT_SparseArray_to_CsparseMatrix)
-setAs("SVT_SparseArray", "lgCMatrix", .from_SVT_SparseArray_to_CsparseMatrix)
+### Supports SVT_SparseArray objects of any atomic type except "character".
+.from_SVT_SparseArray_to_lgCMatrix <- function(from)
+{
+    stopifnot(is(from, "SVT_SparseArray"))
+    if (length(from@dim) != 2L)
+        stop(wmsg("the ", class(from), " object to coerce to lgCMatrix ",
+                  "must have exactly 2 dimensions"))
+
+    ## Returns 'ans_p', 'ans_i', and 'ans_x', in a list of length 3.
+    C_ans <- .Call2("C_from_SVT_SparseArray_to_CsparseMatrix",
+                    from@dim, from@type, from@SVT, PACKAGE="S4Arrays")
+    ans_p <- C_ans[[1L]]
+    ans_i <- C_ans[[2L]]
+    ans_x <- C_ans[[3L]]  # same type as 'from'
+    if (storage.mode(ans_x) != "logical")
+        storage.mode(ans_x) <- "logical"  # won't introduce FALSEs
+    new_CsparseMatrix(from@dim, ans_p, ans_i, ans_x, dimnames=from@dimnames)
+}
+
+setAs("SVT_SparseArray", "dgCMatrix", .from_SVT_SparseArray_to_dgCMatrix)
+setAs("SVT_SparseArray", "lgCMatrix", .from_SVT_SparseArray_to_lgCMatrix)
 
 .make_SVT_SparseArray_from_dgCMatrix <- function(x, type=NA)
 {

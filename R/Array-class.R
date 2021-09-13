@@ -80,28 +80,28 @@ t.Array <- function(x)
 }
 setMethod("t", "Array", t.Array)
 
-### Any Array derivative will be coercible to a sparseMatrix subclass (e.g.
-### dg[C|R]Matrix or lg[C|R]Matrix) as long as there is a method for coercing
-### it to COO_SparseArray.
-setAs("Array", "dgCMatrix",
-    function(from) as(as(from, "COO_SparseArray"), "dgCMatrix")
-)
-setAs("Array", "dgRMatrix",
-    function(from) as(as(from, "COO_SparseArray"), "dgRMatrix")
-)
-setAs("Array", "lgCMatrix",
-    function(from) as(as(from, "COO_SparseArray"), "lgCMatrix")
-)
-setAs("Array", "lgRMatrix",
-    function(from) as(as(from, "COO_SparseArray"), "lgRMatrix")
-)
+### These coercions will work out-of-the-box on any Array derivative that
+### supports type() and coercion to [d|l]gCMatrix and to [d|l]gRMatrix.
 setAs("Array", "CsparseMatrix",
-    function(from) as(as(from, "COO_SparseArray"), "CsparseMatrix")
+    function(from)
+    {
+        ans_type <- infer_sparseMatrix_type_from_input_type(type(from))
+        ans_class <- if (ans_type == "double") "dgCMatrix" else "lgCMatrix"
+        as(from, ans_class)
+    }
 )
 setAs("Array", "RsparseMatrix",
-    function(from) as(as(from, "COO_SparseArray"), "RsparseMatrix")
+    function(from)
+    {
+        ans_type <- infer_sparseMatrix_type_from_input_type(type(from))
+        ans_class <- if (ans_type == "double") "dgRMatrix" else "lgRMatrix"
+        as(from, ans_class)
+    }
 )
+
+### We give the preference to the CsparseMatrix representation (compressed
+### column-oriented form).
 setAs("Array", "sparseMatrix",
-    function(from) as(as(from, "COO_SparseArray"), "sparseMatrix")
+    function(from) as(from, "CsparseMatrix")
 )
 

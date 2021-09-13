@@ -1035,33 +1035,49 @@ SEXP C_build_SVT_from_Rarray(SEXP x, SEXP new_type)
  * Going from SVT_SparseArray to [d|l]gCMatrix
  */
 
+/* Return nb of nonzero values in column. */
+static int dump_col_to_CsparseMatrix_slots(SEXP SVT, int col_idx,
+		SEXP ans_i, SEXP ans_x, int offset)
+{
+	SEXP subSVT, lv_offs, lv_vals;
+	int lv_len, ret;
+
+	subSVT = VECTOR_ELT(SVT, col_idx);
+	if (subSVT == R_NilValue)
+		return 0;
+
+	/* 'subSVT' is a "leaf vector". */
+	lv_len = split_leaf_vector(subSVT, &lv_offs, &lv_vals);
+	if (lv_len < 0)
+		return -1;
+
+	/* Copy 0-based row indices from 'lv_offs' to 'ans_i'. */
+	copy_INTEGER_elts(lv_offs, (R_xlen_t) 0,
+			ans_i, (R_xlen_t) offset,
+			XLENGTH(lv_offs));
+
+	ret = copy_Rvector_elts(lv_vals, (R_xlen_t) 0,
+			ans_x, (R_xlen_t) offset,
+			XLENGTH(lv_vals));
+	if (ret < 0)
+		return -1;
+
+	return lv_len;
+}
+
 static int dump_SVT_to_CsparseMatrix_slots(SEXP x_SVT, int x_ncol,
 		SEXP ans_p, SEXP ans_i, SEXP ans_x)
 {
-	int offset, j, lv_len, ret;
-	SEXP subSVT, lv_offs, lv_vals;
+	int offset, j, nzdata_len;
 
 	INTEGER(ans_p)[0] = 0;
 	offset = 0;
 	for (j = 0; j < x_ncol; j++) {
-		subSVT = VECTOR_ELT(x_SVT, j);
-		if (subSVT != R_NilValue) {
-			/* 'subSVT' is a "leaf vector". */
-			lv_len = split_leaf_vector(subSVT, &lv_offs, &lv_vals);
-			if (lv_len < 0)
-				return -1;
-			/* Copy 0-based row indices from 'lv_offs'
-			   to 'ans_i'. */
-			copy_INTEGER_elts(lv_offs, (R_xlen_t) 0,
-					ans_i, (R_xlen_t) offset,
-					XLENGTH(lv_offs));
-			ret = copy_Rvector_elts(lv_vals, (R_xlen_t) 0,
-					ans_x, (R_xlen_t) offset,
-					XLENGTH(lv_vals));
-			if (ret < 0)
-				return -1;
-			offset += lv_len;
-		}
+		nzdata_len = dump_col_to_CsparseMatrix_slots(x_SVT, j,
+						ans_i, ans_x, offset);
+		if (nzdata_len < 0)
+			return -1;
+		offset += nzdata_len;
 		INTEGER(ans_p)[j + 1] = offset;
 	}
 	return 0;
@@ -1072,7 +1088,7 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
 		SEXP x_type, SEXP x_SVT)
 {
 	R_xlen_t nzdata_len;
-	SEXPTYPE Rtype;
+	SEXPTYPE x_Rtype;
 	int x_ncol, ret;
 	SEXP ans_p, ans_i, ans_x, ans;
 
@@ -1085,21 +1101,22 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
 		error("SVT_SparseArray object contains too many nonzero "
 		      "values to be turned into a COO_SparseArray object");
 
-	Rtype = get_Rtype_from_Rstring(x_type);
-	if (Rtype == 0)
+	x_Rtype = get_Rtype_from_Rstring(x_type);
+	if (x_Rtype == 0)
 		error("S4Arrays internal error in "
 		      "C_from_SVT_SparseArray_to_CsparseMatrix():\n"
 		      "  SVT_SparseArray object has invalid type");
+
 	x_ncol = INTEGER(x_dim)[1];
 
 	ans_i = PROTECT(NEW_INTEGER(nzdata_len));
-	ans_x = PROTECT(allocVector(Rtype, nzdata_len));
+	ans_x = PROTECT(allocVector(x_Rtype, nzdata_len));
 	if (nzdata_len == 0) {
 		ans_p = PROTECT(new_Rvector(INTSXP, (R_xlen_t) x_ncol + 1));
 	} else {
 		ans_p = PROTECT(NEW_INTEGER(x_ncol + 1));
 		ret = dump_SVT_to_CsparseMatrix_slots(x_SVT, x_ncol,
-							 ans_p, ans_i, ans_x);
+						      ans_p, ans_i, ans_x);
 		if (ret < 0) {
 			UNPROTECT(3);
 			error("S4Arrays internal error "
