@@ -1545,7 +1545,7 @@ static void count_nonzero_vals_per_row(SEXP SVT, int nrow, int ncol,
 	return;
 }
 
-static void **set_out_vals_p_cache(SEXP out_SVT, SEXPTYPE Rtype)
+static void **set_quick_out_vals_p(SEXP out_SVT, SEXPTYPE Rtype)
 {
 	int out_SVT_len, k;
 	SEXP lv;
@@ -1553,44 +1553,44 @@ static void **set_out_vals_p_cache(SEXP out_SVT, SEXPTYPE Rtype)
 	out_SVT_len = LENGTH(out_SVT);
 	switch (Rtype) {
 	    case LGLSXP: case INTSXP: {
-		int **cache, **p;
-		cache = (int **) R_alloc(out_SVT_len, sizeof(int *));
-		for (k = 0, p = cache; k < out_SVT_len; k++, p++) {
+		int **vals_p, **p;
+		vals_p = (int **) R_alloc(out_SVT_len, sizeof(int *));
+		for (k = 0, p = vals_p; k < out_SVT_len; k++, p++) {
 			lv = VECTOR_ELT(out_SVT, k);
 			if (lv != R_NilValue)
 				*p = INTEGER(VECTOR_ELT(lv, 1));
 		}
-		return (void **) cache;
+		return (void **) vals_p;
 	    }
 	    case REALSXP: {
-		double **cache, **p;
-		cache = (double **) R_alloc(out_SVT_len, sizeof(double *));
-		for (k = 0, p = cache; k < out_SVT_len; k++, p++) {
+		double **vals_p, **p;
+		vals_p = (double **) R_alloc(out_SVT_len, sizeof(double *));
+		for (k = 0, p = vals_p; k < out_SVT_len; k++, p++) {
 			lv = VECTOR_ELT(out_SVT, k);
 			if (lv != R_NilValue)
 				*p = REAL(VECTOR_ELT(lv, 1));
 		}
-		return (void **) cache;
+		return (void **) vals_p;
 	    }
 	    case CPLXSXP: {
-		Rcomplex **cache, **p;
-		cache = (Rcomplex **) R_alloc(out_SVT_len, sizeof(Rcomplex *));
-		for (k = 0, p = cache; k < out_SVT_len; k++, p++) {
+		Rcomplex **vals_p, **p;
+		vals_p = (Rcomplex **) R_alloc(out_SVT_len, sizeof(Rcomplex *));
+		for (k = 0, p = vals_p; k < out_SVT_len; k++, p++) {
 			lv = VECTOR_ELT(out_SVT, k);
 			if (lv != R_NilValue)
 				*p = COMPLEX(VECTOR_ELT(lv, 1));
 		}
-		return (void **) cache;
+		return (void **) vals_p;
 	    }
 	    case RAWSXP: {
-		Rbyte **cache, **p;
-		cache = (Rbyte **) R_alloc(out_SVT_len, sizeof(Rbyte *));
-		for (k = 0, p = cache; k < out_SVT_len; k++, p++) {
+		Rbyte **vals_p, **p;
+		vals_p = (Rbyte **) R_alloc(out_SVT_len, sizeof(Rbyte *));
+		for (k = 0, p = vals_p; k < out_SVT_len; k++, p++) {
 			lv = VECTOR_ELT(out_SVT, k);
 			if (lv != R_NilValue)
 				*p = RAW(VECTOR_ELT(lv, 1));
 		}
-		return (void **) cache;
+		return (void **) vals_p;
 	    }
 	}
 	/* STRSXP and VECSXP cases. */
@@ -1599,142 +1599,130 @@ static void **set_out_vals_p_cache(SEXP out_SVT, SEXPTYPE Rtype)
 
 typedef void (*TransposeCol_FUNType)(int col_idx,
 		const int *pos, SEXP lv_vals,
-		SEXP out_SVT, int **out_pos_p_cache, void **out_vals_p_cache,
-		int *nzcounts);
+		int **quick_out_pos_p, void **quick_out_vals_p,
+		SEXP out_SVT, int *nzcounts);
 
-/* Ignores 'out_SVT'. */
+/* Ignores 'out_SVT' and 'nzcounts'. */
 static void transpose_INTEGER_col(int col_idx,
 		const int *pos, SEXP lv_vals,
-		SEXP out_SVT, int **out_pos_p_cache, void **out_vals_p_cache,
-		int *nzcounts)
+		int **quick_out_pos_p, void **quick_out_vals_p,
+		SEXP out_SVT, int *nzcounts)
 {
-	int **vals_p_cache;
-	int lv_len, k, row_idx, *count_p;
+	int **vals_p;
+	int lv_len, k, row_idx;
 	const int *v;
 
-	vals_p_cache = (int **) out_vals_p_cache;
+	vals_p = (int **) quick_out_vals_p;
 	lv_len = LENGTH(lv_vals);
 	for (k = 0, v = INTEGER(lv_vals); k < lv_len; k++, v++) {
 		row_idx = *pos;
-		count_p = nzcounts + row_idx;
-		out_pos_p_cache[row_idx][*count_p] = col_idx;
-		vals_p_cache[row_idx][*count_p] = *v;
-		(*count_p)++;
+		*(quick_out_pos_p[row_idx]++) = col_idx;
+		*(vals_p[row_idx]++) = *v;
 		pos++;
 	}
 	return;
 }
 
-/* Ignores 'out_SVT'. */
+/* Ignores 'out_SVT' and 'nzcounts'. */
 static void transpose_NUMERIC_col(int col_idx,
 		const int *pos, SEXP lv_vals,
-		SEXP out_SVT, int **out_pos_p_cache, void **out_vals_p_cache,
-		int *nzcounts)
+		int **quick_out_pos_p, void **quick_out_vals_p,
+		SEXP out_SVT, int *nzcounts)
 {
-	double **vals_p_cache;
-	int lv_len, k, row_idx, *count_p;
+	double **vals_p;
+	int lv_len, k, row_idx;
 	const double *v;
 
-	vals_p_cache = (double **) out_vals_p_cache;
+	vals_p = (double **) quick_out_vals_p;
 	lv_len = LENGTH(lv_vals);
 	for (k = 0, v = REAL(lv_vals); k < lv_len; k++, v++) {
 		row_idx = *pos;
-		count_p = nzcounts + row_idx;
-		out_pos_p_cache[row_idx][*count_p] = col_idx;
-		vals_p_cache[row_idx][*count_p] = *v;
-		(*count_p)++;
+		*(quick_out_pos_p[row_idx]++) = col_idx;
+		*(vals_p[row_idx]++) = *v;
 		pos++;
 	}
 	return;
 }
 
-/* Ignores 'out_SVT'. */
+/* Ignores 'out_SVT' and 'nzcounts'. */
 static void transpose_COMPLEX_col(int col_idx,
 		const int *pos, SEXP lv_vals,
-		SEXP out_SVT, int **out_pos_p_cache, void **out_vals_p_cache,
-		int *nzcounts)
+		int **quick_out_pos_p, void **quick_out_vals_p,
+		SEXP out_SVT, int *nzcounts)
 {
-	Rcomplex **vals_p_cache;
-	int lv_len, k, row_idx, *count_p;
+	Rcomplex **vals_p;
+	int lv_len, k, row_idx;
 	const Rcomplex *v;
 
-	vals_p_cache = (Rcomplex **) out_vals_p_cache;
+	vals_p = (Rcomplex **) quick_out_vals_p;
 	lv_len = LENGTH(lv_vals);
 	for (k = 0, v = COMPLEX(lv_vals); k < lv_len; k++, v++) {
 		row_idx = *pos;
-		count_p = nzcounts + row_idx;
-		out_pos_p_cache[row_idx][*count_p] = col_idx;
-		vals_p_cache[row_idx][*count_p] = *v;
-		(*count_p)++;
+		*(quick_out_pos_p[row_idx]++) = col_idx;
+		*(vals_p[row_idx]++) = *v;
 		pos++;
 	}
 	return;
 }
 
-/* Ignores 'out_SVT'. */
+/* Ignores 'out_SVT' and 'nzcounts'. */
 static void transpose_RAW_col(int col_idx,
 		const int *pos, SEXP lv_vals,
-		SEXP out_SVT, int **out_pos_p_cache, void **out_vals_p_cache,
-		int *nzcounts)
+		int **quick_out_pos_p, void **quick_out_vals_p,
+		SEXP out_SVT, int *nzcounts)
 {
-	Rbyte **vals_p_cache;
-	int lv_len, k, row_idx, *count_p;
+	Rbyte **vals_p;
+	int lv_len, k, row_idx;
 	const Rbyte *v;
 
-	vals_p_cache = (Rbyte **) out_vals_p_cache;
+	vals_p = (Rbyte **) quick_out_vals_p;
 	lv_len = LENGTH(lv_vals);
 	for (k = 0, v = RAW(lv_vals); k < lv_len; k++, v++) {
 		row_idx = *pos;
-		count_p = nzcounts + row_idx;
-		out_pos_p_cache[row_idx][*count_p] = col_idx;
-		vals_p_cache[row_idx][*count_p] = *v;
-		(*count_p)++;
+		*(quick_out_pos_p[row_idx]++) = col_idx;
+		*(vals_p[row_idx]++) = *v;
 		pos++;
 	}
 	return;
 }
 
-/* Ignores 'out_vals_p_cache'. */
+/* Ignores 'quick_out_vals_p'. */
 static void transpose_CHARACTER_col(int col_idx,
 		const int *pos, SEXP lv_vals,
-		SEXP out_SVT, int **out_pos_p_cache, void **out_vals_p_cache,
-		int *nzcounts)
+		int **quick_out_pos_p, void **quick_out_vals_p,
+		SEXP out_SVT, int *nzcounts)
 {
-	int lv_len, k, row_idx, *count_p;
+	int lv_len, k, row_idx;
 	SEXP out_lv;
 
 	lv_len = LENGTH(lv_vals);
 	for (k = 0; k < lv_len; k++) {
 		row_idx = *pos;
-		count_p = nzcounts + row_idx;
-		out_pos_p_cache[row_idx][*count_p] = col_idx;
+		*(quick_out_pos_p[row_idx]++) = col_idx;
 		out_lv = VECTOR_ELT(out_SVT, row_idx);
 		copy_CHARACTER_elt(lv_vals, (R_xlen_t) k,
-			VECTOR_ELT(out_lv, 1), (R_xlen_t) *count_p);
-		(*count_p)++;
+			VECTOR_ELT(out_lv, 1), (R_xlen_t) nzcounts[row_idx]++);
 		pos++;
 	}
 	return;
 }
 
-/* Ignores 'out_vals_p_cache'. */
+/* Ignores 'quick_out_vals_p'. */
 static void transpose_LIST_col(int col_idx,
 		const int *pos, SEXP lv_vals,
-		SEXP out_SVT, int **out_pos_p_cache, void **out_vals_p_cache,
-		int *nzcounts)
+		int **quick_out_pos_p, void **quick_out_vals_p,
+		SEXP out_SVT, int *nzcounts)
 {
-	int lv_len, k, row_idx, *count_p;
+	int lv_len, k, row_idx;
 	SEXP out_lv;
 
 	lv_len = LENGTH(lv_vals);
 	for (k = 0; k < lv_len; k++) {
 		row_idx = *pos;
-		count_p = nzcounts + row_idx;
-		out_pos_p_cache[row_idx][*count_p] = col_idx;
+		*(quick_out_pos_p[row_idx]++) = col_idx;
 		out_lv = VECTOR_ELT(out_SVT, row_idx);
 		copy_LIST_elt(lv_vals, (R_xlen_t) k,
-			VECTOR_ELT(out_lv, 1), (R_xlen_t) *count_p);
-		(*count_p)++;
+			VECTOR_ELT(out_lv, 1), (R_xlen_t) nzcounts[row_idx]++);
 		pos++;
 	}
 	return;
@@ -1758,8 +1746,8 @@ static SEXP transpose_SVT(SEXP SVT, SEXPTYPE Rtype, int nrow, int ncol,
 {
 	TransposeCol_FUNType transpose_col_FUN;
 	SEXP ans, ans_elt, subSVT, lv_pos, lv_vals;
-	int **out_pos_p_cache;
-	void **out_vals_p_cache;
+	int **quick_out_pos_p;
+	void **quick_out_vals_p;
 	int i, j, lv_len;
 
 	transpose_col_FUN = select_transpose_col_FUN(Rtype);
@@ -1769,17 +1757,17 @@ static SEXP transpose_SVT(SEXP SVT, SEXPTYPE Rtype, int nrow, int ncol,
 		      "  SVT_SparseArray object has invalid type");
 
 	ans = PROTECT(NEW_LIST(nrow));
-	out_pos_p_cache = (int **) R_alloc(nrow, sizeof(int *));
+	quick_out_pos_p = (int **) R_alloc(nrow, sizeof(int *));
 	for (i = 0; i < nrow; i++) {
 		lv_len = nzcounts[i];
 		if (lv_len != 0) {
 			ans_elt = PROTECT(alloc_leaf_vector(lv_len, Rtype));
 			SET_VECTOR_ELT(ans, i, ans_elt);
 			UNPROTECT(1);
-			out_pos_p_cache[i] = INTEGER(VECTOR_ELT(ans_elt, 0));
+			quick_out_pos_p[i] = INTEGER(VECTOR_ELT(ans_elt, 0));
 		}
 	}
-	out_vals_p_cache = set_out_vals_p_cache(ans, Rtype);
+	quick_out_vals_p = set_quick_out_vals_p(ans, Rtype);
 
 	memset(nzcounts, 0, sizeof(int) * nrow);
 	for (j = 0; j < ncol; j++) {
@@ -1796,8 +1784,8 @@ static SEXP transpose_SVT(SEXP SVT, SEXPTYPE Rtype, int nrow, int ncol,
 		}
 		transpose_col_FUN(j,
 			INTEGER(lv_pos), lv_vals,
-			ans, out_pos_p_cache, out_vals_p_cache,
-			nzcounts);
+			quick_out_pos_p, quick_out_vals_p,
+			ans, nzcounts);
 	}
 	UNPROTECT(1);
 	return ans;
