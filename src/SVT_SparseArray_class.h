@@ -47,7 +47,7 @@ SEXP C_from_SVT_SparseArray_to_COO_SparseArray(
 SEXP C_build_SVT_from_COO_SparseArray(
 	SEXP x_dim,
 	SEXP x_nzcoo,
-	SEXP x_nzdata,
+	SEXP x_nzvals,
 	SEXP new_type
 );
 

@@ -9,11 +9,13 @@
 ###
 ### An SVT is a tree of depth the number of dimensions in the array where
 ### the leaves are sparse vectors, also called "leaf vectors".
-### A leaf vector is represented by a list of 2 parallel vectors: an integer
-### vector of positions and a vector (atomic or list) of nonzero values.
-### The 2nd vector determines the type of the leaf vector. All the leaf
-### vectors in the SVT must have the same type, which should match the type
-### specified in the 'type' slot of the SVT_SparseArray object.
+### A "leaf vector" is a vector of offset/value pairs sorted by strictly
+### ascending offset. It is represented by a list of 2 parallel vectors:
+### an integer vector of offsets and a vector (atomic or list) of nonzero
+### values. The 2nd vector determines the type of the leaf vector i.e.
+### double, integer, logical, etc... All the leaf vectors in the SVT must
+### have the same type, which should match the type specified in the 'type'
+### slot of the SVT_SparseArray object.
 ###
 ### More precisely:
 ###
@@ -209,13 +211,13 @@ setAs("lgCMatrix", "SVT_SparseArray",
 .from_SVT_SparseArray_to_COO_SparseArray <- function(from)
 {
     stopifnot(is(from, "SVT_SparseArray"))
-    ## Returns 'ans_nzcoo' and 'ans_nzdata' in a list of length 2.
+    ## Returns 'ans_nzcoo' and 'ans_nzvals' in a list of length 2.
     C_ans <- .Call2("C_from_SVT_SparseArray_to_COO_SparseArray",
                     from@dim, from@type, from@SVT, PACKAGE="S4Arrays")
     ans_nzcoo <- C_ans[[1L]]
-    ans_nzdata <- C_ans[[2L]]
+    ans_nzvals <- C_ans[[2L]]
     new2("COO_SparseArray", dim=from@dim, dimnames=from@dimnames,
-                            nzcoo=ans_nzcoo, nzdata=ans_nzdata,
+                            nzcoo=ans_nzcoo, nzvals=ans_nzvals,
                             check=FALSE)
 }
 
@@ -236,7 +238,7 @@ setAs("SVT_SparseArray", "COO_SparseArray",
         type(x) <- type
     }
     ans_SVT <- .Call2("C_build_SVT_from_COO_SparseArray",
-                      x@dim, x@nzcoo, x@nzdata, type,
+                      x@dim, x@nzcoo, x@nzvals, type,
                       PACKAGE="S4Arrays")
     .new_SVT_SparseArray(x@dim, x@dimnames, type, ans_SVT, check=FALSE)
 }

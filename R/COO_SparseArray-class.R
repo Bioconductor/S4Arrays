@@ -12,7 +12,7 @@
 ###
 ### COO_SparseArray API:
 ### - The SparseArray API.
-### - Getters: nzcoo(), nzdata().
+### - Getters: nzcoo(), nzvals().
 ### - sparsity().
 ### - dense2sparse(), sparse2dense().
 ### - Based on sparse2dense(): extract_array(), as.array(), as.matrix().
@@ -26,12 +26,12 @@ setClass("COO_SparseArray",
     representation(
         nzcoo="matrix",  # M-index containing the coordinates of the
                          # nonzero data.
-        nzdata="vector"  # A vector (atomic or list) of length
+        nzvals="vector"  # A vector (atomic or list) of length
                          # 'nrow(nzcoo)' containing the nonzero data.
     ),
     prototype(
         nzcoo=matrix(integer(0), ncol=1L),
-        nzdata=logical(0)
+        nzvals=logical(0)
     )
 )
 
@@ -60,11 +60,11 @@ setClass("COO_SparseArray",
     TRUE
 }
 
-.validate_nzdata_slot <- function(x)
+.validate_nzvals_slot <- function(x)
 {
-    x_nzdata <- x@nzdata
-    if (!(is.vector(x_nzdata) && length(x_nzdata) == nrow(x@nzcoo)))
-        return(paste0("'nzdata' slot must be a vector of length ",
+    x_nzvals <- x@nzvals
+    if (!(is.vector(x_nzvals) && length(x_nzvals) == nrow(x@nzcoo)))
+        return(paste0("'nzvals' slot must be a vector of length ",
                       "the number of rows in the 'nzcoo' slot"))
     TRUE
 }
@@ -74,7 +74,7 @@ setClass("COO_SparseArray",
     msg <- .validate_nzcoo_slot(x)
     if (!isTRUE(msg))
         return(msg)
-    msg <- .validate_nzdata_slot(x)
+    msg <- .validate_nzvals_slot(x)
     if (!isTRUE(msg))
         return(msg)
     TRUE
@@ -87,13 +87,13 @@ setValidity2("COO_SparseArray", .validate_COO_SparseArray)
 ### Getters
 ###
 
-setMethod("type", "COO_SparseArray", function(x) type(x@nzdata))
+setMethod("type", "COO_SparseArray", function(x) type(x@nzvals))
 
 setGeneric("nzcoo", function(x) standardGeneric("nzcoo"))
 setMethod("nzcoo", "COO_SparseArray", function(x) x@nzcoo)
 
-setGeneric("nzdata", function(x) standardGeneric("nzdata"))
-setMethod("nzdata", "COO_SparseArray", function(x) x@nzdata)
+setGeneric("nzvals", function(x) standardGeneric("nzvals"))
+setMethod("nzvals", "COO_SparseArray", function(x) x@nzvals)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -109,16 +109,16 @@ setMethod("nzdata", "COO_SparseArray", function(x) x@nzdata)
     if (value == x_type)
         return(x)
 
-    new_nzdata <- x@nzdata
-    storage.mode(new_nzdata) <- value
+    new_nzvals <- x@nzvals
+    storage.mode(new_nzvals) <- value
     zero <- vector(value, length=1L)
-    is_not_zero <- new_nzdata != zero
+    is_not_zero <- new_nzvals != zero
     nzidx <- which(is_not_zero | is.na(is_not_zero))
     new_nzcoo <- x@nzcoo[nzidx, , drop=FALSE]
-    new_nzdata <- new_nzdata[nzidx]
+    new_nzvals <- new_nzvals[nzidx]
 
     BiocGenerics:::replaceSlots(x, nzcoo=new_nzcoo,
-                                   nzdata=new_nzdata,
+                                   nzvals=new_nzvals,
                                    check=FALSE)
 }
 
@@ -132,7 +132,7 @@ setReplaceMethod("type", "COO_SparseArray", .set_COO_SparseArray_type)
 setGeneric("sparsity", function(x) standardGeneric("sparsity"))
 
 setMethod("sparsity", "COO_SparseArray",
-    function(x) { 1 - length(nzdata(x)) / length(x) }
+    function(x) { 1 - length(nzvals(x)) / length(x) }
 )
 
 
@@ -140,26 +140,26 @@ setMethod("sparsity", "COO_SparseArray",
 ### Constructor
 ###
 
-.normarg_nzdata <- function(nzdata, length.out)
+.normarg_nzvals <- function(nzvals, length.out)
 {
-    if (is.null(nzdata))
-        stop(wmsg("'nzdata' cannot be NULL when 'nzcoo' is not NULL"))
-    if (!is.vector(nzdata))
-        stop(wmsg("'nzdata' must be a vector"))
+    if (is.null(nzvals))
+        stop(wmsg("'nzvals' cannot be NULL when 'nzcoo' is not NULL"))
+    if (!is.vector(nzvals))
+        stop(wmsg("'nzvals' must be a vector"))
     ## Same logic as S4Vectors:::V_recycle().
-    nzdata_len <- length(nzdata)
-    if (nzdata_len == length.out)
-        return(nzdata)
-    if (nzdata_len > length.out && nzdata_len != 1L)
-        stop(wmsg("'length(nzdata)' is greater than 'nrow(nzcoo)'"))
-    if (nzdata_len == 0L)
-        stop(wmsg("'length(nzdata)' is 0 but 'nrow(nzcoo)' is not"))
-    if (length.out %% nzdata_len != 0L)
-        warning(wmsg("'nrow(nzcoo)' is not a multiple of 'length(nzdata)'"))
-    rep(nzdata, length.out=length.out)
+    nzvals_len <- length(nzvals)
+    if (nzvals_len == length.out)
+        return(nzvals)
+    if (nzvals_len > length.out && nzvals_len != 1L)
+        stop(wmsg("'length(nzvals)' is greater than 'nrow(nzcoo)'"))
+    if (nzvals_len == 0L)
+        stop(wmsg("'length(nzvals)' is 0 but 'nrow(nzcoo)' is not"))
+    if (length.out %% nzvals_len != 0L)
+        warning(wmsg("'nrow(nzcoo)' is not a multiple of 'length(nzvals)'"))
+    rep(nzvals, length.out=length.out)
 }
 
-COO_SparseArray <- function(dim, nzcoo=NULL, nzdata=NULL, dimnames=NULL,
+COO_SparseArray <- function(dim, nzcoo=NULL, nzvals=NULL, dimnames=NULL,
                                  check=TRUE)
 {
     if (!is.numeric(dim))
@@ -167,10 +167,10 @@ COO_SparseArray <- function(dim, nzcoo=NULL, nzdata=NULL, dimnames=NULL,
     if (!is.integer(dim))
         dim <- as.integer(dim)
     if (is.null(nzcoo)) {
-        if (is.null(nzdata)) {
-            nzdata <- logical(0)  # vector()
-        } else if (!(is.vector(nzdata) && length(nzdata) == 0L)) {
-            stop(wmsg("'nzdata' must be NULL or a vector of length 0 ",
+        if (is.null(nzvals)) {
+            nzvals <- logical(0)  # vector()
+        } else if (!(is.vector(nzvals) && length(nzvals) == 0L)) {
+            stop(wmsg("'nzvals' must be NULL or a vector of length 0 ",
                       "when 'nzcoo' is NULL"))
         }
         nzcoo <- matrix(integer(0), ncol=length(dim))
@@ -181,11 +181,11 @@ COO_SparseArray <- function(dim, nzcoo=NULL, nzdata=NULL, dimnames=NULL,
             storage.mode(nzcoo) <- "integer"
         if (!is.null(dimnames(nzcoo)))
             dimnames(nzcoo) <- NULL
-        nzdata <- .normarg_nzdata(nzdata, nrow(nzcoo))
+        nzvals <- .normarg_nzvals(nzvals, nrow(nzcoo))
     }
     dimnames <- normarg_dimnames(dimnames, dim)
     new2("COO_SparseArray", dim=dim, dimnames=dimnames,
-                            nzcoo=nzcoo, nzdata=nzdata,
+                            nzcoo=nzcoo, nzvals=nzvals,
                             check=check)
 }
 
@@ -209,17 +209,17 @@ dense2sparse <- function(x)
     COO_SparseArray(x_dim, nzcoo, x[nzcoo], dimnames(x), check=FALSE)
 }
 
-### 'coosa' must be a COO_SparseArray object.
+### 'coo' must be a COO_SparseArray object.
 ### Return an ordinary array.
-sparse2dense <- function(coosa)
+sparse2dense <- function(coo)
 {
-    if (!is(coosa, "COO_SparseArray"))
-        stop(wmsg("'coosa' must be a COO_SparseArray object"))
-    sa_nzdata <- nzdata(coosa)
-    zero <- vector(typeof(sa_nzdata), length=1L)
-    ans <- array(zero, dim=dim(coosa))
-    ans[nzcoo(coosa)] <- sa_nzdata
-    set_dimnames(ans, dimnames(coosa))
+    if (!is(coo, "COO_SparseArray"))
+        stop(wmsg("'coo' must be a COO_SparseArray object"))
+    coo_nzvals <- nzvals(coo)
+    zero <- vector(typeof(coo_nzvals), length=1L)
+    ans <- array(zero, dim=dim(coo))
+    ans[nzcoo(coo)] <- coo_nzvals
+    set_dimnames(ans, dimnames(coo))
 }
 
 
@@ -292,8 +292,8 @@ setGeneric("extract_sparse_array",
     }
     keep_idx <- which(!rowAnyNAs(x_nzcoo))
     ans_nzcoo <- x_nzcoo[keep_idx, , drop=FALSE]
-    ans_nzdata <- x@nzdata[keep_idx]
-    COO_SparseArray(ans_dim, ans_nzcoo, ans_nzdata, check=FALSE)
+    ans_nzvals <- x@nzvals[keep_idx]
+    COO_SparseArray(ans_dim, ans_nzcoo, ans_nzvals, check=FALSE)
 }
 setMethod("extract_sparse_array", "COO_SparseArray",
     .extract_sparse_array_from_COO_SparseArray
@@ -373,7 +373,7 @@ setAs("ANY", "COO_SparseArray", function(from) dense2sparse(from))
                   "or lgCMatrix must have exactly 2 dimensions"))
     i <- from@nzcoo[ , 1L]
     j <- from@nzcoo[ , 2L]
-    CsparseMatrix(from_dim, i, j, from@nzdata, dimnames=dimnames(from))
+    CsparseMatrix(from_dim, i, j, from@nzvals, dimnames=dimnames(from))
 }
 
 .from_COO_SparseArray_to_RsparseMatrix <- function(from)
@@ -384,7 +384,7 @@ setAs("ANY", "COO_SparseArray", function(from) dense2sparse(from))
                   "or lgRMatrix must have exactly 2 dimensions"))
     i <- from@nzcoo[ , 1L]
     j <- from@nzcoo[ , 2L]
-    RsparseMatrix(from_dim, i, j, from@nzdata, dimnames=dimnames(from))
+    RsparseMatrix(from_dim, i, j, from@nzvals, dimnames=dimnames(from))
 }
 
 setAs("COO_SparseArray", "CsparseMatrix",

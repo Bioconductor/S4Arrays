@@ -9,27 +9,27 @@
 ###
 ### A replacement for Matrix::sparseMatrix() that is typically 50%-60% faster
 ### and more memory efficient. Like Matrix::sparseMatrix(), it only supports
-### numeric or logical input data at the moment. If 'is.numeric(nzdata)' is
-### TRUE, it returns a dgCMatrix object. If 'is.logical(nzdata)' is TRUE, it
+### numeric or logical input data at the moment. If 'is.numeric(nzvals)' is
+### TRUE, it returns a dgCMatrix object. If 'is.logical(nzvals)' is TRUE, it
 ### returns a lgCMatrix object. Any other type of input triggers an error.
 
-### 'i', 'j', 'nzdata' must be **parallel** atomic vectors (integer vectors
+### 'i', 'j', 'nzvals' must be **parallel** atomic vectors (integer vectors
 ### with no NAs for 'i' and 'j', and integer, double or logical vector for
-### 'nzdata', possibly with NAs).
-CsparseMatrix <- function(dim, i, j, nzdata, dimnames=NULL)
+### 'nzvals', possibly with NAs).
+CsparseMatrix <- function(dim, i, j, nzvals, dimnames=NULL)
 {
     stopifnot(is.integer(dim), length(dim) == 2L,
               is.integer(i), is.integer(j))
-    nzdata_type <- typeof(nzdata)
-    ans_class <- switch(nzdata_type,
+    nzvals_type <- typeof(nzvals)
+    ans_class <- switch(nzvals_type,
                         'integer'=, 'double'="dgCMatrix",
                         'logical'="lgCMatrix",
-                        stop(wmsg("unsupported data type: ", nzdata_type)))
+                        stop(wmsg("unsupported data type: ", nzvals_type)))
     dimnames <- normarg_dimnames(dimnames, dim)
     oo <- order(j, i)
     ans_i <- i[oo] - 1L  # dgCMatrix and lgCMatrix objects want this zero-based
     ans_p <- c(0L, cumsum(tabulate(j[oo], nbins=dim[[2L]])))
-    ans_x <- nzdata[oo]
+    ans_x <- nzvals[oo]
     if (is.integer(ans_x))
         ans_x <- as.double(ans_x)
     new(ans_class, Dim=dim, i=ans_i, p=ans_p, x=ans_x, Dimnames=dimnames)
@@ -40,20 +40,20 @@ CsparseMatrix <- function(dim, i, j, nzdata, dimnames=NULL)
 ### RsparseMatrix() -- NOT exported
 ###
 
-RsparseMatrix <- function(dim, i, j, nzdata, dimnames=NULL)
+RsparseMatrix <- function(dim, i, j, nzvals, dimnames=NULL)
 {
     stopifnot(is.integer(dim), length(dim) == 2L,
               is.integer(i), is.integer(j))
-    nzdata_type <- typeof(nzdata)
-    ans_class <- switch(nzdata_type,
+    nzvals_type <- typeof(nzvals)
+    ans_class <- switch(nzvals_type,
                         'integer'=, 'double'="dgRMatrix",
                         'logical'="lgRMatrix",
-                        stop(wmsg("unsupported data type: ", nzdata_type)))
+                        stop(wmsg("unsupported data type: ", nzvals_type)))
     dimnames <- normarg_dimnames(dimnames, dim)
     oo <- order(i, j)
     ans_j <- j[oo] - 1L  # dgRMatrix and lgRMatrix objects want this zero-based
     ans_p <- c(0L, cumsum(tabulate(i[oo], nbins=dim[[1L]])))
-    ans_x <- nzdata[oo]
+    ans_x <- nzvals[oo]
     if (is.integer(ans_x))
         ans_x <- as.double(ans_x)
     new(ans_class, Dim=dim, j=ans_j, p=ans_p, x=ans_x, Dimnames=dimnames)

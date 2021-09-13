@@ -40,10 +40,10 @@ abind_COO_SparseArray_objects <- function(objects, along)
     )
     ans_nzcoo <- do.call(rbind, nzcoo_list)
 
-    ## Combine the "nzdata" slots.
-    ans_nzdata <- unlist(lapply(objects, slot, "nzdata"), use.names=FALSE)
+    ## Combine the "nzvals" slots.
+    ans_nzvals <- unlist(lapply(objects, slot, "nzvals"), use.names=FALSE)
 
-    COO_SparseArray(ans_dim, ans_nzcoo, ans_nzdata, ans_dimnames, check=FALSE)
+    COO_SparseArray(ans_dim, ans_nzcoo, ans_nzvals, ans_dimnames, check=FALSE)
 }
 
 setMethod("rbind", "COO_SparseArray",
@@ -85,8 +85,8 @@ for (.Generic in .UNARY_ISO_OPS) {
         function(x)
         {
             GENERIC <- match.fun(.Generic)
-            new_nzdata <- GENERIC(x@nzdata)
-            BiocGenerics:::replaceSlots(x, nzdata=new_nzdata, check=FALSE)
+            new_nzvals <- GENERIC(x@nzvals)
+            BiocGenerics:::replaceSlots(x, nzvals=new_nzvals, check=FALSE)
         }
     )
 }
@@ -94,8 +94,8 @@ for (.Generic in .UNARY_ISO_OPS) {
 setMethod("nchar", "COO_SparseArray",
     function(x, type="chars", allowNA=FALSE, keepNA=NA)
     {
-        new_nzdata <- nchar(x@nzdata, type=type, allowNA=allowNA, keepNA=keepNA)
-        BiocGenerics:::replaceSlots(x, nzdata=new_nzdata, check=FALSE)
+        new_nzvals <- nchar(x@nzvals, type=type, allowNA=allowNA, keepNA=keepNA)
+        BiocGenerics:::replaceSlots(x, nzvals=new_nzvals, check=FALSE)
     }
 )
 
@@ -105,7 +105,7 @@ setMethod("nchar", "COO_SparseArray",
 ###
 
 setMethod("anyNA", "COO_SparseArray",
-    function(x, recursive=FALSE) anyNA(x@nzdata, recursive=recursive)
+    function(x, recursive=FALSE) anyNA(x@nzvals, recursive=recursive)
 )
 
 
@@ -124,7 +124,7 @@ setMethod("which", "COO_SparseArray",
                          "a COO_SparseArray object or derivative"))
         if (!isTRUEorFALSE(arr.ind))
             stop(wmsg("'arr.ind' must be TRUE or FALSE"))
-        idx1 <- which(x@nzdata)
+        idx1 <- which(x@nzvals)
         nzcoo1 <- x@nzcoo[idx1, , drop=FALSE]
         oo <- .nzcoo_order(nzcoo1)
         ans <- nzcoo1[oo, , drop=FALSE]
@@ -151,17 +151,17 @@ setMethod("Summary", "COO_SparseArray",
         ## Whether 'x' contains zeros or not doesn't make a difference for
         ## sum() and any().
         if (.Generic %in% c("sum", "any"))
-            return(GENERIC(x@nzdata, na.rm=na.rm))
+            return(GENERIC(x@nzvals, na.rm=na.rm))
         ## Of course a typical COO_SparseArray object "contains" zeros
         ## (i.e. it would contain zeros if we converted it to a dense
         ## representation with sparse2dense()). However, this is not
         ## guaranteed so we need to make sure to properly handle the case
         ## where it doesn't (admittedly unusual and definitely an inefficient
         ## way to represent dense data!)
-        x_has_zeros <- length(x@nzdata) < length(x)
+        x_has_zeros <- length(x@nzvals) < length(x)
         if (!x_has_zeros)
-            return(GENERIC(x@nzdata, na.rm=na.rm))
-        x_type <- typeof(x@nzdata)
+            return(GENERIC(x@nzvals, na.rm=na.rm))
+        x_type <- typeof(x@nzvals)
         if (.Generic == "all") {
             ## Mimic what 'all(sparse2dense(x))' would do.
             if (x_type == "double")
@@ -169,7 +169,7 @@ setMethod("Summary", "COO_SparseArray",
             return(FALSE)
         }
         zero <- vector(x_type, length=1L)
-        GENERIC(zero, x@nzdata, na.rm=na.rm)
+        GENERIC(zero, x@nzvals, na.rm=na.rm)
     }
 )
 
@@ -185,11 +185,11 @@ range.COO_SparseArray <- function(..., na.rm=FALSE, finite=FALSE)
         stop(wmsg("range() method for COO_SparseArray objects ",
                   "only accepts a single object"))
     x <- objects[[1L]]
-    x_has_zeros <- length(x@nzdata) < length(x)
+    x_has_zeros <- length(x@nzvals) < length(x)
     if (!x_has_zeros)
-        return(range(x@nzdata, na.rm=na.rm, finite=finite))
-    zero <- vector(typeof(x@nzdata), length=1L)
-    range(zero, x@nzdata, na.rm=na.rm, finite=finite)
+        return(range(x@nzvals, na.rm=na.rm, finite=finite))
+    zero <- vector(typeof(x@nzvals), length=1L)
+    range(zero, x@nzvals, na.rm=na.rm, finite=finite)
 }
 ### The signature of all the members of the S4 "Summary" group generic is
 ### 'x, ..., na.rm' (see getGeneric("range")) which means that the S4 methods
@@ -207,10 +207,10 @@ setMethod("range", "COO_SparseArray",
 
 .mean_COO_SparseArray <- function(x, na.rm=FALSE)
 {
-    s <- sum(x@nzdata, na.rm=na.rm)
+    s <- sum(x@nzvals, na.rm=na.rm)
     nval <- length(x)
     if (na.rm)
-        nval <- nval - sum(is.na(x@nzdata))
+        nval <- nval - sum(is.na(x@nzvals))
     s / nval
 }
 
