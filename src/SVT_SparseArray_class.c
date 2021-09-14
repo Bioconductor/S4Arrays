@@ -492,22 +492,33 @@ static SEXP alloc_and_split_leaf_vector(int lv_len, SEXPTYPE Rtype,
 	return ans;
 }
 
-/* 'offs' must contain 0-based positions. */
-static SEXP make_leaf_vector(const int *offs, SEXP lv_vals, int dim1)
+static SEXP make_leaf_vector_from_one_based_positions(
+		const int *pos, SEXP lv_vals, int maxpos)
 {
-	int lv_len, k, p;
+	int lv_len, k, prev_p, p;
 	SEXP lv_offs, ans;
 
 	lv_len = LENGTH(lv_vals);
 	lv_offs = PROTECT(NEW_INTEGER(lv_len));
 	for (k = 0; k < lv_len; k++) {
-		p = offs[k];
-		if (p < 0 || p >= dim1) {
+		prev_p = p;
+		p = pos[k];
+		if (p < 1 || p > maxpos) {
 			UNPROTECT(1);
-			error("the supplied matrix contains "
-			      "out-of-bound values");
+			error("\"nzcoo\" slot of COO_SparseArray object "
+			      "to coerce contains invalid coordinates");
 		}
-		INTEGER(lv_offs)[k] = p;
+		if (k != 0 && p <= prev_p) {
+			UNPROTECT(1);
+			error("coercion from COO_SparseArray to "
+			      "SVT_SparseArray is not supported when the\n"
+			      "  first column of the matrix in the "
+			      "\"nzcoo\" slot of the object to coerce is\n"
+			      "  not strictly sorted within each group of "
+			      "rows obtained by grouping the rows\n"
+			      "  with same values in the remaining columns");
+		}
+		INTEGER(lv_offs)[k] = p - 1;
 	}
 	ans = new_leaf_vector(lv_offs, lv_vals);
 	UNPROTECT(1);
@@ -718,26 +729,32 @@ static SEXP alloc_list_of_appendable_leaf_vectors(
 	return alvs;
 }
 
-/* 'alv' must be an "appendable leaf vector". */
+/* 'alv' must be an "appendable leaf vector".
+   Returns a value >= 0 if success (1 if the "appendable leaf vector" is full,
+   0 otherwise), and < 0 if error (-1 if unexpected error, and -2 if the offset
+   to append is not > than the previous one. */
 static inline int append_off_val_pair_to_leaf_vector(SEXP alv,
 		int off, SEXP nzvals, int nzvals_offset,
 		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
 {
 	SEXP alv_offs, alv_vals, alv_nelt;
-	int alv_len, *alv_nelt_p;
+	int alv_len, nelt, *alv_offs_p;
 
-	alv_offs  = VECTOR_ELT(alv, 0);
+	alv_offs = VECTOR_ELT(alv, 0);
 	alv_vals = VECTOR_ELT(alv, 1);
 	alv_nelt = VECTOR_ELT(alv, 2);
-	alv_len  = LENGTH(alv_offs);
-	alv_nelt_p = INTEGER(alv_nelt);
-	if (*alv_nelt_p >= alv_len)
+
+	alv_len = LENGTH(alv_offs);
+	nelt = INTEGER(alv_nelt)[0];
+	if (nelt >= alv_len)
 		return -1;
-	INTEGER(alv_offs)[*alv_nelt_p] = off;
+	alv_offs_p = INTEGER(alv_offs);
+	if (nelt != 0 && off <= alv_offs_p[nelt - 1])
+		return -2;
+	alv_offs_p[nelt] = off;
 	copy_Rvector_elt_FUN(nzvals, (R_xlen_t) nzvals_offset,
-			     alv_vals, (R_xlen_t) *alv_nelt_p);
-	(*alv_nelt_p)++;
-	return *alv_nelt_p == alv_len;
+			     alv_vals, (R_xlen_t) nelt);
+	return ++INTEGER(alv_nelt)[0] == alv_len;
 }
 
 
@@ -1438,7 +1455,7 @@ static int store_nzoff_and_nzval_in_SVT(
 						 nzvals, nzdata_offset,
 						 copy_Rvector_elt_FUN);
 	if (ret < 0)
-		return -1;
+		return ret;
 	if (ret == 1) {
 		/* Appendable leaf vector 'subSVT' is now full.
 		   Replace it with a regular (i.e. non-appendable) "leaf
@@ -1491,8 +1508,8 @@ SEXP C_build_SVT_from_COO_SparseArray(
 		return R_NilValue;
 
 	if (x_ndim == 1)
-		return make_leaf_vector(INTEGER(x_nzcoo), x_nzvals,
-					INTEGER(x_dim)[0]);
+		return make_leaf_vector_from_one_based_positions(
+				INTEGER(x_nzcoo), x_nzvals, INTEGER(x_dim)[0]);
 
 	ans_len = INTEGER(x_dim)[x_ndim - 1];
 
@@ -1509,8 +1526,8 @@ SEXP C_build_SVT_from_COO_SparseArray(
 			       INTEGER(x_nzcoo), nzdata_len, i);
 		if (ret < 0) {
 			UNPROTECT(1);
-			error("the supplied matrix contains "
-			      "out-of-bound values");
+			error("\"nzcoo\" slot of COO_SparseArray object "
+			      "to coerce contains invalid coordinates");
 		}
 	}
 
@@ -1528,11 +1545,20 @@ SEXP C_build_SVT_from_COO_SparseArray(
 				ans,
 				copy_Rvector_elt_FUN);
 		if (ret < 0) {
-			UNPROTECT(1);
+		    UNPROTECT(1);
+		    if (ret == -2)
+			error("coercion from COO_SparseArray to "
+			      "SVT_SparseArray is not supported when the\n"
+			      "  first column of the matrix in the "
+			      "\"nzcoo\" slot of the object to coerce is\n"
+			      "  not strictly sorted within each group of "
+			      "rows obtained by grouping the rows\n"
+			      "  with same values in the remaining columns");
+		    else
 			error("S4Arrays internal error in "
 			      "C_from_COO_SparseArray_to_SVT():\n"
 			      "  store_nzoff_and_nzval_in_SVT() "
-			      "returned an error");
+			      "returned an unexpected error");
 		}
 	}
 
