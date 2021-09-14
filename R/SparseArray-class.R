@@ -30,10 +30,13 @@ setClass("SparseArray",
 
 setValidity2("SparseArray", .validate_SparseArray)
 
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### SparseArray API:
 ### - Getters: dim(), length(), dimnames(), type().
 ### - Setters: `dimnames<-`(), `type<-`().
 ### - is_sparse().
+###
 
 setMethod("dimnames", "SparseArray",
     function(x) simplify_NULL_dimnames(x@dimnames)
@@ -46,6 +49,28 @@ setReplaceMethod("dimnames", "SparseArray",
         x
     }
 )
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### which_is_nonzero() and coercion_can_introduce_zeros()
+###
+
+which_is_nonzero <- function(x, arr.ind=FALSE)
+{
+    ## Make sure to use 'type()' and not 'typeof()'.
+    zero <- vector(type(x), length=1L)
+    is_nonzero <- x != zero
+    which(is_nonzero | is.na(is_nonzero), arr.ind=arr.ind)
+}
+
+coercion_can_introduce_zeros <- function(from_type, to_type)
+{
+    if (identical(to_type, "double"))
+        return(from_type %in% c("logical", "integer", "raw"))
+    if (identical(to_type, "logical"))
+        return(from_type %in% c("integer", "double", "complex", "raw"))
+    stop(wmsg("'to_type' must be \"double\" or \"logical\""))
+}
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
