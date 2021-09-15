@@ -126,7 +126,8 @@ static SEXP concatenate_SVTs(SEXP *SVTs, int nb_objects,
 }
 
 /* Each SVT is expected to be either NULL or a "leaf vector".
-   They should never be all NULLs. */
+   They should never be all NULLs.
+   'sum_dims_along' is used for a sanity check only so is not strictly needed */
 static SEXP concatenate_leaf_vectors(SEXP *SVTs, int nb_objects,
 		const int *dims_along, int sum_dims_along,
 		SEXPTYPE ans_Rtype,
@@ -147,17 +148,18 @@ static SEXP concatenate_leaf_vectors(SEXP *SVTs, int nb_objects,
 		ans_len += LENGTH(VECTOR_ELT(SVT, 0));
 	}
 
-	ans_offs  = PROTECT(NEW_INTEGER(ans_len));
+	ans_offs = PROTECT(NEW_INTEGER(ans_len));
 	ans_vals = PROTECT(allocVector(ans_Rtype, ans_len));
-	k1 = 0;
-	for (n = 0, offset = 0; n < nb_objects; n++, offset += dims_along[n]) {
-		SVT = SVTs[n];
-		if (SVT == R_NilValue)
-			continue;
-		lv_len = _split_leaf_vector(SVT, &lv_offs, &lv_vals);
-		copy_Rvector_elts_FUN(lv_vals, 0, ans_vals, k1, lv_len);
-		for (k2 = 0; k2 < lv_len; k2++, k1++)
-			INTEGER(ans_offs)[k1] = INTEGER(lv_offs)[k2] + offset;
+	k1 = offset = 0;
+	for (n = 0; n < nb_objects; n++) {
+		if ((SVT = SVTs[n]) != R_NilValue) {
+			lv_len = _split_leaf_vector(SVT, &lv_offs, &lv_vals);
+			copy_Rvector_elts_FUN(lv_vals, 0, ans_vals, k1, lv_len);
+			for (k2 = 0; k2 < lv_len; k2++, k1++)
+				INTEGER(ans_offs)[k1] = INTEGER(lv_offs)[k2] +
+							offset;
+		}
+		offset += dims_along[n];
 	}
 	ans = _new_leaf_vector(ans_offs, ans_vals);
 	UNPROTECT(2);
