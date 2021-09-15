@@ -155,6 +155,7 @@ exportMethods(
     type, "type<-",
 
     ## Methods for generics defined in the S4Vectors package:
+    bindROWS,
     showAsCell, isEmpty,
 
     ## Methods for generics defined in the IRanges package:
@@ -196,6 +197,9 @@ export(
     ## sparseMatrix-utils.R:
     rowsum, colsum,
 
+    ## abind-utils.R:
+    arbind, acbind,
+
     ## extract_array.R:
     extract_array,
 
@@ -212,6 +216,7 @@ export(
 ### Same list as above.
 exportMethods(
     rowsum, colsum,
+    arbind, acbind,
     extract_array,
     refdim, maxlength, aperm, downsample,
     is_sparse,

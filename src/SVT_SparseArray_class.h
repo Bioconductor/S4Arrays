@@ -3,6 +3,8 @@
 
 #include <Rdefines.h>
 
+SEXPTYPE _get_Rtype_from_Rstring(SEXP type);
+
 SEXP C_get_SVT_SparseArray_nzdata_length(
 	SEXP x_dim,
 	SEXP x_SVT

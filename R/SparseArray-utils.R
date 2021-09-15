@@ -4,64 +4,6 @@
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Binding
-###
-
-### Similar to simple_abind() (see bind-arrays.R) but works on
-### COO_SparseArray objects.
-abind_COO_SparseArray_objects <- function(objects, along)
-{
-    stopifnot(is.list(objects))
-    if (length(objects) == 0L)
-        return(NULL)
-
-    ## Check dim compatibility.
-    dims <- get_dims_to_bind(objects, along)
-    if (is.character(dims))
-        stop(wmsg(dims))
-    if (length(objects) == 1L)
-        return(objects[[1L]])
-
-    ## Compute 'ans_dim' and 'ans_dimnames'.
-    ans_dim <- combine_dims_along(dims, along)
-    ans_dimnames <- combine_dimnames_along(objects, dims, along)
-
-    ## Combine the "nzcoo" slots.
-    offsets <- cumsum(dims[along, -ncol(dims)])
-    nzcoo_list <- lapply(seq_along(objects),
-        function(i) {
-            object <- objects[[i]]
-            nzcoo <- object@nzcoo
-            if (i >= 2L)
-                nzcoo[ , along] = nzcoo[ , along, drop=FALSE] +
-                                  offsets[[i - 1L]]
-            nzcoo
-	}
-    )
-    ans_nzcoo <- do.call(rbind, nzcoo_list)
-
-    ## Combine the "nzvals" slots.
-    ans_nzvals <- unlist(lapply(objects, slot, "nzvals"), use.names=FALSE)
-
-    COO_SparseArray(ans_dim, ans_nzcoo, ans_nzvals, ans_dimnames, check=FALSE)
-}
-
-setMethod("rbind", "COO_SparseArray",
-    function(...)
-    {
-        abind_COO_SparseArray_objects(list(...), along=1L)
-    }
-)
-
-setMethod("cbind", "COO_SparseArray",
-    function(...)
-    {
-        abind_COO_SparseArray_objects(list(...), along=2L)
-    }
-)
-
-
-### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### Various "unary isometric" array transformations
 ###
 ### A "unary isometric" array transformation is a transformation that returns

@@ -1,5 +1,5 @@
 /****************************************************************************
- *            Low-level manipulation of SVT_SparseArray objects             *
+ *               Core manipulation of SVT_SparseArray objects               *
  ****************************************************************************/
 #include "SVT_SparseArray_class.h"
 
@@ -20,6 +20,26 @@ static const SEXPTYPE supported_SVT_Rtypes[] = {
 
 	VECSXP    // "list"
 };
+
+/* Also checks the supplied 'type'. */
+SEXPTYPE _get_Rtype_from_Rstring(SEXP type)
+{
+	SEXP type0;
+	SEXPTYPE Rtype;
+	int ntypes, i;
+
+	if (!IS_CHARACTER(type) || LENGTH(type) != 1)
+		return 0;
+	type0 = STRING_ELT(type, 0);
+	if (type0 == NA_STRING)
+		return 0;
+	Rtype = str2type(CHAR(type0));
+	ntypes = sizeof(supported_SVT_Rtypes) / sizeof(SEXPTYPE);
+	for (i = 0; i < ntypes; i++)
+		if (Rtype == supported_SVT_Rtypes[i])
+			return Rtype;
+	return 0;
+}
 
 
 /****************************************************************************
@@ -393,26 +413,6 @@ static inline int copy_Rvector_elts(
 	if (out_offset + nelt > XLENGTH(out))
 		return -1;
 	copy_Rvector_elts_FUN(in, in_offset, out, out_offset, nelt);
-	return 0;
-}
-
-/* Also checks the supplied 'type'. */
-static SEXPTYPE get_Rtype_from_Rstring(SEXP type)
-{
-	SEXP type0;
-	SEXPTYPE Rtype;
-	int ntypes, i;
-
-	if (!IS_CHARACTER(type) || LENGTH(type) != 1)
-		return 0;
-	type0 = STRING_ELT(type, 0);
-	if (type0 == NA_STRING)
-		return 0;
-	Rtype = str2type(CHAR(type0));
-	ntypes = sizeof(supported_SVT_Rtypes) / sizeof(SEXPTYPE);
-	for (i = 0; i < ntypes; i++)
-		if (Rtype == supported_SVT_Rtypes[i])
-			return Rtype;
 	return 0;
 }
 
@@ -808,7 +808,7 @@ static int REC_set_SVT_type(SEXP SVT, const int *dim, int ndim,
 		SEXPTYPE new_Rtype, int *warn, int *offs_buf)
 {
 	SEXP new_lv, subSVT;
-	int SVT_len, empty, k, ret;
+	int SVT_len, is_empty, k, ret;
 
 	if (SVT == R_NilValue)
 		return 1;
@@ -830,7 +830,7 @@ static int REC_set_SVT_type(SEXP SVT, const int *dim, int ndim,
 	if (SVT_len != dim[ndim - 1])
 		return -1;
 
-	empty = 1;
+	is_empty = 1;
 	for (k = 0; k < SVT_len; k++) {
 		subSVT = VECTOR_ELT(SVT, k);
 		ret = REC_set_SVT_type(subSVT, dim, ndim - 1,
@@ -840,10 +840,10 @@ static int REC_set_SVT_type(SEXP SVT, const int *dim, int ndim,
 		if (ret == 1) {
 			SET_VECTOR_ELT(SVT, k, R_NilValue);
 		} else {
-			empty = 0;
+			is_empty = 0;
 		}
 	}
-	return empty;
+	return is_empty;
 }
 
 /* --- .Call ENTRY POINT --- */
@@ -854,7 +854,7 @@ SEXP C_set_SVT_SparseArray_type(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	int warn, *offs_buf, ret;
 	SEXP ans;
 
-	new_Rtype = get_Rtype_from_Rstring(new_type);
+	new_Rtype = _get_Rtype_from_Rstring(new_type);
 	if (new_Rtype == 0)
 		error("invalid supplied type");
 
@@ -938,7 +938,7 @@ SEXP C_from_SVT_SparseArray_to_Rarray(SEXP x_dim, SEXP x_dimnames,
 	SEXP ans;
 	int ret;
 
-	Rtype = get_Rtype_from_Rstring(x_type);
+	Rtype = _get_Rtype_from_Rstring(x_type);
 	copy_Rvector_elt_FUN = select_copy_Rvector_elt_FUN(Rtype);
 	if (copy_Rvector_elt_FUN == NULL)
 		error("S4Arrays internal error in "
@@ -970,9 +970,9 @@ static SEXP REC_build_SVT_from_Rsubarray(
 		SEXPTYPE ans_Rtype, int *warn, int *offs_buf)
 {
 	SEXP ans, ans_elt;
-	int SVT_len, empty, k;
+	int SVT_len, is_empty, k;
 
-	if (ndim == 1) { /* Sanity check (should never fail). */
+	if (ndim == 1) {  /* Sanity check (should never fail). */
 		if (dim[0] != subarr_len)
 			error("S4Arrays internal error "
 			      "in REC_build_SVT_from_Rsubarray():\n"
@@ -991,7 +991,7 @@ static SEXP REC_build_SVT_from_Rsubarray(
 	SVT_len = dim[ndim - 1];  /* cannot be 0 so safe to divide below */
 	subarr_len /= SVT_len;
 	ans = PROTECT(NEW_LIST(SVT_len));
-	empty = 1;
+	is_empty = 1;
 	for (k = 0; k < SVT_len; k++) {
 		ans_elt = REC_build_SVT_from_Rsubarray(
 					Rarray, subarr_offset, subarr_len,
@@ -1001,12 +1001,12 @@ static SEXP REC_build_SVT_from_Rsubarray(
 			PROTECT(ans_elt);
 			SET_VECTOR_ELT(ans, k, ans_elt);
 			UNPROTECT(1);
-			empty = 0;
+			is_empty = 0;
 		}
 		subarr_offset += subarr_len;
 	}
 	UNPROTECT(1);
-	return empty ? R_NilValue : ans;
+	return is_empty ? R_NilValue : ans;
 }
 
 /* --- .Call ENTRY POINT --- */
@@ -1018,7 +1018,7 @@ SEXP C_build_SVT_from_Rarray(SEXP x, SEXP ans_type)
 	R_xlen_t x_len;
 	SEXP x_dim, ans;
 
-	ans_Rtype = get_Rtype_from_Rstring(ans_type);
+	ans_Rtype = _get_Rtype_from_Rstring(ans_type);
 	if (ans_Rtype == 0)
 		error("invalid requested type");
 
@@ -1110,7 +1110,7 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
 	SEXP ans_p, ans_i, ans_x, ans;
 
 	if (LENGTH(x_dim) != 2)
-		error("object to coerce to dgCMatrix "
+		error("object to coerce to [d|l]gCMatrix "
 		      "must have exactly 2 dimensions");
 
 	nzdata_len = REC_sum_leaf_vector_lengths(x_SVT, 2);
@@ -1118,7 +1118,7 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
 		error("SVT_SparseArray object contains too many nonzero "
 		      "values to be turned into a COO_SparseArray object");
 
-	x_Rtype = get_Rtype_from_Rstring(x_type);
+	x_Rtype = _get_Rtype_from_Rstring(x_type);
 	if (x_Rtype == 0)
 		error("S4Arrays internal error in "
 		      "C_from_SVT_SparseArray_to_CsparseMatrix():\n"
@@ -1152,7 +1152,7 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
 
 
 /****************************************************************************
- * Going from dgCMatrix to SVT_SparseArray
+ * Going from [d|l]gCMatrix to SVT_SparseArray
  */
 
 /* Returns R_NilValue or a "leaf vector" of length <= nzcount. */
@@ -1189,14 +1189,14 @@ SEXP C_build_SVT_from_CsparseMatrix(SEXP x, SEXP ans_type)
 	SEXP x_x, x_Dim, x_p, x_i, ans, ans_elt;
 	CopyRVectorElts_FUNType copy_Rvector_elts_FUN;
 	SEXPTYPE ans_Rtype;
-	int x_nrow, x_ncol, j, offset, nzcount, warn, *offs_buf, empty;
+	int x_nrow, x_ncol, j, offset, nzcount, warn, *offs_buf, is_empty;
 
 	x_x = GET_SLOT(x, install("x"));
 	copy_Rvector_elts_FUN = select_copy_Rvector_elts_FUN(TYPEOF(x_x));
 	if (copy_Rvector_elts_FUN == NULL)
 		error("unsupported CsparseMatrix type");
 
-	ans_Rtype = get_Rtype_from_Rstring(ans_type);
+	ans_Rtype = _get_Rtype_from_Rstring(ans_type);
 	if (ans_Rtype == 0)
 		error("invalid requested type");
 
@@ -1213,7 +1213,7 @@ SEXP C_build_SVT_from_CsparseMatrix(SEXP x, SEXP ans_type)
 	warn = 0;
 	offs_buf = (int *) R_alloc(x_nrow, sizeof(int));
 	ans = PROTECT(NEW_LIST(x_ncol));
-	empty = 1;
+	is_empty = 1;
 	for (j = 0; j < x_ncol; j++) {
 		offset = INTEGER(x_p)[j];
 		nzcount = INTEGER(x_p)[j + 1] - offset;
@@ -1227,14 +1227,14 @@ SEXP C_build_SVT_from_CsparseMatrix(SEXP x, SEXP ans_type)
 				PROTECT(ans_elt);
 				SET_VECTOR_ELT(ans, j, ans_elt);
 				UNPROTECT(1);
-				empty = 0;
+				is_empty = 0;
 			}
 		}
 	}
 	if (warn)
 		_CoercionWarning(warn);
 	UNPROTECT(1);
-	return empty ? R_NilValue : ans;
+	return is_empty ? R_NilValue : ans;
 }
 
 
@@ -1246,7 +1246,7 @@ static SEXP alloc_nzvals(R_xlen_t nzdata_len, SEXP type)
 {
 	SEXPTYPE Rtype;
 
-	Rtype = get_Rtype_from_Rstring(type);
+	Rtype = _get_Rtype_from_Rstring(type);
 	if (Rtype == 0)
 		error("S4Arrays internal error in "
 		      "alloc_nzvals():\n"
@@ -1484,7 +1484,7 @@ SEXP C_build_SVT_from_COO_SparseArray(
 	   For now we take care of honoring the user-requested type at the R
 	   level and it's not clear that there's much to gain by handling this
 	   at the C level. */
-	//ans_Rtype = get_Rtype_from_Rstring(ans_type);
+	//ans_Rtype = _get_Rtype_from_Rstring(ans_type);
 	//if (ans_Rtype == 0)
 	//	error("invalid requested type");
 
@@ -1848,7 +1848,7 @@ SEXP C_transpose_SVT_SparseArray(SEXP x_dim, SEXP x_type, SEXP x_SVT)
 	SEXPTYPE Rtype;
 	int x_nrow, x_ncol, *nzcounts;
 
-	Rtype = get_Rtype_from_Rstring(x_type);
+	Rtype = _get_Rtype_from_Rstring(x_type);
 	if (Rtype == 0)
 		error("S4Arrays internal error in "
 		      "C_transpose_SVT_SparseArray():\n"

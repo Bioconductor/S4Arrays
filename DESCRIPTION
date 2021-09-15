@@ -26,6 +26,7 @@ Collate: utils.R
 	ArraySelection-class.R
 	array_selection.R
 	Nindex-utils.R
+	abind-utils.R
 	Array-class.R
 	extract_array.R
 	ArrayGrid-class.R
@@ -33,6 +34,7 @@ Collate: utils.R
 	SparseArray-class.R
 	COO_SparseArray-class.R
 	SVT_SparseArray-class.R
+	SparseArray-combine.R
 	SparseArray-utils.R
 	readSparseCSV.R
 	zzz.R
