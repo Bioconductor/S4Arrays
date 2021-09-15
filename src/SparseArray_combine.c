@@ -3,6 +3,7 @@
  ****************************************************************************/
 #include "SparseArray_combine.h"
 
+#include "Rvector_utils.h"
 #include "SVT_SparseArray_class.h"
 
 
@@ -60,46 +61,8 @@ static int all_NULLs(SEXP *SVTs, int nb_objects)
 	return 1;
 }
 
-static SEXP concatenate_SVTs(SEXP *SVTs, int nb_objects,
-		const int *dims_along, int sum_dims_along,
-		SEXPTYPE ans_Rtype)
-{
-	int n, offset, SVT_len, k;
-	SEXP SVT, ans;
-
-	for (n = 0; n < nb_objects; n++) {
-		SVT = SVTs[n];
-		if (SVT != R_NilValue) {
-			if (LENGTH(SVT) != dims_along[n])
-				error("input object %s is an invalid "
-				      "SVT_SparseArray", n + 1);
-		}
-	}
-
-	ans = PROTECT(NEW_LIST(sum_dims_along));
-
-	offset = 0;
-	for (n = 0; n < nb_objects; n++) {
-		SVT = SVTs[n];
-		if (SVT == R_NilValue) {
-			offset += dims_along[n];
-			continue;
-		}
-		SVT_len = LENGTH(SVT);
-		for (k = 0; k < SVT_len; k++, offset++)
-			SET_VECTOR_ELT(ans, offset, VECTOR_ELT(SVT, k));
-	}
-
-	UNPROTECT(1);
-	/* Sanity check (should never fail). */
-	if (offset != sum_dims_along)
-		error("S4Arrays internal error in concatenate_SVTs():\n"
-		      "  offset != sum_dims_along");
-	return ans;
-}
-
-/* All SVT objects in 'SVTs' are expected to have their last dimension (a.k.a.
-   rightmost dimension, a.k.a. outer dimension) equal to 'd'. */
+/* All the SVTs are expected to have their last dimension (a.k.a. rightmost
+   dimension, a.k.a. outermost dimension) equal to 'd'. */
 static int collect_SVTs_kth_elt(SEXP *SVTs, int nb_objects, int k, int d,
 		SEXP *subSVTs_buf)
 {
@@ -123,11 +86,100 @@ static int collect_SVTs_kth_elt(SEXP *SVTs, int nb_objects, int k, int d,
 	return 0;
 }
 
+/* Each SVT is expected to be either NULL or a regular SVT node (i.e. list).
+   They should never be all NULLs.
+   Returns a list of length 'sum_dims_along'. */
+static SEXP concatenate_SVTs(SEXP *SVTs, int nb_objects,
+		const int *dims_along, int sum_dims_along)
+{
+	SEXP ans, SVT;
+	int offset, n, SVT_len, k;
+
+	ans = PROTECT(NEW_LIST(sum_dims_along));
+
+	offset = 0;
+	for (n = 0; n < nb_objects; n++) {
+		SVT = SVTs[n];
+		if (SVT == R_NilValue) {
+			offset += dims_along[n];
+			continue;
+		}
+		/* Sanity check (should never fail). */
+		if (!isVectorList(SVT))
+			error("input object %s is an invalid SVT_SparseArray",
+			      n + 1);
+		SVT_len = LENGTH(SVT);
+		/* Sanity check (should never fail). */
+		if (SVT_len != dims_along[n])
+			error("input object %s is an invalid SVT_SparseArray",
+			      n + 1);
+		for (k = 0; k < SVT_len; k++, offset++)
+			SET_VECTOR_ELT(ans, offset, VECTOR_ELT(SVT, k));
+	}
+
+	UNPROTECT(1);
+	/* Sanity check (should never fail). */
+	if (offset != sum_dims_along)
+		error("S4Arrays internal error in concatenate_SVTs():\n"
+		      "  offset != sum_dims_along");
+	return ans;
+}
+
+/* Each SVT is expected to be either NULL or a "leaf vector".
+   They should never be all NULLs. */
+static SEXP concatenate_leaf_vectors(SEXP *SVTs, int nb_objects,
+		const int *dims_along, int sum_dims_along,
+		SEXPTYPE ans_Rtype,
+		CopyRVectorElts_FUNType copy_Rvector_elts_FUN)
+{
+	SEXP SVT, ans, ans_offs, ans_vals, lv_offs, lv_vals;
+	int ans_len, n, k1, offset, lv_len, k2;
+
+	ans_len = 0;
+	for (n = 0; n < nb_objects; n++) {
+		SVT = SVTs[n];
+		if (SVT == R_NilValue)
+			continue;
+		/* Sanity check (should never fail). */
+		if (!isVectorList(SVT) || LENGTH(SVT) != 2)
+			error("input object %s is an invalid SVT_SparseArray",
+			      n + 1);
+		ans_len += LENGTH(VECTOR_ELT(SVT, 0));
+	}
+
+	ans_offs  = PROTECT(NEW_INTEGER(ans_len));
+	ans_vals = PROTECT(allocVector(ans_Rtype, ans_len));
+	k1 = 0;
+	for (n = 0, offset = 0; n < nb_objects; n++, offset += dims_along[n]) {
+		SVT = SVTs[n];
+		if (SVT == R_NilValue)
+			continue;
+		lv_len = _split_leaf_vector(SVT, &lv_offs, &lv_vals);
+		copy_Rvector_elts_FUN(lv_vals, 0, ans_vals, k1, lv_len);
+		for (k2 = 0; k2 < lv_len; k2++, k1++)
+			INTEGER(ans_offs)[k1] = INTEGER(lv_offs)[k2] + offset;
+	}
+	ans = _new_leaf_vector(ans_offs, ans_vals);
+	UNPROTECT(2);
+	/* Sanity checks (should never fail). */
+	if (k1 != ans_len)
+		error("S4Arrays internal error in "
+		      "concatenate_leaf_vectors():\n"
+		      "   k1 != ans_len");
+	if (offset != sum_dims_along)
+		error("S4Arrays internal error in "
+		      "concatenate_leaf_vectors():\n"
+		      "  offset != sum_dims_along");
+	return ans;
+}
+
 /* Recursive.
+   'along0' will always be >= 0 and < 'ndim'.
    Returns R_NilValue or a list of length 'ans_dim[ndim - 1]'. */
-static SEXP REC_combine_SVTs(SEXP *SVTs, int nb_objects,
-		const int *ans_dim, int ndim, int along0,
-		const int *dims_along, SEXPTYPE ans_Rtype)
+static SEXP REC_abind_SVTs(SEXP *SVTs, int nb_objects,
+		const int *ans_dim, int ndim, int along0, const int *dims_along,
+		SEXPTYPE ans_Rtype,
+		CopyRVectorElts_FUNType copy_Rvector_elts_FUN)
 {
 	SEXP *subSVTs_buf, ans, ans_elt;
 	int ans_len, is_empty, k, ret;
@@ -135,13 +187,18 @@ static SEXP REC_combine_SVTs(SEXP *SVTs, int nb_objects,
 	if (all_NULLs(SVTs, nb_objects))
 		return R_NilValue;
 
-	if (along0 == 0)
-		return R_NilValue; /* not ready yet */
+	if (ndim == 1) {
+		/* This is the case where we are binding SVT_SparseArray
+		   objects along their first dimension. */
+		return concatenate_leaf_vectors(SVTs, nb_objects,
+					dims_along, ans_dim[along0],
+					ans_Rtype,
+					copy_Rvector_elts_FUN);
+	}
 
 	if (along0 == ndim - 1)
 		return concatenate_SVTs(SVTs, nb_objects,
-					dims_along, ans_dim[along0],
-					ans_Rtype);
+					dims_along, ans_dim[along0]);
 
 	subSVTs_buf = SVTs + nb_objects;
 	ans_len = ans_dim[ndim - 1];
@@ -153,12 +210,12 @@ static SEXP REC_combine_SVTs(SEXP *SVTs, int nb_objects,
 		if (ret < 0) {
 			UNPROTECT(1);
 			error("S4Arrays internal error in "
-			      "REC_combine_SVTs():\n"
+			      "REC_abind_SVTs():\n"
 			      "  collect_SVTs_kth_elt() returned an error");
 		}
-		ans_elt = REC_combine_SVTs(subSVTs_buf, nb_objects,
-					   ans_dim, ndim - 1, along0,
-					   dims_along, ans_Rtype);
+		ans_elt = REC_abind_SVTs(subSVTs_buf, nb_objects,
+				ans_dim, ndim - 1, along0, dims_along,
+				ans_Rtype, copy_Rvector_elts_FUN);
 		if (ans_elt != R_NilValue) {
 			PROTECT(ans_elt);
 			SET_VECTOR_ELT(ans, k, ans_elt);
@@ -174,6 +231,7 @@ static SEXP REC_combine_SVTs(SEXP *SVTs, int nb_objects,
 SEXP C_abind_SVT_SparseArray_objects(SEXP objects, SEXP along, SEXP ans_type)
 {
 	SEXPTYPE ans_Rtype;
+	CopyRVectorElts_FUNType copy_Rvector_elts_FUN;
 	int along0, nb_objects, *dims_along, ndim;
 	SEXP ans_dim, *SVTs_buf, ans_SVT, ans;
 
@@ -181,7 +239,8 @@ SEXP C_abind_SVT_SparseArray_objects(SEXP objects, SEXP along, SEXP ans_type)
 		error("'objects' must be a list of SVT_SparseArray objects");
 
 	ans_Rtype = _get_Rtype_from_Rstring(ans_type);
-	if (ans_Rtype == 0)
+	copy_Rvector_elts_FUN = _select_copy_Rvector_elts_FUN(ans_Rtype);
+	if (copy_Rvector_elts_FUN == NULL)
 		error("invalid requested type");
 
 	if (!IS_INTEGER(along) || XLENGTH(along) != 1)
@@ -199,9 +258,9 @@ SEXP C_abind_SVT_SparseArray_objects(SEXP objects, SEXP along, SEXP ans_type)
 	ndim = LENGTH(ans_dim);
 
 	SVTs_buf = prepare_SVTs_buf(objects, ndim, along0);
-	ans_SVT = REC_combine_SVTs(SVTs_buf, nb_objects,
-				   INTEGER(ans_dim), ndim, along0,
-				   dims_along, ans_Rtype);
+	ans_SVT = REC_abind_SVTs(SVTs_buf, nb_objects,
+			INTEGER(ans_dim), ndim, along0, dims_along,
+			ans_Rtype, copy_Rvector_elts_FUN);
 	if (ans_SVT != R_NilValue)
 		PROTECT(ans_SVT);
 
