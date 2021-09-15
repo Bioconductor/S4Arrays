@@ -1,5 +1,3 @@
-- Implement rbind()/cbind()/abind() of SVT_SparseArray objects.
-
 - Implement extract_sparse_array() method for SVT_SparseArray objects.
 
 - Add unit tests for the SVT_SparseArray stuff.

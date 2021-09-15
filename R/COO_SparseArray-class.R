@@ -17,8 +17,8 @@
 ### - dense2sparse(), sparse2dense().
 ### - Based on sparse2dense(): extract_array(), as.array(), as.matrix().
 ### - Based on dense2sparse(): coercion to COO_SparseArray.
-### - Back and forth coercion between COO_SparseArray and dg[C|R]Matrix or
-###   lg[C|R]Matrix objects from the Matrix package.
+### - Back and forth coercion between COO_SparseArray and [d|l]g[C|R]Matrix
+###   objects from the Matrix package.
 ###
 
 setClass("COO_SparseArray",
@@ -127,8 +127,6 @@ setReplaceMethod("type", "COO_SparseArray", .set_COO_SparseArray_type)
 ### sparsity()
 ###
 
-setGeneric("sparsity", function(x) standardGeneric("sparsity"))
-
 setMethod("sparsity", "COO_SparseArray",
     function(x) { 1 - length(nzvals(x)) / length(x) }
 )
@@ -219,45 +217,7 @@ sparse2dense <- function(coo)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### The extract_sparse_array() generics
-###
-
-### This is the workhorse behind read_sparse_block().
-### Similar to extract_array() except that:
-###   (1) The extracted array data must be returned in a COO_SparseArray
-###       object. Methods should always operate on the sparse representation
-###       of the data and never "expand" it, that is, never turn it into a
-###       dense representation for example by doing something like
-###       'dense2sparse(extract_array(x, index))'. This would defeat the
-###       purpose of read_sparse_block().
-###   (2) It should be called only on an array-like object 'x' for which
-###       'is_sparse(x)' is TRUE.
-###   (3) The subscripts in 'index' should NOT contain duplicates.
-### IMPORTANT NOTE: For the sake of efficiency, (2) and (3) are NOT checked
-### and are the responsibility of the user. We'll refer to (2) and (3) as
-### the "extract_sparse_array() Terms of Use".
-setGeneric("extract_sparse_array",
-    function(x, index)
-    {
-        x_dim <- dim(x)
-        if (is.null(x_dim))
-            stop(wmsg("first argument to extract_sparse_array() ",
-                      "must be an array-like object"))
-        ans <- standardGeneric("extract_sparse_array")
-        expected_dim <- get_Nindex_lengths(index, x_dim)
-        ## TODO: Display a more user/developper-friendly error by
-        ## doing something like the extract_array() generic where
-        ## check_returned_array() is used to display a long and
-        ## detailed error message.
-        stopifnot(is(ans, "COO_SparseArray"),
-                  identical(dim(ans), expected_dim))
-        ans
-    }
-)
-
-
-### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### is_sparse(), extract_sparse_array(), and extract_array() methods
+### The extract_sparse_array() and extract_array() methods
 ###
 
 ### IMPORTANT NOTE: The returned COO_SparseArray object is guaranteed to be

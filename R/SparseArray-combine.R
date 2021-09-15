@@ -77,7 +77,10 @@ setMethod("acbind", "COO_SparseArray",
     ans_dimnames <- combine_dimnames_along(objects, dims, along)
 
     ## Compute 'ans_type'.
-    ans_type <- type(objects[[1L]])
+    ans_type <- type(unlist(
+        lapply(objects, function(object) vector(type(object)))
+    ))
+    objects <- lapply(objects, `type<-`, ans_type)
 
     ## Returns 'ans_dim' and 'ans_SVT' in a list of length 2.
     C_ans <- .Call2("C_abind_SVT_SparseArray_objects",

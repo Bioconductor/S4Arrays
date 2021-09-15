@@ -168,6 +168,9 @@ exportMethods(
 ###
 
 export(
+    ## aperm2.R:
+    aperm2,
+
     ## ArraySelection-class.R:
     SelectionTree,
 
@@ -182,7 +185,7 @@ export(
     COO_SparseArray, dense2sparse, sparse2dense,
 
     ## SVT_SparseArray-class.R:
-    SVT_SparseArray,
+    SVT_SparseArray, SparseArray,
 
     ## readSparseCSV.R:
     readSparseCSV, readSparseTable
@@ -194,6 +197,9 @@ export(
 ###
 
 export(
+    ## aperm2.R:
+    aperm,
+
     ## sparseMatrix-utils.R:
     rowsum, colsum,
 
@@ -204,24 +210,29 @@ export(
     extract_array,
 
     ## ArrayGrid-class.R:
-    refdim, maxlength, aperm, downsample,
+    refdim, maxlength, downsample,
 
     ## SparseArray-class.R:
     is_sparse,
     "is_sparse<-",
-    nzcoo, nzvals, sparsity,
-    extract_sparse_array
+    sparsity,
+    extract_sparse_array,
+
+    ## COO_SparseArray-class.R:
+    nzcoo, nzvals
 )
 
 ### Same list as above.
 exportMethods(
+    aperm,
     rowsum, colsum,
     arbind, acbind,
     extract_array,
-    refdim, maxlength, aperm, downsample,
+    refdim, maxlength, downsample,
     is_sparse,
     #"is_sparse<-",  # no methods defined in S4Arrays!
-    nzcoo, nzvals, sparsity,
-    extract_sparse_array
+    sparsity,
+    extract_sparse_array,
+    nzcoo, nzvals
 )
 

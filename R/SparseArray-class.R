@@ -3,6 +3,8 @@
 ### -------------------------------------------------------------------------
 
 
+### Virtual class with 2 concrete subclasses: COO_SparseArray and
+### SVT_SparseArray.
 setClass("SparseArray",
     contains="Array",
     representation(
@@ -36,7 +38,6 @@ setValidity2("SparseArray", .validate_SparseArray)
 ### - Getters: dim(), length(), dimnames(), type().
 ### - Setters: `dimnames<-`(), `type<-`().
 ### - is_sparse().
-###
 
 setMethod("dimnames", "SparseArray",
     function(x) simplify_NULL_dimnames(x@dimnames)
@@ -104,8 +105,8 @@ setGeneric("sparsity", function(x) standardGeneric("sparsity"))
 
 ### This is the workhorse behind read_sparse_block().
 ### Similar to extract_array() except that:
-###   (1) The extracted array data must be returned in a COO_SparseArray
-###       object. Methods should always operate on the sparse representation
+###   (1) The extracted array data must be returned as a SparseArray object.
+###       Methods should always operate on the sparse representation
 ###       of the data and never "expand" it, that is, never turn it into a
 ###       dense representation for example by doing something like
 ###       'dense2sparse(extract_array(x, index))'. This would defeat the
@@ -129,7 +130,7 @@ setGeneric("extract_sparse_array",
         ## doing something like the extract_array() generic where
         ## check_returned_array() is used to display a long and
         ## detailed error message.
-        stopifnot(is(ans, "COO_SparseArray"),
+        stopifnot(is(ans, "SparseArray"),
                   identical(dim(ans), expected_dim))
         ans
     }

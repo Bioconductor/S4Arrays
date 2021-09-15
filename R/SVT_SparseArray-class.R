@@ -20,17 +20,27 @@
 ### More precisely:
 ###
 ### - An SVT_SparseArray object with 1 dimension stores its nonzero data in an
-###   SVT of depth 1. Such SVT is represented by a single "leaf vector".
+###   SVT of depth 0. Such SVT is represented by a single "leaf vector".
 ###
 ### - An SVT_SparseArray object with 2 dimensions stores its nonzero data in an
-###   SVT of depth 2. Such SVT is represented by a list of length the extend
+###   SVT of depth 1. Such SVT is represented by a list of length the extend
 ###   of the 2nd dimension (nb of columns). Each list element is an SVT of
-###   depth 1 (as described above), or a NULL if the corresponding column is
+###   depth 0 (as described above), or a NULL if the corresponding column is
 ###   empty (i.e. has no nonzero data).
+###   For example, the SVT for an 8-column matrix will look like this:
+###
+###             .------------------list-of-length-8-----------------.
+###            /       /       /      |       |      \       \       \
+###           |       |       |       |       |       |       |       |
+###          leaf    leaf    NULL    leaf    leaf    leaf    leaf    NULL
+###         vector  vector          vector  vector  vector  vector
+###
+###         Note that empty columns (i.e. columns with no nonzero elements)
+###         are represented with NULLs.
 ###
 ### - An SVT_SparseArray object with 3 dimensions stores its nonzero data in an
-###   SVT of depth 3. Such SVT is represented by a list of length the extend
-###   of the 3rd dimension. Each list element must be an SVT of depth 2 (as
+###   SVT of depth 2. Such SVT is represented by a list of length the extend
+###   of the 3rd dimension. Each list element must be an SVT of depth 1 (as
 ###   described above) that stores the nonzero data of the corresponding 2D
 ###   slice, or a NULL if the 2D slice is empty (i.e. has no nonzero data).
 ###
@@ -274,24 +284,24 @@ setAs("COO_SparseArray", "SVT_SparseArray",
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Constructor
+### SVT_SparseArray() constructor
 ###
 
-SVT_SparseArray <- function(x, type=NA)
+.new_empty_SVT_SparseArray <- function(type=NA)
 {
-    if (!identical(type, NA))
-        type <- normarg_array_type(type, "the requested type")
+    if (identical(type, NA))
+        type <- "logical"
+    new2("SVT_SparseArray", type=type, check=FALSE)
+}
 
-    if (missing(x)) {
-        if (identical(type, NA))
-            type <- "logical"
-        return(new2("SVT_SparseArray", type=type, check=FALSE))
-    }
-
+.SVT_SparseArray <- function(x, type=NA)
+{
     if (is.array(x))
         return(.build_SVT_SparseArray_from_array(x, type=type))
+
     if (is(x, "CsparseMatrix"))
         return(.build_SVT_SparseArray_from_CsparseMatrix(x, type=type))
+
     if (is(x, "COO_SparseArray"))
         return(.build_SVT_SparseArray_from_COO_SparseArray(x, type=type))
 
@@ -299,6 +309,48 @@ SVT_SparseArray <- function(x, type=NA)
     if (!identical(type, NA))
         type(ans) <- type
     ans
+}
+
+SVT_SparseArray <- function(x, type=NA)
+{
+    if (!identical(type, NA))
+        type <- normarg_array_type(type, "the requested type")
+
+    if (missing(x))
+        return(.new_empty_SVT_SparseArray(type))
+
+    .SVT_SparseArray(x, type=type)
+}
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### Coercion to SparseArray, and the SparseArray() constructor
+###
+### The SVT_SparseArray representation is preferred over COO_SparseArray when
+### coercing to SparseArray or when using the SparseArray() constructor. With
+### one exception: when the object to coerce is an RsparseMatrix derivative!
+### This is because we don't have an efficient way to coerce these objects to
+### SVT_SparseArray at the moment.
+
+setAs("ANY", "SparseArray", function(from) as(from, "SVT_SparseArray"))
+setAs("RsparseMatrix", "SparseArray", function(from) as(from, "COO_SparseArray"))
+
+SparseArray <- function(x, type=NA)
+{
+    if (!identical(type, NA))
+        type <- normarg_array_type(type, "the requested type")
+
+    if (missing(x))
+        return(.new_empty_SVT_SparseArray(type))
+
+    if (is(x, "RsparseMatrix")) {
+        ans <- as(x, "COO_SparseArray")
+        if (!identical(type, NA))
+            type(ans) <- type
+        return(ans)
+    }
+
+    .SVT_SparseArray(x, type=type)
 }
 
 

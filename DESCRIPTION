@@ -22,6 +22,7 @@ Suggests: BiocParallel, DelayedArray, scuttle, knitr, rmarkdown, BiocStyle,
 	RUnit
 VignetteBuilder: knitr
 Collate: utils.R
+	aperm2.R
 	sparseMatrix-utils.R
 	ArraySelection-class.R
 	array_selection.R
