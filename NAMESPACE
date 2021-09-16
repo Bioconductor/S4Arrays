@@ -216,10 +216,12 @@ export(
     is_sparse,
     "is_sparse<-",
     sparsity,
-    extract_sparse_array,
 
     ## COO_SparseArray-class.R:
-    nzcoo, nzvals
+    nzcoo, nzvals,
+
+    ## extract_sparse_array.R:
+    extract_sparse_array
 )
 
 ### Same list as above.
@@ -232,7 +234,7 @@ exportMethods(
     is_sparse,
     #"is_sparse<-",  # no methods defined in S4Arrays!
     sparsity,
-    extract_sparse_array,
-    nzcoo, nzvals
+    nzcoo, nzvals,
+    extract_sparse_array
 )
 

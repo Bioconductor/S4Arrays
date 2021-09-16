@@ -217,85 +217,6 @@ sparse2dense <- function(coo)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### The extract_sparse_array() and extract_array() methods
-###
-
-### IMPORTANT NOTE: The returned COO_SparseArray object is guaranteed to be
-### **correct** ONLY if the subscripts in 'index' do NOT contain duplicates!
-### If they contain duplicates, the correct COO_SparseArray object to return
-### should contain repeated nonzero data. However, in order to keep it as
-### efficient as possible, the code below does NOT repeat the nonzero data
-### that corresponds to duplicates subscripts. It does not check for
-### duplicates in 'index' either because this check could have a
-### non-negligible cost.
-### All this is OK because .extract_sparse_array_from_COO_SparseArray()
-### should always be used in a context where 'index' does NOT contain
-### duplicates. The only situation where 'index' CAN contain duplicates
-### is when .extract_sparse_array_from_COO_SparseArray() is called by
-### .extract_array_from_COO_SparseArray(), in which case the missing
-### nonzero data is added later.
-.extract_sparse_array_from_COO_SparseArray <- function(x, index)
-{
-    stopifnot(is(x, "COO_SparseArray"))
-    ans_dim <- get_Nindex_lengths(index, dim(x))
-    x_nzcoo <- x@nzcoo
-    for (along in seq_along(ans_dim)) {
-        i <- index[[along]]
-        if (is.null(i))
-            next
-        x_nzcoo[ , along] <- match(x_nzcoo[ , along], i)
-    }
-    keep_idx <- which(!rowAnyNAs(x_nzcoo))
-    ans_nzcoo <- x_nzcoo[keep_idx, , drop=FALSE]
-    ans_nzvals <- x@nzvals[keep_idx]
-    COO_SparseArray(ans_dim, ans_nzcoo, ans_nzvals, check=FALSE)
-}
-setMethod("extract_sparse_array", "COO_SparseArray",
-    .extract_sparse_array_from_COO_SparseArray
-)
-
-.extract_array_from_COO_SparseArray <- function(x, index)
-{
-    sa0 <- .extract_sparse_array_from_COO_SparseArray(x, index)
-    ## If the subscripts in 'index' contain duplicates, 'sa0' is
-    ## "incomplete" in the sense that it does not contain the nonzero data
-    ## that should have been repeated according to the duplicates in the
-    ## subscripts (see IMPORTANT NOTE above).
-    ans0 <- sparse2dense(sa0)
-    ## We "complete" 'ans0' by repeating the nonzero data according to the
-    ## duplicates present in the subscripts. Note that this is easy and cheap
-    ## to do now because 'ans0' uses a dense representation (it's an ordinary
-    ## array). This would be much harder to do **natively** on the
-    ## COO_SparseArray form (i.e. without converting first to dense then
-    ## back to sparse in the process).
-    sm_index <- lapply(index,
-        function(i) {
-            if (is.null(i))
-                return(NULL)
-            sm <- match(i, i)
-            if (isSequence(sm))
-                return(NULL)
-            sm
-        })
-    if (all(S4Vectors:::sapply_isNULL(sm_index)))
-        return(ans0)
-    subset_by_Nindex(ans0, sm_index)
-}
-setMethod("extract_array", "COO_SparseArray",
-    .extract_array_from_COO_SparseArray
-)
-
-
-### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Show
-###
-
-setMethod("show", "COO_SparseArray",
-    function(object) show_compact_array(object)
-)
-
-
-### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### Coercion to/from COO_SparseArray
 ###
 
@@ -387,7 +308,7 @@ setAs("COO_SparseArray", "lgCMatrix", .from_COO_SparseArray_to_lgCMatrix)
 setAs("COO_SparseArray", "dgRMatrix", .from_COO_SparseArray_to_dgRMatrix)
 setAs("COO_SparseArray", "lgRMatrix", .from_COO_SparseArray_to_lgRMatrix)
 
-.make_COO_SparseArray_from_dgCMatrix_or_lgCMatrix <-
+make_COO_SparseArray_from_dgCMatrix_or_lgCMatrix <-
     function(from, use.dimnames=TRUE)
 {
     i <- from@i + 1L
@@ -397,7 +318,7 @@ setAs("COO_SparseArray", "lgRMatrix", .from_COO_SparseArray_to_lgRMatrix)
     COO_SparseArray(dim(from), ans_nzcoo, from@x, ans_dimnames, check=FALSE)
 }
 
-.make_COO_SparseArray_from_dgRMatrix_or_lgRMatrix <-
+make_COO_SparseArray_from_dgRMatrix_or_lgRMatrix <-
     function(from, use.dimnames=TRUE)
 {
     i <- rep.int(seq_len(nrow(from)), diff(from@p))
@@ -408,55 +329,16 @@ setAs("COO_SparseArray", "lgRMatrix", .from_COO_SparseArray_to_lgRMatrix)
 }
 
 setAs("dgCMatrix", "COO_SparseArray",
-    function(from) .make_COO_SparseArray_from_dgCMatrix_or_lgCMatrix(from)
+    function(from) make_COO_SparseArray_from_dgCMatrix_or_lgCMatrix(from)
 )
 setAs("lgCMatrix", "COO_SparseArray",
-    function(from) .make_COO_SparseArray_from_dgCMatrix_or_lgCMatrix(from)
+    function(from) make_COO_SparseArray_from_dgCMatrix_or_lgCMatrix(from)
 )
 setAs("dgRMatrix", "COO_SparseArray",
-    function(from) .make_COO_SparseArray_from_dgRMatrix_or_lgRMatrix(from)
+    function(from) make_COO_SparseArray_from_dgRMatrix_or_lgRMatrix(from)
 )
 setAs("lgRMatrix", "COO_SparseArray",
-    function(from) .make_COO_SparseArray_from_dgRMatrix_or_lgRMatrix(from)
-)
-
-
-### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### is_sparse() and extract_sparse_array() methods for dg[C|R]Matrix and
-### lg[C|R]Matrix objects from the Matrix package
-###
-### TODO: Support more sparseMatrix derivatives (e.g. dgTMatrix, dgRMatrix)
-### as the need arises.
-###
-
-setMethod("is_sparse", "dgCMatrix", function(x) TRUE)
-setMethod("is_sparse", "dgRMatrix", function(x) TRUE)
-setMethod("is_sparse", "lgCMatrix", function(x) TRUE)
-setMethod("is_sparse", "lgRMatrix", function(x) TRUE)
-
-.extract_sparse_array_from_dgCMatrix_or_lgCMatrix <- function(x, index)
-{
-    sm <- subset_by_Nindex(x, index)  # a dgCMatrix or lgCMatrix object
-    .make_COO_SparseArray_from_dgCMatrix_or_lgCMatrix(sm, use.dimnames=FALSE)
-}
-
-.extract_sparse_array_from_dgRMatrix_or_lgRMatrix <- function(x, index)
-{
-    sm <- subset_by_Nindex(x, index)  # a dgRMatrix or lgRMatrix object
-    .make_COO_SparseArray_from_dgRMatrix_or_lgRMatrix(sm, use.dimnames=FALSE)
-}
-
-setMethod("extract_sparse_array", "dgCMatrix",
-    .extract_sparse_array_from_dgCMatrix_or_lgCMatrix
-)
-setMethod("extract_sparse_array", "dgRMatrix",
-    .extract_sparse_array_from_dgRMatrix_or_lgRMatrix
-)
-setMethod("extract_sparse_array", "lgCMatrix",
-    .extract_sparse_array_from_dgCMatrix_or_lgCMatrix
-)
-setMethod("extract_sparse_array", "lgRMatrix",
-    .extract_sparse_array_from_dgRMatrix_or_lgRMatrix
+    function(from) make_COO_SparseArray_from_dgRMatrix_or_lgRMatrix(from)
 )
 
 

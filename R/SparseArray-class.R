@@ -84,7 +84,7 @@ coercion_can_introduce_zeros <- function(from_type, to_type)
 ### should be considered sparse or not. Said otherwise, it is NOT about
 ### quantitative sparsity measured by sparsity().
 ### IMPORTANT: Seeds for which is_sparse() returns TRUE **must** support
-### extract_sparse_array().
+### extract_sparse_array(). More info about this in extract_sparse_array.R
 setGeneric("is_sparse", function(x) standardGeneric("is_sparse"))
 
 setGeneric("is_sparse<-", signature="x",
@@ -100,47 +100,11 @@ setGeneric("sparsity", function(x) standardGeneric("sparsity"))
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### The extract_sparse_array() generics
-###
-
-### This is the workhorse behind read_sparse_block().
-### Similar to extract_array() except that:
-###   (1) The extracted array data must be returned as a SparseArray object.
-###       Methods should always operate on the sparse representation
-###       of the data and never "expand" it, that is, never turn it into a
-###       dense representation for example by doing something like
-###       'dense2sparse(extract_array(x, index))'. This would defeat the
-###       purpose of read_sparse_block().
-###   (2) It should be called only on an array-like object 'x' for which
-###       'is_sparse(x)' is TRUE.
-###   (3) The subscripts in 'index' should NOT contain duplicates.
-### IMPORTANT NOTE: For the sake of efficiency, (2) and (3) are NOT checked
-### and are the responsibility of the user. We'll refer to (2) and (3) as
-### the "extract_sparse_array() Terms of Use".
-setGeneric("extract_sparse_array",
-    function(x, index)
-    {
-        x_dim <- dim(x)
-        if (is.null(x_dim))
-            stop(wmsg("first argument to extract_sparse_array() ",
-                      "must be an array-like object"))
-        ans <- standardGeneric("extract_sparse_array")
-        expected_dim <- get_Nindex_lengths(index, x_dim)
-        ## TODO: Display a more user/developper-friendly error by
-        ## doing something like the extract_array() generic where
-        ## check_returned_array() is used to display a long and
-        ## detailed error message.
-        stopifnot(is(ans, "SparseArray"),
-                  identical(dim(ans), expected_dim))
-        ans
-    }
-)
-
-
-### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### Show
 ###
 
+### show_compact_array() relies on extract_array() so show() will work
+### out-of-the-box on any SparseArray derivative that supports aperm().
 setMethod("show", "SparseArray",
     function(object) show_compact_array(object)
 )
