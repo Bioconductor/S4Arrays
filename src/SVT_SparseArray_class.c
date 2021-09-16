@@ -475,16 +475,16 @@ static SEXP alloc_list_of_appendable_leaf_vectors(
 		SEXPTYPE Rtype)
 {
 	SEXP alvs, alv;
-	int k, alv_len;
+	int i, alv_len;
 
 	alvs = PROTECT(NEW_LIST(alv_lens_len));
-	for (k = 0; k < alv_lens_len; k++) {
-		alv_len = alv_lens[k];
+	for (i = 0; i < alv_lens_len; i++) {
+		alv_len = alv_lens[i];
 		if (alv_len != 0) {
 			alv = PROTECT(
 				alloc_appendable_leaf_vector(alv_len, Rtype)
 			);
-			SET_VECTOR_ELT(alvs, k, alv);
+			SET_VECTOR_ELT(alvs, i, alv);
 			UNPROTECT(1);
 		}
 	}
@@ -529,7 +529,7 @@ static inline int append_off_val_pair_to_leaf_vector(SEXP alv,
 static R_xlen_t REC_sum_leaf_vector_lengths(SEXP SVT, int ndim)
 {
 	R_xlen_t ans;
-	int SVT_len, k;
+	int SVT_len, i;
 	SEXP subSVT;
 
 	if (SVT == R_NilValue)
@@ -543,8 +543,8 @@ static R_xlen_t REC_sum_leaf_vector_lengths(SEXP SVT, int ndim)
 	/* 'SVT' is a regular node (list). */
 	ans = 0;
 	SVT_len = LENGTH(SVT);
-	for (k = 0; k < SVT_len; k++) {
-		subSVT = VECTOR_ELT(SVT, k);
+	for (i = 0; i < SVT_len; i++) {
+		subSVT = VECTOR_ELT(SVT, i);
 		ans += REC_sum_leaf_vector_lengths(subSVT, ndim - 1);
 	}
 	return ans;
@@ -571,7 +571,7 @@ static int REC_set_SVT_type(SEXP SVT, const int *dim, int ndim,
 		SEXPTYPE new_Rtype, int *warn, int *offs_buf)
 {
 	SEXP new_lv, subSVT;
-	int SVT_len, is_empty, k, ret;
+	int SVT_len, is_empty, i, ret;
 
 	if (SVT == R_NilValue)
 		return 1;
@@ -594,14 +594,14 @@ static int REC_set_SVT_type(SEXP SVT, const int *dim, int ndim,
 		return -1;
 
 	is_empty = 1;
-	for (k = 0; k < SVT_len; k++) {
-		subSVT = VECTOR_ELT(SVT, k);
+	for (i = 0; i < SVT_len; i++) {
+		subSVT = VECTOR_ELT(SVT, i);
 		ret = REC_set_SVT_type(subSVT, dim, ndim - 1,
 				       new_Rtype, warn, offs_buf);
 		if (ret < 0)
 			return -1;
 		if (ret == 1) {
-			SET_VECTOR_ELT(SVT, k, R_NilValue);
+			SET_VECTOR_ELT(SVT, i, R_NilValue);
 		} else {
 			is_empty = 0;
 		}
@@ -652,7 +652,7 @@ static int REC_dump_SVT_to_Rsubarray(SEXP SVT,
 		SEXP Rarray, R_xlen_t subarr_offset, R_xlen_t subarr_len,
 		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
 {
-	int lv_len, k, SVT_len, ret;
+	int lv_len, k, SVT_len, i, ret;
 	SEXP lv_offs, lv_vals, subSVT;
 	const int *p;
 	R_xlen_t offset;
@@ -679,8 +679,8 @@ static int REC_dump_SVT_to_Rsubarray(SEXP SVT,
 		return -1;
 
 	subarr_len /= SVT_len;
-	for (k = 0; k < SVT_len; k++) {
-		subSVT = VECTOR_ELT(SVT, k);
+	for (i = 0; i < SVT_len; i++) {
+		subSVT = VECTOR_ELT(SVT, i);
 		ret = REC_dump_SVT_to_Rsubarray(subSVT,
 				dim, ndim - 1,
 				Rarray, subarr_offset, subarr_len,
@@ -733,7 +733,7 @@ static SEXP REC_build_SVT_from_Rsubarray(
 		SEXPTYPE ans_Rtype, int *warn, int *offs_buf)
 {
 	SEXP ans, ans_elt;
-	int SVT_len, is_empty, k;
+	int SVT_len, is_empty, i;
 
 	if (ndim == 1) {  /* Sanity check (should never fail). */
 		if (dim[0] != subarr_len)
@@ -755,14 +755,14 @@ static SEXP REC_build_SVT_from_Rsubarray(
 	subarr_len /= SVT_len;
 	ans = PROTECT(NEW_LIST(SVT_len));
 	is_empty = 1;
-	for (k = 0; k < SVT_len; k++) {
+	for (i = 0; i < SVT_len; i++) {
 		ans_elt = REC_build_SVT_from_Rsubarray(
 					Rarray, subarr_offset, subarr_len,
 					dim, ndim - 1,
 					ans_Rtype, warn, offs_buf);
 		if (ans_elt != R_NilValue) {
 			PROTECT(ans_elt);
-			SET_VECTOR_ELT(ans, k, ans_elt);
+			SET_VECTOR_ELT(ans, i, ans_elt);
 			UNPROTECT(1);
 			is_empty = 0;
 		}
@@ -1023,7 +1023,7 @@ static int REC_extract_nzcoo_and_nzvals_from_SVT(SEXP SVT,
 		int *nzcoo, int nzcoo_nrow, int nzcoo_ncol,
 		int *rowbuf, int rowbuf_offset)
 {
-	int SVT_len, k, ret, lv_len, *p, j;
+	int SVT_len, i, ret, lv_len, k, *p, j;
 	SEXP subSVT, lv_offs, lv_vals;
 
 	if (SVT == R_NilValue)
@@ -1033,9 +1033,9 @@ static int REC_extract_nzcoo_and_nzvals_from_SVT(SEXP SVT,
 		if (!isVectorList(SVT))  // IS_LIST() is broken
 			return -1;
 		SVT_len = LENGTH(SVT);
-		for (k = 0; k < SVT_len; k++) {
-			subSVT = VECTOR_ELT(SVT, k);
-			rowbuf[rowbuf_offset] = k + 1;
+		for (i = 0; i < SVT_len; i++) {
+			subSVT = VECTOR_ELT(SVT, i);
+			rowbuf[rowbuf_offset] = i + 1;
 			ret = REC_extract_nzcoo_and_nzvals_from_SVT(
 					subSVT,
 					nzvals, nzdata_offset,
@@ -1130,7 +1130,7 @@ static int grow_SVT(SEXP SVT,
 		const int *nzcoo, int nzdata_len, int nzdata_offset)
 {
 	const int *p;
-	int j, k;
+	int along, i;
 	SEXP subSVT;
 
 	p = nzcoo + nzdata_offset;
@@ -1139,18 +1139,18 @@ static int grow_SVT(SEXP SVT,
 
 	if (ndim >= 3) {
 		p += (size_t) nzdata_len * ndim;
-		for (j = ndim - 2; j >= 1; j--) {
+		for (along = ndim - 2; along >= 1; along--) {
 			p -= nzdata_len;
-			k = *p - 1;
-			if (k < 0 || k >= LENGTH(SVT))
+			i = *p - 1;
+			if (i < 0 || i >= LENGTH(SVT))
 				return -1;
-			subSVT = VECTOR_ELT(SVT, k);
-			if (j == 1)
+			subSVT = VECTOR_ELT(SVT, i);
+			if (along == 1)
 				break;
 			/* 'subSVT' is NULL or a list. */
 			if (subSVT == R_NilValue) {
-				subSVT = PROTECT(NEW_LIST(dim[j]));
-				SET_VECTOR_ELT(SVT, k, subSVT);
+				subSVT = PROTECT(NEW_LIST(dim[along]));
+				SET_VECTOR_ELT(SVT, i, subSVT);
 				UNPROTECT(1);
 			}
 			SVT = subSVT;
@@ -1158,19 +1158,19 @@ static int grow_SVT(SEXP SVT,
 		/* 'subSVT' is NULL or an integer vector of counts. */
 		if (subSVT == R_NilValue) {
 			subSVT = PROTECT(
-				_new_Rvector(INTSXP, (R_xlen_t) dim[j])
+				_new_Rvector(INTSXP, (R_xlen_t) dim[along])
 			);
-			SET_VECTOR_ELT(SVT, k, subSVT);
+			SET_VECTOR_ELT(SVT, i, subSVT);
 			UNPROTECT(1);
 		}
 		SVT = subSVT;
 	}
 
 	p = nzcoo + nzdata_offset + nzdata_len;
-	k = *p - 1;
-	if (k < 0 || k >= LENGTH(SVT))
+	i = *p - 1;
+	if (i < 0 || i >= LENGTH(SVT))
 		return -1;
-	INTEGER(SVT)[k]++;
+	INTEGER(SVT)[i]++;
 	return 0;
 }
 
@@ -1181,16 +1181,16 @@ static int store_nzoff_and_nzval_in_SVT(
 		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
 {
 	const int *p;
-	int j, k, ret;
+	int along, i, ret;
 	SEXP subSVT;
 
 	if (nzcoo_ncol >= 3) {
 		p = nzcoo + nzdata_offset + (size_t) nzdata_len * nzcoo_ncol;
-		for (j = nzcoo_ncol - 2; j >= 1; j--) {
+		for (along = nzcoo_ncol - 2; along >= 1; along--) {
 			p -= nzdata_len;
-			k = *p - 1;
-			subSVT = VECTOR_ELT(SVT, k);
-			if (j == 1)
+			i = *p - 1;
+			subSVT = VECTOR_ELT(SVT, i);
+			if (along == 1)
 				break;
 			SVT = subSVT;
 		}
@@ -1202,15 +1202,15 @@ static int store_nzoff_and_nzval_in_SVT(
 						LENGTH(subSVT),
 						TYPEOF(nzvals))
 			);
-			SET_VECTOR_ELT(SVT, k, subSVT);
+			SET_VECTOR_ELT(SVT, i, subSVT);
 			UNPROTECT(1);
 		}
 		SVT = subSVT;
 	}
 
 	p = nzcoo + nzdata_offset + nzdata_len;
-	k = *p - 1;
-	subSVT = VECTOR_ELT(SVT, k);
+	i = *p - 1;
+	subSVT = VECTOR_ELT(SVT, i);
 
 	/* 'subSVT' is an "appendable leaf vector". */
 	ret = append_off_val_pair_to_leaf_vector(subSVT,
@@ -1227,7 +1227,7 @@ static int store_nzoff_and_nzval_in_SVT(
 			_new_leaf_vector(VECTOR_ELT(subSVT, 0),
 					 VECTOR_ELT(subSVT, 1))
 		);
-		SET_VECTOR_ELT(SVT, k, subSVT);
+		SET_VECTOR_ELT(SVT, i, subSVT);
 		UNPROTECT(1);
 	}
 	return 0;
@@ -1362,7 +1362,7 @@ static void count_nonzero_vals_per_row(SEXP SVT, int nrow, int ncol,
 
 static void **set_quick_out_vals_p(SEXP out_SVT, SEXPTYPE Rtype)
 {
-	int out_SVT_len, k;
+	int out_SVT_len, i;
 	SEXP lv;
 
 	out_SVT_len = LENGTH(out_SVT);
@@ -1370,8 +1370,8 @@ static void **set_quick_out_vals_p(SEXP out_SVT, SEXPTYPE Rtype)
 	    case LGLSXP: case INTSXP: {
 		int **vals_p, **p;
 		vals_p = (int **) R_alloc(out_SVT_len, sizeof(int *));
-		for (k = 0, p = vals_p; k < out_SVT_len; k++, p++) {
-			lv = VECTOR_ELT(out_SVT, k);
+		for (i = 0, p = vals_p; i < out_SVT_len; i++, p++) {
+			lv = VECTOR_ELT(out_SVT, i);
 			if (lv != R_NilValue)
 				*p = INTEGER(VECTOR_ELT(lv, 1));
 		}
@@ -1380,8 +1380,8 @@ static void **set_quick_out_vals_p(SEXP out_SVT, SEXPTYPE Rtype)
 	    case REALSXP: {
 		double **vals_p, **p;
 		vals_p = (double **) R_alloc(out_SVT_len, sizeof(double *));
-		for (k = 0, p = vals_p; k < out_SVT_len; k++, p++) {
-			lv = VECTOR_ELT(out_SVT, k);
+		for (i = 0, p = vals_p; i < out_SVT_len; i++, p++) {
+			lv = VECTOR_ELT(out_SVT, i);
 			if (lv != R_NilValue)
 				*p = REAL(VECTOR_ELT(lv, 1));
 		}
@@ -1390,8 +1390,8 @@ static void **set_quick_out_vals_p(SEXP out_SVT, SEXPTYPE Rtype)
 	    case CPLXSXP: {
 		Rcomplex **vals_p, **p;
 		vals_p = (Rcomplex **) R_alloc(out_SVT_len, sizeof(Rcomplex *));
-		for (k = 0, p = vals_p; k < out_SVT_len; k++, p++) {
-			lv = VECTOR_ELT(out_SVT, k);
+		for (i = 0, p = vals_p; i < out_SVT_len; i++, p++) {
+			lv = VECTOR_ELT(out_SVT, i);
 			if (lv != R_NilValue)
 				*p = COMPLEX(VECTOR_ELT(lv, 1));
 		}
@@ -1400,8 +1400,8 @@ static void **set_quick_out_vals_p(SEXP out_SVT, SEXPTYPE Rtype)
 	    case RAWSXP: {
 		Rbyte **vals_p, **p;
 		vals_p = (Rbyte **) R_alloc(out_SVT_len, sizeof(Rbyte *));
-		for (k = 0, p = vals_p; k < out_SVT_len; k++, p++) {
-			lv = VECTOR_ELT(out_SVT, k);
+		for (i = 0, p = vals_p; i < out_SVT_len; i++, p++) {
+			lv = VECTOR_ELT(out_SVT, i);
 			if (lv != R_NilValue)
 				*p = RAW(VECTOR_ELT(lv, 1));
 		}

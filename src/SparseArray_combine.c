@@ -63,7 +63,7 @@ static int all_NULLs(SEXP *SVTs, int nb_objects)
 
 /* All the SVTs are expected to have their last dimension (a.k.a. rightmost
    dimension, a.k.a. outermost dimension) equal to 'd'. */
-static int collect_SVTs_kth_elt(SEXP *SVTs, int nb_objects, int k, int d,
+static int collect_SVTs_ith_elt(SEXP *SVTs, int nb_objects, int i, int d,
 		SEXP *subSVTs_buf)
 {
 	int n;
@@ -79,7 +79,7 @@ static int collect_SVTs_kth_elt(SEXP *SVTs, int nb_objects, int k, int d,
 				return -1;
 			if (LENGTH(SVT) != d)
 				return -1;
-			subSVT = VECTOR_ELT(SVT, k);
+			subSVT = VECTOR_ELT(SVT, i);
 		}
 		subSVTs_buf[n] = subSVT;
 	}
@@ -93,15 +93,15 @@ static SEXP concatenate_SVTs(SEXP *SVTs, int nb_objects,
 		const int *dims_along, int sum_dims_along)
 {
 	SEXP ans, SVT;
-	int offset, n, SVT_len, k;
+	int i1, n, SVT_len, i2;
 
 	ans = PROTECT(NEW_LIST(sum_dims_along));
 
-	offset = 0;
+	i1 = 0;
 	for (n = 0; n < nb_objects; n++) {
 		SVT = SVTs[n];
 		if (SVT == R_NilValue) {
-			offset += dims_along[n];
+			i1 += dims_along[n];
 			continue;
 		}
 		/* Sanity check (should never fail). */
@@ -113,15 +113,15 @@ static SEXP concatenate_SVTs(SEXP *SVTs, int nb_objects,
 		if (SVT_len != dims_along[n])
 			error("input object %s is an invalid SVT_SparseArray",
 			      n + 1);
-		for (k = 0; k < SVT_len; k++, offset++)
-			SET_VECTOR_ELT(ans, offset, VECTOR_ELT(SVT, k));
+		for (i2 = 0; i2 < SVT_len; i2++, i1++)
+			SET_VECTOR_ELT(ans, i1, VECTOR_ELT(SVT, i2));
 	}
 
 	UNPROTECT(1);
 	/* Sanity check (should never fail). */
-	if (offset != sum_dims_along)
+	if (i1 != sum_dims_along)
 		error("S4Arrays internal error in concatenate_SVTs():\n"
-		      "  offset != sum_dims_along");
+		      "  i1 != sum_dims_along");
 	return ans;
 }
 
@@ -184,7 +184,7 @@ static SEXP REC_abind_SVTs(SEXP *SVTs, int nb_objects,
 		CopyRVectorElts_FUNType copy_Rvector_elts_FUN)
 {
 	SEXP *subSVTs_buf, ans, ans_elt;
-	int ans_len, is_empty, k, ret;
+	int ans_len, is_empty, i, ret;
 
 	if (all_NULLs(SVTs, nb_objects))
 		return R_NilValue;
@@ -206,21 +206,21 @@ static SEXP REC_abind_SVTs(SEXP *SVTs, int nb_objects,
 	ans_len = ans_dim[ndim - 1];
 	ans = PROTECT(NEW_LIST(ans_len));
 	is_empty = 1;
-	for (k = 0; k < ans_len; k++) {
-		ret = collect_SVTs_kth_elt(SVTs, nb_objects, k, ans_len,
+	for (i = 0; i < ans_len; i++) {
+		ret = collect_SVTs_ith_elt(SVTs, nb_objects, i, ans_len,
 					   subSVTs_buf);
 		if (ret < 0) {
 			UNPROTECT(1);
 			error("S4Arrays internal error in "
 			      "REC_abind_SVTs():\n"
-			      "  collect_SVTs_kth_elt() returned an error");
+			      "  collect_SVTs_ith_elt() returned an error");
 		}
 		ans_elt = REC_abind_SVTs(subSVTs_buf, nb_objects,
 				ans_dim, ndim - 1, along0, dims_along,
 				ans_Rtype, copy_Rvector_elts_FUN);
 		if (ans_elt != R_NilValue) {
 			PROTECT(ans_elt);
-			SET_VECTOR_ELT(ans, k, ans_elt);
+			SET_VECTOR_ELT(ans, i, ans_elt);
 			UNPROTECT(1);
 			is_empty = 0;
 		}
