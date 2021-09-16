@@ -57,7 +57,7 @@ setGeneric("extract_sparse_array",
 ### The only situation where 'index' CAN contain duplicates is when
 ### .extract_COO_SparseArray_subset() is called by
 ### .extract_array_from_COO_SparseArray(), in which case the
-### missing nonzero data is added later.
+### missing nonzero data are added later.
 .extract_COO_SparseArray_subset <- function(x, index)
 {
     stopifnot(is(x, "COO_SparseArray"))
@@ -87,11 +87,11 @@ setMethod("extract_sparse_array", "COO_SparseArray",
     ## subscripts (see IMPORTANT NOTE above).
     ans0 <- sparse2dense(coo0)
     ## We "complete" 'ans0' by repeating the nonzero data according to the
-    ## duplicates present in the subscripts. Note that this is easy and cheap
-    ## to do now because 'ans0' uses a dense representation (it's an ordinary
-    ## array). This would be much harder to do **natively** on the
-    ## COO_SparseArray form (i.e. without converting first to dense then
-    ## back to sparse in the process).
+    ## duplicates present in 'index'. Note that this is easy and cheap to
+    ## do now because 'ans0' uses a dense representation (it's an ordinary
+    ## array). This would be harder to do **natively** on the
+    ## COO_SparseArray form (i.e. without converting to dense first
+    ## then back to sparse).
     sm_index <- lapply(index,
         function(i) {
             if (is.null(i))
@@ -115,17 +115,15 @@ setMethod("extract_array", "COO_SparseArray",
 ### objects
 ###
 
-### See IMPORTANT NOTE about .extract_COO_SparseArray_subset() above.
-### The same applies to .extract_SVT_SparseArray_subset().
-.extract_SVT_SparseArray_subset <- function(x, index)
+.subset_SVT_SparseArray <- function(x, index)
 {
     stopifnot(is(x, "SVT_SparseArray"))
     #new_dim <- get_Nindex_lengths(index, x@dim)
     new_dimnames <- vector("list", length(x@dim))
 
     ## Returns 'new_dim' and 'new_SVT' in a list of length 2.
-    C_ans <- .Call2("C_extract_SVT_SparseArray_subset",
-                    x@dim, x@SVT, index, PACKAGE="S4Arrays")
+    C_ans <- .Call2("C_subset_SVT_SparseArray",
+                    x@dim, x@type, x@SVT, index, PACKAGE="S4Arrays")
     new_dim <- C_ans[[1L]]
     new_SVT <- C_ans[[2L]]
     BiocGenerics:::replaceSlots(x, dim=new_dim,
@@ -133,16 +131,13 @@ setMethod("extract_array", "COO_SparseArray",
                                    SVT=new_SVT,
                                    check=FALSE)
 }
+
 setMethod("extract_sparse_array", "SVT_SparseArray",
-    .extract_SVT_SparseArray_subset
+    .subset_SVT_SparseArray
 )
 
-.extract_array_from_SVT_SparseArray <- function(x, index)
-{
-    stop("not ready yet")
-}
 setMethod("extract_array", "SVT_SparseArray",
-    .extract_array_from_SVT_SparseArray
+    function(x, index) as.array(.subset_SVT_SparseArray(x, index))
 )
 
 

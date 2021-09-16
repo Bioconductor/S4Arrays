@@ -27,7 +27,7 @@ static const R_CallMethodDef callMethods[] = {
 	CALLMETHOD_DEF(C_transpose_SVT_SparseArray, 3),
 
 /* extract_sparse_array.c */
-	CALLMETHOD_DEF(C_extract_SVT_SparseArray_subset, 3),
+	CALLMETHOD_DEF(C_subset_SVT_SparseArray, 4),
 
 /* SparseArray_combine.c */
 	CALLMETHOD_DEF(C_abind_SVT_SparseArray_objects, 3),

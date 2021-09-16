@@ -3,8 +3,9 @@
 
 #include <Rdefines.h>
 
-SEXP C_extract_SVT_SparseArray_subset(
+SEXP C_subset_SVT_SparseArray(
 	SEXP x_dim,
+	SEXP x_type,
 	SEXP x_SVT,
 	SEXP index
 );

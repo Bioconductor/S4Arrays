@@ -87,38 +87,6 @@ static int collect_offsets_of_nonzero_Rbyte_elts(
 	return (int) (off_p - offsets);
 }
 
-static void copy_selected_int_elts(const int *in,
-		const int *in_offsets, int n, int *out)
-{
-	for (int k = 0; k < n; k++, out++)
-		*out = *(in + in_offsets[k]);
-	return;
-}
-
-static void copy_selected_double_elts(const double *in,
-		const int *in_offsets, int n, double *out)
-{
-	for (int k = 0; k < n; k++, out++)
-		*out = *(in + in_offsets[k]);
-	return;
-}
-
-static void copy_selected_Rcomplex_elts(const Rcomplex *in,
-		const int *in_offsets, int n, Rcomplex *out)
-{
-	for (int k = 0; k < n; k++, out++)
-		*out = *(in + in_offsets[k]);
-	return;
-}
-
-static void copy_selected_Rbyte_elts(const Rbyte *in,
-		const int *in_offsets, int n, Rbyte *out)
-{
-	for (int k = 0; k < n; k++, out++)
-		*out = *(in + in_offsets[k]);
-	return;
-}
-
 typedef int (*RVectorEltIsZero_FUNType)(SEXP x, R_xlen_t i);
 
 /* Compare with 'integer(1)'. */
@@ -331,50 +299,6 @@ static int collect_offsets_of_nonzero_Rsubvec_elts(
 	return (int) (off_p - offsets);
 }
 
-static void copy_selected_Rsubvec_elts(
-		SEXP Rvector, R_xlen_t subvec_offset,
-		const int *offsets, SEXP lv_vals)
-{
-	SEXPTYPE Rtype;
-	int lv_len;
-	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
-
-	Rtype = TYPEOF(Rvector);
-	lv_len = LENGTH(lv_vals);
-
-	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
-	switch (TYPEOF(Rvector)) {
-	    case LGLSXP: case INTSXP:
-		copy_selected_int_elts(INTEGER(Rvector) + subvec_offset,
-				offsets, lv_len, INTEGER(lv_vals));
-		return;
-	    case REALSXP:
-		copy_selected_double_elts(REAL(Rvector) + subvec_offset,
-				offsets, lv_len, REAL(lv_vals));
-		return;
-	    case CPLXSXP:
-		copy_selected_Rcomplex_elts(COMPLEX(Rvector) + subvec_offset,
-				offsets, lv_len, COMPLEX(lv_vals));
-		return;
-	    case RAWSXP:
-		copy_selected_Rbyte_elts(RAW(Rvector) + subvec_offset,
-				offsets, lv_len, RAW(lv_vals));
-		return;
-	}
-	/* STRSXP and VECSXP cases. */
-	copy_Rvector_elt_FUN = _select_copy_Rvector_elt_FUN(Rtype);
-	if (copy_Rvector_elt_FUN == NULL)
-		error("S4Arrays internal error in "
-		      "copy_selected_Rsubvec_elts():\n"
-		      "  type \"%s\" is not supported", type2char(Rtype));
-
-	for (int k = 0; k < lv_len; k++) {
-		R_xlen_t offset = subvec_offset + offsets[k];
-		copy_Rvector_elt_FUN(Rvector, offset, lv_vals, k);
-	}
-	return;
-}
-
 /* Returns R_NilValue or a "leaf vector". */
 static SEXP make_leaf_vector_from_Rsubvec(
 		SEXP Rvector, R_xlen_t subvec_offset, int subvec_len,
@@ -392,10 +316,8 @@ static SEXP make_leaf_vector_from_Rsubvec(
 
 	lv = PROTECT(alloc_and_split_leaf_vector(lv_len, TYPEOF(Rvector),
 						 &lv_offs, &lv_vals));
-	/* Fill 'lv_offs'. */
 	memcpy(INTEGER(lv_offs), offs_buf, sizeof(int) * lv_len);
-	/* Fill 'lv_vals'. */
-	copy_selected_Rsubvec_elts(Rvector, subvec_offset, offs_buf, lv_vals);
+	_copy_selected_Rsubvec_elts(Rvector, subvec_offset, offs_buf, lv_vals);
 	UNPROTECT(1);
 	return lv;
 }

@@ -137,10 +137,28 @@ static inline void _copy_LIST_elts(
 }
 
 SEXPTYPE _get_Rtype_from_Rstring(SEXP type);
-SEXP _new_Rvector(SEXPTYPE Rtype, R_xlen_t len);
-SEXP _new_Rarray(SEXPTYPE Rtype, SEXP dim, SEXP dimnames);
+
+SEXP _new_Rvector(
+	SEXPTYPE Rtype,
+	R_xlen_t len
+);
+
+SEXP _new_Rarray(
+	SEXPTYPE Rtype,
+	SEXP dim,
+	SEXP dimnames
+);
+
 CopyRVectorElt_FUNType _select_copy_Rvector_elt_FUN(SEXPTYPE Rtype);
+
 CopyRVectorElts_FUNType _select_copy_Rvector_elts_FUN(SEXPTYPE Rtype);
+
+void _copy_selected_Rsubvec_elts(
+	SEXP in_Rvector,
+	R_xlen_t in_offset,
+	const int *selection,
+	SEXP out_Rvector
+);
 
 #endif  /* _RVECTOR_UTILS_H_ */
 

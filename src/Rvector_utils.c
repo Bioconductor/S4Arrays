@@ -90,3 +90,88 @@ CopyRVectorElts_FUNType _select_copy_Rvector_elts_FUN(SEXPTYPE Rtype)
 	return NULL;
 }
 
+
+/****************************************************************************
+ * _copy_selected_Rsubvec_elts()
+ */
+
+static void copy_selected_int_elts(const int *in,
+		const int *selection, int n, int *out)
+{
+	for (int k = 0; k < n; k++, out++)
+		*out = *(in + selection[k]);
+	return;
+}
+
+static void copy_selected_double_elts(const double *in,
+		const int *selection, int n, double *out)
+{
+	for (int k = 0; k < n; k++, out++)
+		*out = *(in + selection[k]);
+	return;
+}
+
+static void copy_selected_Rcomplex_elts(const Rcomplex *in,
+		const int *selection, int n, Rcomplex *out)
+{
+	for (int k = 0; k < n; k++, out++)
+		*out = *(in + selection[k]);
+	return;
+}
+
+static void copy_selected_Rbyte_elts(const Rbyte *in,
+		const int *selection, int n, Rbyte *out)
+{
+	for (int k = 0; k < n; k++, out++)
+		*out = *(in + selection[k]);
+	return;
+}
+
+/* The length of the selection must be the length of 'out_Rvector'.
+   Only for a 'selection' and 'out_Rvector' of length <= INT_MAX.
+   Do NOT use on a 'selection' or 'out_Rvector' of length > INT_MAX! */
+void _copy_selected_Rsubvec_elts(
+	SEXP in_Rvector, R_xlen_t in_offset,
+	const int *selection, SEXP out_Rvector)
+{
+	SEXPTYPE Rtype;
+	int out_len;
+	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
+
+	Rtype = TYPEOF(in_Rvector);
+	out_len = LENGTH(out_Rvector);
+
+	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
+	switch (TYPEOF(in_Rvector)) {
+	    case LGLSXP: case INTSXP:
+		copy_selected_int_elts(INTEGER(in_Rvector) + in_offset,
+				selection, out_len, INTEGER(out_Rvector));
+		return;
+	    case REALSXP:
+		copy_selected_double_elts(REAL(in_Rvector) + in_offset,
+				selection, out_len, REAL(out_Rvector));
+		return;
+	    case CPLXSXP:
+		copy_selected_Rcomplex_elts(COMPLEX(in_Rvector) + in_offset,
+				selection, out_len, COMPLEX(out_Rvector));
+		return;
+	    case RAWSXP:
+		copy_selected_Rbyte_elts(RAW(in_Rvector) + in_offset,
+				selection, out_len, RAW(out_Rvector));
+		return;
+	}
+
+	/* STRSXP and VECSXP cases. */
+	copy_Rvector_elt_FUN = _select_copy_Rvector_elt_FUN(Rtype);
+	if (copy_Rvector_elt_FUN == NULL)
+		error("S4Arrays internal error in "
+		      "copy_selected_Rsubvec_elts():\n"
+		      "  type \"%s\" is not supported", type2char(Rtype));
+
+	for (R_xlen_t k = 0; k < out_len; k++) {
+		R_xlen_t offset = in_offset + selection[k];
+		copy_Rvector_elt_FUN(in_Rvector, offset, out_Rvector, k);
+	}
+	return;
+}
+
