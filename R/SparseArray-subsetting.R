@@ -117,24 +117,43 @@ setMethod("extract_array", "COO_SparseArray",
 ### extract_sparse_array() method for SVT_SparseArray objects
 ###
 
-.subset_SVT_SparseArray <- function(x, index)
+### This is the workhorse behind the extract_sparse_array(), extract_array(),
+### and `[` methods for SVT_SparseArray objects.
+.subset_SVT_SparseArray <- function(x, index, use.dimnames=FALSE)
 {
-    stopifnot(is(x, "SVT_SparseArray"))
-    #new_dim <- get_Nindex_lengths(index, x@dim)
-    new_dimnames <- vector("list", length(x@dim))
+    stopifnot(is(x, "SVT_SparseArray"),
+              is.list(index),
+              length(index) == length(x@dim),
+              isTRUEorFALSE(use.dimnames))
 
     ## Returns 'new_dim' and 'new_SVT' in a list of length 2.
     C_ans <- .Call2("C_subset_SVT_SparseArray",
                     x@dim, x@type, x@SVT, index, PACKAGE="S4Arrays")
     new_dim <- C_ans[[1L]]
     new_SVT <- C_ans[[2L]]
+
+    ## Compute 'new_dimnames'.
+    if (use.dimnames) {
+        new_dimnames <- lapply(setNames(seq_along(x@dim), names(x@dimnames)),
+                               function(along) {
+                                   dn <- x@dimnames[[along]]
+                                   idx <- index[[along]]
+                                   if (is.null(dn) || is.null(idx))
+                                       return(dn)
+                                   dn[idx]})
+    } else {
+        new_dimnames <- vector("list", length(x@dim))
+    }
+
     BiocGenerics:::replaceSlots(x, dim=new_dim,
                                    dimnames=new_dimnames,
                                    SVT=new_SVT,
                                    check=FALSE)
 }
 
-setMethod("extract_sparse_array", "SVT_SparseArray", .subset_SVT_SparseArray)
+setMethod("extract_sparse_array", "SVT_SparseArray",
+    function(x, index) .subset_SVT_SparseArray(x, index)
+)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -211,7 +230,7 @@ setMethod("drop", "SVT_SparseArray",
     if (nsubscript != x_ndim)
         stop(wmsg("incorrect number of subscripts"))
     index <- normalize_Nindex(Nindex, x)
-    ans <- extract_sparse_array(x, index)
+    ans <- .subset_SVT_SparseArray(x, index, use.dimnames=TRUE)
     if (drop)
         ans <- drop(ans)
     ans
@@ -224,7 +243,8 @@ setMethod("[", "SVT_SparseArray", .single_bracket_SVT_SparseArray)
 ### complex .single_bracket_SVT_SparseArray() machinery above.
 ### The method below completely bypasses all this complexity.
 setMethod("extract_array", "SVT_SparseArray",
-    function(x, index) as.array(.subset_SVT_SparseArray(x, index))
+    function(x, index)
+        as.array(.subset_SVT_SparseArray(x, index, use.dimnames=TRUE))
 )
 
 
