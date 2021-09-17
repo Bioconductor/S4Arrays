@@ -2,7 +2,7 @@
 
 #include "ArraySelection_class.h"
 #include "SVT_SparseArray_class.h"
-#include "extract_sparse_array.h"
+#include "SparseArray_subsetting.h"
 #include "SparseArray_combine.h"
 #include "readSparseCSV.h"
 
@@ -26,7 +26,8 @@ static const R_CallMethodDef callMethods[] = {
 	CALLMETHOD_DEF(C_build_SVT_from_COO_SparseArray, 4),
 	CALLMETHOD_DEF(C_transpose_SVT_SparseArray, 3),
 
-/* extract_sparse_array.c */
+/* SparseArray_subsetting.c */
+	CALLMETHOD_DEF(C_drop_SVT_SparseArray_ineffective_dims, 4),
 	CALLMETHOD_DEF(C_subset_SVT_SparseArray, 4),
 
 /* SparseArray_combine.c */

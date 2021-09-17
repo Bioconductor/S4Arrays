@@ -136,7 +136,8 @@ exportMethods(
     ## Methods for generics defined in the base package:
     length,
     dim, dimnames,
-    "[[",
+    drop,
+    "[", "[[",
     lengths,
     as.array, as.matrix, as.data.frame, as.vector,
     as.logical, as.integer, as.numeric, as.complex, as.character, as.raw,
@@ -220,7 +221,7 @@ export(
     ## COO_SparseArray-class.R:
     nzcoo, nzvals,
 
-    ## extract_sparse_array.R:
+    ## SparseArray-subsetting.R:
     extract_sparse_array
 )
 

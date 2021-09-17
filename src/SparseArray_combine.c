@@ -121,7 +121,7 @@ static SEXP concatenate_SVTs(SEXP *SVTs, int nb_objects,
 	/* Sanity check (should never fail). */
 	if (i1 != sum_dims_along)
 		error("S4Arrays internal error in concatenate_SVTs():\n"
-		      "  i1 != sum_dims_along");
+		      "    i1 != sum_dims_along");
 	return ans;
 }
 
@@ -167,11 +167,11 @@ static SEXP concatenate_leaf_vectors(SEXP *SVTs, int nb_objects,
 	if (k1 != ans_len)
 		error("S4Arrays internal error in "
 		      "concatenate_leaf_vectors():\n"
-		      "   k1 != ans_len");
+		      "    k1 != ans_len");
 	if (offset != sum_dims_along)
 		error("S4Arrays internal error in "
 		      "concatenate_leaf_vectors():\n"
-		      "  offset != sum_dims_along");
+		      "    offset != sum_dims_along");
 	return ans;
 }
 
@@ -213,7 +213,7 @@ static SEXP REC_abind_SVTs(SEXP *SVTs, int nb_objects,
 			UNPROTECT(1);
 			error("S4Arrays internal error in "
 			      "REC_abind_SVTs():\n"
-			      "  collect_SVTs_ith_elt() returned an error");
+			      "    collect_SVTs_ith_elt() returned an error");
 		}
 		ans_elt = REC_abind_SVTs(subSVTs_buf, nb_objects,
 				ans_dim, ndim - 1, along0, dims_along,

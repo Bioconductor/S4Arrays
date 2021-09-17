@@ -84,7 +84,8 @@ coercion_can_introduce_zeros <- function(from_type, to_type)
 ### should be considered sparse or not. Said otherwise, it is NOT about
 ### quantitative sparsity measured by sparsity().
 ### IMPORTANT: Seeds for which is_sparse() returns TRUE **must** support
-### extract_sparse_array(). More info about this in extract_sparse_array.R
+### extract_sparse_array(). More info about this in SparseArray-subsetting.R
+### where the extract_sparse_array() generic is defined.
 setGeneric("is_sparse", function(x) standardGeneric("is_sparse"))
 
 setGeneric("is_sparse<-", signature="x",

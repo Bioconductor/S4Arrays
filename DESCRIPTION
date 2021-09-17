@@ -9,7 +9,7 @@ Description: The S4Arrays package defines the Array virtual class to be
 biocViews: Infrastructure, DataRepresentation
 URL: https://bioconductor.org/packages/S4Arrays
 BugReports: https://github.com/Bioconductor/S4Arrays/issues
-Version: 0.0.4
+Version: 0.1.0
 License: Artistic-2.0
 Encoding: UTF-8
 Author: Hervé Pagès <hpages.on.github@gmail.com>
@@ -35,7 +35,7 @@ Collate: utils.R
 	SparseArray-class.R
 	COO_SparseArray-class.R
 	SVT_SparseArray-class.R
-	extract_sparse_array.R
+	SparseArray-subsetting.R
 	SparseArray-combine.R
 	SparseArray-utils.R
 	readSparseCSV.R

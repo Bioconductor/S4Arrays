@@ -1,10 +1,13 @@
 ### =========================================================================
-### extract_sparse_array()
+### SparseArray subsetting
 ### -------------------------------------------------------------------------
 ###
 
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### The extract_sparse_array() generic
+###
 ### extract_sparse_array() is the workhorse behind read_sparse_block(), and,
-### more generally, behind efficient subsetting of sparse arrays.
+### more generally, behind efficient subsetting of sparse array objects.
 ### Similar to extract_array() except that:
 ###   (1) The extracted array data must be returned as a SparseArray object.
 ###       Methods should always operate on the sparse representation
@@ -111,8 +114,7 @@ setMethod("extract_array", "COO_SparseArray",
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### extract_sparse_array() and extract_array() methods for SVT_SparseArray
-### objects
+### extract_sparse_array() method for SVT_SparseArray objects
 ###
 
 .subset_SVT_SparseArray <- function(x, index)
@@ -132,10 +134,95 @@ setMethod("extract_array", "COO_SparseArray",
                                    check=FALSE)
 }
 
-setMethod("extract_sparse_array", "SVT_SparseArray",
-    .subset_SVT_SparseArray
+setMethod("extract_sparse_array", "SVT_SparseArray", .subset_SVT_SparseArray)
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### drop()
+###
+
+### Always returns an SVT_SparseArray object (endomorphism).
+.drop_SVT_SparseArray <- function(x)
+{
+    ## Returns 'new_dim', 'new_dimnames', and 'new_SVT', in a list of length 3.
+    C_ans <- .Call2("C_drop_SVT_SparseArray_ineffective_dims",
+                    x@dim, x@dimnames, x@type, x@SVT, PACKAGE="S4Arrays")
+    new_dim <- C_ans[[1L]]
+    new_dimnames <- C_ans[[2L]]
+    new_SVT <- C_ans[[3L]]
+    BiocGenerics:::replaceSlots(x, dim=new_dim,
+                                   dimnames=new_dimnames,
+                                   SVT=new_SVT,
+                                   check=FALSE)
+}
+
+### Returns an SVT_SparseArray object or an ordinary vector of type 'type(x)'.
+### The dimnames are propagated except when 'length(x)' is 1 (i.e.
+### 'all(dim(x) == 1)' is TRUE).
+setMethod("drop", "SVT_SparseArray",
+    function(x)
+    {
+        x <- .drop_SVT_SparseArray(x)
+        if (length(dim(x)) != 1L)
+            return(x)      # SVT_SparseArray object
+        drop(as.array(x))  # ordinary vector
+    }
 )
 
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### SVT_SparseArray single-bracket subsetting (based on extract_sparse_array())
+###
+
+.subset_SVT_SparseArray_by_logical_array <- function(x, y, drop=TRUE)
+    stop("subsetting operation not supported yet")
+
+.subset_SVT_SparseArray_by_Mindex <- function(x, Mindex, drop=FALSE)
+    stop("subsetting operation not supported yet")
+
+.subset_SVT_SparseArray_by_Lindex <- function(x, Lindex)
+    stop("subsetting operation not supported yet")
+
+.single_bracket_SVT_SparseArray <- function(x, i, j, ..., drop=TRUE)
+{
+    if (missing(x))
+        stop(wmsg("'x' is missing"))
+    if (!isTRUEorFALSE(drop))
+        stop(wmsg("'drop' must be TRUE or FALSE"))
+    Nindex <- extract_Nindex_from_syscall(sys.call(), parent.frame())
+    nsubscript <- length(Nindex)
+    if (nsubscript == 0L)
+        return(x)  # no-op
+    x_dim <- dim(x)
+    x_ndim <- length(x_dim)
+    if (nsubscript == 1L) {
+        i <- Nindex[[1L]]
+        if (type(i) == "logical" && identical(x_dim, dim(i)))
+            return(.subset_SVT_SparseArray_by_logical_array(x, i, drop=drop))
+        if (is.matrix(i) && is.numeric(i))
+            return(.subset_SVT_SparseArray_by_Mindex(x, i, drop=drop))
+        ## Linear single bracket subsetting e.g. x[5:2].
+        ## If 'x' is mono-dimensional and 'drop' is FALSE, we fallback
+        ## to "multi-dimensional single bracket subsetting" which is an
+        ## endomorphism.
+        if (x_ndim != 1L || drop)
+            return(.subset_SVT_SparseArray_by_Lindex(x, i))
+    }
+    if (nsubscript != x_ndim)
+        stop(wmsg("incorrect number of subscripts"))
+    index <- normalize_Nindex(Nindex, x)
+    ans <- extract_sparse_array(x, index)
+    if (drop)
+        ans <- drop(ans)
+    ans
+}
+
+setMethod("[", "SVT_SparseArray", .single_bracket_SVT_SparseArray)
+
+### Note that the default extract_array() method would do the job but it
+### relies on single-bracket subsetting so would needlessly go thru the
+### complex .single_bracket_SVT_SparseArray() machinery above.
+### The method below completely bypasses all this complexity.
 setMethod("extract_array", "SVT_SparseArray",
     function(x, index) as.array(.subset_SVT_SparseArray(x, index))
 )

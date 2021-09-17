@@ -187,7 +187,7 @@ SEXP _new_leaf_vector(SEXP lv_offs, SEXP lv_vals)
 
 	/* Sanity checks (should never fail). */
 	msg = "S4Arrays internal error in _new_leaf_vector():\n"
-	      "  invalid 'lv_offs' and/or 'lv_vals' arguments";
+	      "    invalid 'lv_offs' and/or 'lv_vals' arguments";
 	if (!IS_INTEGER(lv_offs))
 		error(msg);
 	lv_offs_len = XLENGTH(lv_offs);
@@ -290,7 +290,7 @@ static int collect_offsets_of_nonzero_Rsubvec_elts(
 	if (Rvector_elt_is_zero_FUN == NULL)
 		error("S4Arrays internal error in "
 		      "collect_offsets_of_nonzero_Rsubvec_elts():\n"
-		      "  type \"%s\" is not supported", type2char(Rtype));
+		      "    type \"%s\" is not supported", type2char(Rtype));
 
 	int *off_p = offsets;
 	for (int offset = 0; offset < subvec_len; offset++, subvec_offset++)
@@ -512,6 +512,8 @@ static int REC_set_SVT_type(SEXP SVT, const int *dim, int ndim,
 
 	/* 'SVT' is a regular node (list). */
 	SVT_len = LENGTH(SVT);
+
+	/* Sanity check (should never fail). */
 	if (SVT_len != dim[ndim - 1])
 		return -1;
 
@@ -555,7 +557,7 @@ SEXP C_set_SVT_SparseArray_type(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 		UNPROTECT(1);
 		error("S4Arrays internal error in "
 		      "C_set_SVT_SparseArray_type():\n"
-		      "  REC_set_SVT_type() returned an error");
+		      "    REC_set_SVT_type() returned an error");
 	}
 	if (warn)
 		_CoercionWarning(warn);
@@ -628,7 +630,7 @@ SEXP C_from_SVT_SparseArray_to_Rarray(SEXP x_dim, SEXP x_dimnames,
 	if (copy_Rvector_elt_FUN == NULL)
 		error("S4Arrays internal error in "
 		      "C_from_SVT_SparseArray_to_Rarray():\n"
-		      "  SVT_SparseArray object has invalid type");
+		      "    SVT_SparseArray object has invalid type");
 
 	ans = PROTECT(_new_Rarray(Rtype, x_dim, x_dimnames));
 	ret = REC_dump_SVT_to_Rsubarray(x_SVT,
@@ -639,7 +641,7 @@ SEXP C_from_SVT_SparseArray_to_Rarray(SEXP x_dim, SEXP x_dimnames,
 	if (ret < 0)
 		error("S4Arrays internal error "
 		      "in C_from_SVT_SparseArray_to_Rarray():\n"
-		      "  invalid SVT_SparseArray object");
+		      "    invalid SVT_SparseArray object");
 	return ans;
 }
 
@@ -657,11 +659,12 @@ static SEXP REC_build_SVT_from_Rsubarray(
 	SEXP ans, ans_elt;
 	int SVT_len, is_empty, i;
 
-	if (ndim == 1) {  /* Sanity check (should never fail). */
+	if (ndim == 1) {
+		/* Sanity check (should never fail). */
 		if (dim[0] != subarr_len)
 			error("S4Arrays internal error "
 			      "in REC_build_SVT_from_Rsubarray():\n"
-			      "  dim[0] != subarr_len");
+			      "    dim[0] != subarr_len");
 		ans = make_leaf_vector_from_Rsubvec(
 					Rarray, subarr_offset, dim[0],
 					offs_buf);
@@ -807,7 +810,7 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
 	if (x_Rtype == 0)
 		error("S4Arrays internal error in "
 		      "C_from_SVT_SparseArray_to_CsparseMatrix():\n"
-		      "  SVT_SparseArray object has invalid type");
+		      "    SVT_SparseArray object has invalid type");
 
 	x_ncol = INTEGER(x_dim)[1];
 
@@ -823,7 +826,7 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
 			UNPROTECT(3);
 			error("S4Arrays internal error "
 			      "in C_from_SVT_SparseArray_to_CsparseMatrix():\n"
-			      "  invalid SVT_SparseArray object");
+			      "    invalid SVT_SparseArray object");
 		}
 	}
 
@@ -935,7 +938,7 @@ static SEXP alloc_nzvals(R_xlen_t nzdata_len, SEXP type)
 	if (Rtype == 0)
 		error("S4Arrays internal error in "
 		      "alloc_nzvals():\n"
-		      "  SVT_SparseArray object has invalid type");
+		      "    SVT_SparseArray object has invalid type");
 	return allocVector(Rtype, nzdata_len);
 }
 
@@ -1024,7 +1027,7 @@ SEXP C_from_SVT_SparseArray_to_COO_SparseArray(SEXP x_dim,
 		UNPROTECT(2);
 		error("S4Arrays internal error "
 		      "in C_from_SVT_SparseArray_to_COO_SparseArray():\n"
-		      "  invalid SVT_SparseArray object");
+		      "    invalid SVT_SparseArray object");
 	}
 
 	/* Sanity check (should never fail). */
@@ -1032,7 +1035,7 @@ SEXP C_from_SVT_SparseArray_to_COO_SparseArray(SEXP x_dim,
 		UNPROTECT(2);
 		error("S4Arrays internal error "
 		      "in C_from_SVT_SparseArray_to_COO_SparseArray():\n"
-		      "  *out_offset != nzcoo_nrow");
+		      "    *out_offset != nzcoo_nrow");
 	}
 
 	ans = PROTECT(NEW_LIST(2));
@@ -1242,7 +1245,7 @@ SEXP C_build_SVT_from_COO_SparseArray(
 		    else
 			error("S4Arrays internal error in "
 			      "C_from_COO_SparseArray_to_SVT():\n"
-			      "  store_nzoff_and_nzval_in_SVT() "
+			      "    store_nzoff_and_nzval_in_SVT() "
 			      "returned an unexpected error");
 		}
 	}
@@ -1275,7 +1278,7 @@ static void count_nonzero_vals_per_row(SEXP SVT, int nrow, int ncol,
 		if (lv_len < 0)
 			error("S4Arrays internal error in "
 			      "count_nonzero_vals_per_row():\n"
-			      "  invalid SVT_SparseArray object");
+			      "    invalid SVT_SparseArray object");
 		for (k = 0, p = INTEGER(lv_offs); k < lv_len; k++, p++)
 			nzcounts[*p]++;
 	}
@@ -1491,7 +1494,7 @@ static SEXP transpose_SVT(SEXP SVT, SEXPTYPE Rtype, int nrow, int ncol,
 	if (transpose_col_FUN == NULL)
 		error("S4Arrays internal error in "
 		      "transpose_SVT():\n"
-		      "  SVT_SparseArray object has invalid type");
+		      "    SVT_SparseArray object has invalid type");
 
 	ans = PROTECT(NEW_LIST(nrow));
 	quick_out_offs_p = (int **) R_alloc(nrow, sizeof(int *));
@@ -1517,7 +1520,7 @@ static SEXP transpose_SVT(SEXP SVT, SEXPTYPE Rtype, int nrow, int ncol,
 			UNPROTECT(1);
 			error("S4Arrays internal error in "
 			      "transpose_SVT():\n"
-			      "  invalid SVT_SparseArray object");
+			      "    invalid SVT_SparseArray object");
 		}
 		transpose_col_FUN(j,
 			INTEGER(lv_offs), lv_vals,
@@ -1537,7 +1540,7 @@ SEXP C_transpose_SVT_SparseArray(SEXP x_dim, SEXP x_type, SEXP x_SVT)
 	if (Rtype == 0)
 		error("S4Arrays internal error in "
 		      "C_transpose_SVT_SparseArray():\n"
-		      "  SVT_SparseArray object has invalid type");
+		      "    SVT_SparseArray object has invalid type");
 
 	if (LENGTH(x_dim) != 2)
 		error("object to transpose must have exactly 2 dimensions");

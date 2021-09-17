@@ -49,7 +49,7 @@ normalizeSingleBracketSubscript2 <- function(i, x_len, x_names=NULL)
 ### Normalize 'Nindex' i.e. check and turn each non-NULL list element
 ### into a positive integer vector that is a valid subscript along the
 ### corresponding dimension in 'x'.
-normalizeNindex <- function(Nindex, x)
+normalize_Nindex <- function(Nindex, x)
 {
     x_dim <- dim(x)
     if (is.null(x_dim))
