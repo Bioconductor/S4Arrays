@@ -11,8 +11,8 @@
 ### "abind" method yet)
 ###
 
-### Similar to simple_abind() (see abind-utils.R) but works on
-### COO_SparseArray objects.
+### Similar to simple_abind() (see abind.R) but works on COO_SparseArray
+### objects.
 .abind_COO_SparseArray_objects <- function(objects, along)
 {
     stopifnot(is.list(objects))
@@ -58,8 +58,8 @@ setMethod("acbind", "COO_SparseArray",
     function(...) .abind_COO_SparseArray_objects(list(...), along=2L)
 )
 
-### Similar to simple_abind() (see abind-utils.R) but works on
-### SVT_SparseArray objects.
+### Similar to simple_abind() (see abind.R) but works on SVT_SparseArray
+### objects.
 .abind_SVT_SparseArray_objects <- function(objects, along)
 {
     stopifnot(is.list(objects))

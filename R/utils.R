@@ -176,7 +176,7 @@ set_dimnames <- function(x, value)
 ### have the same dimensions.
 ### Note that rbind() and cbind() use a different rule for propagation of
 ### the dimnames. This rule is implemented (and extended to the N-ary case)
-### by combine_dimnames_along() defined in abind-utils.R
+### by combine_dimnames_along() defined in abind.R
 get_first_non_NULL_dimnames <- function(objects)
 {
     for (object in objects) {

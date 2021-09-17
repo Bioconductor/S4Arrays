@@ -204,7 +204,7 @@ export(
     ## sparseMatrix-utils.R:
     rowsum, colsum,
 
-    ## abind-utils.R:
+    ## abind.R:
     arbind, acbind,
 
     ## extract_array.R:

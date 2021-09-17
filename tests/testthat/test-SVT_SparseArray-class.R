@@ -1,19 +1,8 @@
-check_SparseArray_object <- function(object, expected_class, a0)
-{
-    expect_s4_class(object, expected_class)
-    expect_true(validObject(object))
-    expect_identical(dim(object), dim(a0))
-    expect_identical(dimnames(object), dimnames(a0))
-    expect_identical(type(object), type(a0))
-    a <- as.array(object)
-    expect_identical(a, a0)
-}
-
 ### 'a0' is expected to be of type "double".
 ### We only check types "double", "integer", "logical", and "raw" at the
 ### moment. No "complex", "character", or "list" (even though they are
 ### supported).
-test_coercion_to_SparseArray_with_various_types <- function(a0, to)
+.test_coercion_to_SparseArray_with_various_types <- function(a0, to)
 {
     object <- as(a0, to)
     check_SparseArray_object(object, to, a0)
@@ -31,7 +20,7 @@ test_coercion_to_SparseArray_with_various_types <- function(a0, to)
     check_SparseArray_object(object, to, a)
 }
 
-test_SparseArray_transposition <- function(m0, to)
+.test_SparseArray_transposition <- function(m0, to)
 {
     svt <- as(m0, to)
     tm0 <- t(m0)
@@ -44,32 +33,32 @@ test_that("array <==> SVT_SparseArray coercions", {
     ## Only zeros.
     a0 <- array(0.0, c(7, 10, 3),
                 dimnames=list(NULL, letters[1:10], LETTERS[1:3]))
-    test_coercion_to_SparseArray_with_various_types(a0, "SVT_SparseArray")
-    test_coercion_to_SparseArray_with_various_types(a0, "SparseArray")
+    .test_coercion_to_SparseArray_with_various_types(a0, "SVT_SparseArray")
+    .test_coercion_to_SparseArray_with_various_types(a0, "SparseArray")
     m0 <- a0[ , , 1]  # 2D
-    test_coercion_to_SparseArray_with_various_types(m0, "SVT_SparseArray")
-    test_coercion_to_SparseArray_with_various_types(a0, "SparseArray")
+    .test_coercion_to_SparseArray_with_various_types(m0, "SVT_SparseArray")
+    .test_coercion_to_SparseArray_with_various_types(a0, "SparseArray")
     x0 <- m0[1, , drop=FALSE]  # 1D
-    test_coercion_to_SparseArray_with_various_types(x0, "SVT_SparseArray")
-    test_coercion_to_SparseArray_with_various_types(a0, "SparseArray")
+    .test_coercion_to_SparseArray_with_various_types(x0, "SVT_SparseArray")
+    .test_coercion_to_SparseArray_with_various_types(a0, "SparseArray")
 
     ## Add some nonzero values.
     set.seed(123)
     a0[5*(1:42)] <- runif(42, min=-5, max=10)
     a0[2, c(1:4, 7:9), 1] <- c(NA, NaN, Inf, 3e9, 256, -0.999, -1)
-    test_coercion_to_SparseArray_with_various_types(a0, "SVT_SparseArray")
-    test_coercion_to_SparseArray_with_various_types(a0, "SparseArray")
+    .test_coercion_to_SparseArray_with_various_types(a0, "SVT_SparseArray")
+    .test_coercion_to_SparseArray_with_various_types(a0, "SparseArray")
     m0 <- a0[ , , 1]  # 2D
-    test_coercion_to_SparseArray_with_various_types(m0, "SVT_SparseArray")
-    test_coercion_to_SparseArray_with_various_types(a0, "SparseArray")
+    .test_coercion_to_SparseArray_with_various_types(m0, "SVT_SparseArray")
+    .test_coercion_to_SparseArray_with_various_types(a0, "SparseArray")
     x0 <- m0[2, , drop=FALSE]  # 1D
-    test_coercion_to_SparseArray_with_various_types(x0, "SVT_SparseArray")
-    test_coercion_to_SparseArray_with_various_types(a0, "SparseArray")
+    .test_coercion_to_SparseArray_with_various_types(x0, "SVT_SparseArray")
+    .test_coercion_to_SparseArray_with_various_types(a0, "SparseArray")
 
     ## Length zero.
     a <- a0[ , 0, ]
-    test_coercion_to_SparseArray_with_various_types(a, "SVT_SparseArray")
-    test_coercion_to_SparseArray_with_various_types(a0, "SparseArray")
+    .test_coercion_to_SparseArray_with_various_types(a, "SVT_SparseArray")
+    .test_coercion_to_SparseArray_with_various_types(a0, "SparseArray")
 })
 
 test_that("dgCMatrix <==> SVT_SparseArray coercions", {
@@ -177,30 +166,30 @@ test_that("lgCMatrix <==> SVT_SparseArray coercions", {
 test_that("SVT_SparseArray transposition", {
     ## Only zeros.
     m0 <- matrix(0.0, nrow=7, ncol=10, dimnames=list(NULL, letters[1:10]))
-    test_SparseArray_transposition(m0, "SVT_SparseArray")
+    .test_SparseArray_transposition(m0, "SVT_SparseArray")
 
     ## Add some nonzero values.
     set.seed(789)
     m0[5*(1:14)] <- runif(7, min=-5, max=10)
     m0[2, c(1:4, 7:9)] <- c(NA, NaN, Inf, 3e9, 256, -0.999, -1)
-    test_SparseArray_transposition(m0, "SVT_SparseArray")
+    .test_SparseArray_transposition(m0, "SVT_SparseArray")
 
     ## Length zero.
     m <- m0[0 , ]
-    test_SparseArray_transposition(m, "SVT_SparseArray")
+    .test_SparseArray_transposition(m, "SVT_SparseArray")
     m <- m0[ , 0]  # this sets the dimnames to list(NULL, NULL)
     dimnames(m) <- NULL  # fix the dimnames
-    test_SparseArray_transposition(m, "SVT_SparseArray")
+    .test_SparseArray_transposition(m, "SVT_SparseArray")
 
     ## Other types.
     m <- m0
     suppressWarnings(storage.mode(m) <- "integer")
-    test_SparseArray_transposition(m, "SVT_SparseArray")
+    .test_SparseArray_transposition(m, "SVT_SparseArray")
     m <- m0
     suppressWarnings(storage.mode(m) <- "logical")
-    test_SparseArray_transposition(m, "SVT_SparseArray")
+    .test_SparseArray_transposition(m, "SVT_SparseArray")
     m <- m0
     suppressWarnings(storage.mode(m) <- "raw")
-    test_SparseArray_transposition(m, "SVT_SparseArray")
+    .test_SparseArray_transposition(m, "SVT_SparseArray")
 })
 

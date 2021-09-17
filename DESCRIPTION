@@ -27,7 +27,7 @@ Collate: utils.R
 	ArraySelection-class.R
 	array_selection.R
 	Nindex-utils.R
-	abind-utils.R
+	abind.R
 	Array-class.R
 	extract_array.R
 	ArrayGrid-class.R
