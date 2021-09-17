@@ -18,8 +18,8 @@ Depends: R (>= 4.1.0), methods, Matrix, BiocGenerics, MatrixGenerics,
 	S4Vectors, IRanges
 Imports: stats, XVector
 LinkingTo: S4Vectors, IRanges, XVector
-Suggests: BiocParallel, DelayedArray, scuttle, knitr, rmarkdown, BiocStyle,
-	RUnit
+Suggests: BiocParallel, DelayedArray, scuttle, testthat,
+	knitr, rmarkdown, BiocStyle
 VignetteBuilder: knitr
 Collate: utils.R
 	aperm2.R
