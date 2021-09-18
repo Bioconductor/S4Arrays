@@ -32,8 +32,10 @@
 \title{SVT_SparseArray objects}
 
 \description{
-  The SVT_SparseArray class is a container for efficient in-memory
-  representation of multidimensional sparse arrays.
+  SVT_SparseArray is a new class for efficient in-memory representation
+  of multidimensional sparse arrays.
+
+  It replaces the older and less efficient \link{COO_SparseArray} class.
 }
 
 \usage{
@@ -147,7 +149,8 @@ vector  vector          vector  vector  vector  vector}
 
 \seealso{
   \itemize{
-    \item The \link{SparseArray} class for the virtual parent class.
+    \item The \link{SparseArray} class for the virtual parent class of
+          COO_SparseArray and SVT_SparseArray.
 
     \item S4 classes \linkS4class{dgCMatrix} and \linkS4class{lgCMatrix}
           defined in the \pkg{Matrix} package, for the de facto standard

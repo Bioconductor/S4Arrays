@@ -3,6 +3,7 @@
 #include "abind.h"
 #include "sparseMatrix_utils.h"
 #include "ArraySelection_class.h"
+#include "array_selection.h"
 #include "SVT_SparseArray_class.h"
 #include "SparseArray_subsetting.h"
 #include "SparseArray_combine.h"
@@ -26,6 +27,10 @@ static const R_CallMethodDef callMethods[] = {
 	CALLMETHOD_DEF(C_get_SelectionTree_length, 2),
 	CALLMETHOD_DEF(C_from_SelectionTree_to_matrix, 2),
 	CALLMETHOD_DEF(C_from_matrix_to_SelectionTree, 2),
+
+/* array_selection.c */
+	CALLMETHOD_DEF(C_Lindex2Mindex, 3),
+	CALLMETHOD_DEF(C_Mindex2Lindex, 4),
 
 /* SVT_SparseArray_class.c */
 	CALLMETHOD_DEF(C_get_SVT_SparseArray_nzdata_length, 2),

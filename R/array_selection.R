@@ -36,12 +36,3 @@ Mindex2Lindex <- function(Mindex, dim, use.names=FALSE, as.integer=FALSE)
                               as.integer, PACKAGE="S4Arrays")
 }
 
-### 'aind' must be an integer matrix or vector (a vector is treated like
-### a 1-row matrix).
-### Return a numeric vector with one element per row in 'aind'.
-linearInd <- function(aind, dim)
-{
-    .Deprecated("Mindex2Lindex")
-    Mindex2Lindex(aind, dim, use.names=TRUE)
-}
-

@@ -15,7 +15,7 @@
 ### - Getters: nzcoo(), nzvals().
 ### - sparsity().
 ### - dense2sparse(), sparse2dense().
-### - Based on sparse2dense(): extract_array(), as.array(), as.matrix().
+### - Based on sparse2dense(): extract_array(), as.array().
 ### - Based on dense2sparse(): coercion to COO_SparseArray.
 ### - Back and forth coercion between COO_SparseArray and [d|l]g[C|R]Matrix
 ###   objects from the Matrix package.
@@ -223,18 +223,6 @@ sparse2dense <- function(coo)
 ### S3/S4 combo for as.array.COO_SparseArray
 as.array.COO_SparseArray <- function(x, ...) sparse2dense(x)
 setMethod("as.array", "COO_SparseArray", as.array.COO_SparseArray)
-
-### S3/S4 combo for as.matrix.COO_SparseArray
-.from_COO_SparseArray_to_matrix <- function(x)
-{
-    x_dim <- dim(x)
-    if (length(x_dim) != 2L)
-        stop(wmsg("'x' must have exactly 2 dimensions"))
-    sparse2dense(x)
-}
-as.matrix.COO_SparseArray <-
-    function(x, ...) .from_COO_SparseArray_to_matrix(x, ...)
-setMethod("as.matrix", "COO_SparseArray", .from_COO_SparseArray_to_matrix)
 
 setAs("ANY", "COO_SparseArray", function(from) dense2sparse(from))
 
