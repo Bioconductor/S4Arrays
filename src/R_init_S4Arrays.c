@@ -1,7 +1,8 @@
 #include <R_ext/Rdynload.h>
 
-#include "ArraySelection_class.h"
 #include "abind.h"
+#include "sparseMatrix_utils.h"
+#include "ArraySelection_class.h"
 #include "SVT_SparseArray_class.h"
 #include "SparseArray_subsetting.h"
 #include "SparseArray_combine.h"
@@ -11,13 +12,20 @@
 
 static const R_CallMethodDef callMethods[] = {
 
+/* abind.c */
+	CALLMETHOD_DEF(C_abind, 3),
+
+/* sparseMatrix_utils.c */
+	CALLMETHOD_DEF(C_rowsum_dgCMatrix, 4),
+	CALLMETHOD_DEF(C_colMins_dgCMatrix, 2),
+	CALLMETHOD_DEF(C_colMaxs_dgCMatrix, 2),
+	CALLMETHOD_DEF(C_colRanges_dgCMatrix, 2),
+	CALLMETHOD_DEF(C_colVars_dgCMatrix, 2),
+
 /* ArraySelection_class.c */
 	CALLMETHOD_DEF(C_get_SelectionTree_length, 2),
 	CALLMETHOD_DEF(C_from_SelectionTree_to_matrix, 2),
 	CALLMETHOD_DEF(C_from_matrix_to_SelectionTree, 2),
-
-/* abind.c */
-	CALLMETHOD_DEF(C_abind, 3),
 
 /* SVT_SparseArray_class.c */
 	CALLMETHOD_DEF(C_get_SVT_SparseArray_nzdata_length, 2),

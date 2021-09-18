@@ -23,11 +23,11 @@ Suggests: BiocParallel, DelayedArray, scuttle, testthat,
 VignetteBuilder: knitr
 Collate: utils.R
 	aperm2.R
+	abind.R
 	sparseMatrix-utils.R
 	ArraySelection-class.R
 	array_selection.R
 	Nindex-utils.R
-	abind.R
 	Array-class.R
 	extract_array.R
 	ArrayGrid-class.R

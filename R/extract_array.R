@@ -257,33 +257,6 @@ setMethod("as.array", "Array", .from_Array_to_array)
 ### All these coercions are based on as.array().
 ###
 
-.SLICING_TIP <- c(
-    "Consider reducing its number of effective dimensions by slicing it ",
-    "first (e.g. x[8, 30, , 2, ]). Make sure that all the indices used for ",
-    "the slicing have length 1 except at most 2 of them which can be of ",
-    "arbitrary length or missing."
-)
-
-.from_Array_to_matrix <- function(x)
-{
-    x_dim <- dim(x)
-    if (sum(x_dim != 1L) > 2L)
-        stop(wmsg(class(x), " object with more than 2 effective dimensions ",
-                  "cannot be coerced to a matrix. ", .SLICING_TIP))
-    ans <- as.array(x, drop=TRUE)
-    if (length(x_dim) == 2L) {
-        ans <- set_dim(ans, x_dim)
-        ans <- set_dimnames(ans, dimnames(x))
-    } else {
-        as.matrix(ans)
-    }
-    ans
-}
-
-### S3/S4 combo for as.matrix.Array
-as.matrix.Array <- function(x, ...) .from_Array_to_matrix(x, ...)
-setMethod("as.matrix", "Array", .from_Array_to_matrix)
-
 ### S3/S4 combo for as.data.frame.Array
 as.data.frame.Array <- function(x, row.names=NULL, optional=FALSE, ...)
     as.data.frame(as.array(x, drop=TRUE),

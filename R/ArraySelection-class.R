@@ -3,6 +3,8 @@
 ### -------------------------------------------------------------------------
 
 
+### WORK IN PROGRESS! None of this is exported at the moment.
+
 setClass("ArraySelection",
     representation(
         "VIRTUAL",

@@ -18,8 +18,8 @@ import(XVector)
 
 exportClasses(
     ## ArraySelection-class.R:
-    ArraySelection, COOList, LongCOOList,
-    NULL_OR_integer_OR_list, SelectionTree,
+    #ArraySelection, COOList, LongCOOList,
+    #NULL_OR_integer_OR_list, SelectionTree,
 
     ## Array-class.R:
     Array,
@@ -63,8 +63,8 @@ S3method(as.integer, Array)
 
 S3method(as.logical, Array)
 
+#S3method(as.matrix, SelectionTree)
 S3method(as.matrix, Array)
-S3method(as.matrix, SelectionTree)
 S3method(as.matrix, COO_SparseArray)
 
 S3method(as.numeric, Array)
@@ -108,7 +108,7 @@ export(
     as.logical.Array,
 
     as.matrix.Array,
-    as.matrix.SelectionTree,
+    #as.matrix.SelectionTree,
     as.matrix.COO_SparseArray,
 
     as.numeric.Array,
@@ -173,7 +173,7 @@ export(
     aperm2,
 
     ## ArraySelection-class.R:
-    SelectionTree,
+    #SelectionTree,
 
     ## array_selection.R:
     Lindex2Mindex, Mindex2Lindex, linearInd,
@@ -201,11 +201,11 @@ export(
     ## aperm2.R:
     aperm,
 
-    ## sparseMatrix-utils.R:
-    rowsum, colsum,
-
     ## abind.R:
     arbind, acbind,
+
+    ## sparseMatrix-utils.R:
+    rowsum, colsum,
 
     ## extract_array.R:
     extract_array,
@@ -228,8 +228,8 @@ export(
 ### Same list as above.
 exportMethods(
     aperm,
-    rowsum, colsum,
     arbind, acbind,
+    rowsum, colsum,
     extract_array,
     refdim, maxlength, downsample,
     is_sparse,

@@ -7,47 +7,8 @@
 ### An SVT_SparseArray object stores its nonzero data in a "Sparse Vector
 ### Tree" (SVT).
 ###
-### An SVT is a tree of depth the number of dimensions in the array where
-### the leaves are sparse vectors, also called "leaf vectors".
-### A "leaf vector" is a vector of offset/value pairs sorted by strictly
-### ascending offset. It is represented by a list of 2 parallel vectors:
-### an integer vector of offsets and a vector (atomic or list) of nonzero
-### values. The 2nd vector determines the type of the leaf vector i.e.
-### double, integer, logical, etc... All the leaf vectors in the SVT must
-### have the same type, which should match the type specified in the 'type'
-### slot of the SVT_SparseArray object.
-###
-### More precisely:
-###
-### - An SVT_SparseArray object with 1 dimension stores its nonzero data in an
-###   SVT of depth 0. Such SVT is represented by a single "leaf vector".
-###
-### - An SVT_SparseArray object with 2 dimensions stores its nonzero data in an
-###   SVT of depth 1. Such SVT is represented by a list of length the extend
-###   of the 2nd dimension (nb of columns). Each list element is an SVT of
-###   depth 0 (as described above), or a NULL if the corresponding column is
-###   empty (i.e. has no nonzero data).
-###   For example, the SVT for an 8-column matrix will look like this:
-###
-###             .------------------list-of-length-8-----------------.
-###            /       /       /      |       |      \       \       \
-###           |       |       |       |       |       |       |       |
-###          leaf    leaf    NULL    leaf    leaf    leaf    leaf    NULL
-###         vector  vector          vector  vector  vector  vector
-###
-###         Note that empty columns (i.e. columns with no nonzero elements)
-###         are represented with NULLs.
-###
-### - An SVT_SparseArray object with 3 dimensions stores its nonzero data in an
-###   SVT of depth 2. Such SVT is represented by a list of length the extend
-###   of the 3rd dimension. Each list element must be an SVT of depth 1 (as
-###   described above) that stores the nonzero data of the corresponding 2D
-###   slice, or a NULL if the 2D slice is empty (i.e. has no nonzero data).
-###
-### - etc...
-###
 ### If the sparse array is empty (i.e. has no nonzero data), the 'SVT' slot
-### is set to NULL.
+### must be set to NULL.
 ###
 ### IMPORTANT NOTES:
 ### - All the "leaf vectors" in the SVT are guaranteed to have a
