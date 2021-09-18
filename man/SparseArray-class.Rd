@@ -5,6 +5,16 @@
 \alias{SparseArray-class}
 \alias{SparseArray}
 
+\alias{dimnames,SparseArray-method}
+\alias{dimnames<-,SparseArray-method}
+\alias{is_sparse}
+\alias{is_sparse<-}
+\alias{is_sparse,ANY-method}
+\alias{is_sparse,SparseArray-method}
+\alias{sparsity}
+
+\alias{show,SparseArray-method}
+
 \title{SparseArray objects}
 
 \description{
@@ -30,14 +40,18 @@
   Any object that belongs to a class that extends SparseArray is called
   a \emph{SparseArray derivative}.
 
-  Users should be able to operate on SparseArray derivatives via the
-  \emph{standard array API} defined in base R, that is, using things
-  like \code{dim()}, \code{length()}, \code{dimnames()}, \code{[},
-  \code{drop()}, \code{t()}, \code{rbind()}, \code{cbind()}, etc...
+  Most of the \emph{standard array API} defined in base R should work
+  on SparseArray derivatives, including \code{dim()}, \code{length()},
+  \code{dimnames()}, \code{`dimnames<-`()}, \code{[}, \code{drop()},
+  \code{t()}, \code{rbind()}, \code{cbind()}, etc...
 
   SparseArray derivatives also support \code{type()}, \code{`type<-`()},
-  and \code{is_sparse()}, three generic functions defined in this
-  package (the \pkg{S4Arrays} package).
+  \code{is_sparse()}, \code{sparsity()}, \code{arbind()} and \code{acbind()},
+  six generic functions defined in this package (the \pkg{S4Arrays} package).
+
+  \code{sparsity(x)} returns the ratio of number of zero-valued elements
+  over total number of elements (\code{length(x)}) in array-like object
+  \code{x}.
 }
 
 \seealso{

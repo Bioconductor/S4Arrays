@@ -53,7 +53,6 @@ COO_SparseArray(dim, nzcoo=NULL, nzvals=NULL, dimnames=NULL, check=TRUE)
 ## Getters (in addition to dim(), length(), and dimnames()):
 nzcoo(x)
 nzvals(x)
-sparsity(x)
 
 ## Two low-level utilities:
 dense2sparse(x)
@@ -85,8 +84,7 @@ sparse2dense(coo)
     Should the object be validated upon construction?
   }
   \item{x}{
-    A COO_SparseArray object for the \code{nzcoo}, \code{nzvals}, and
-    \code{sparsity} getters.
+    A COO_SparseArray object for the \code{nzcoo} and \code{nzvals} getters.
 
     An array-like object for \code{dense2sparse}.
   }
@@ -103,10 +101,6 @@ sparse2dense(coo)
           of the nonzero values.
 
     \item For \code{nzvals()}: The vector of nonzero values.
-
-    \item For \code{sparsity()}: The number of zero-valued elements
-          in the implicit array divided by the total number of array
-          elements (a.k.a. the length of the array).
 
     \item For \code{dense2sparse()}: A COO_SparseArray instance.
 
