@@ -29,8 +29,37 @@ setClass("SparseArray",
         return(msg)
     TRUE
 }
-
 setValidity2("SparseArray", .validate_SparseArray)
+
+### Extending RectangularData gives us a few things for free (e.g. validity
+### method for RectangularData objects, head(), tail(), etc...). Note
+### that even though SparseMatrix already extends Array (via SparseArray),
+### we need to make it a *direct* child of Array, and to list Array *before*
+### RectangularData in the 'contains' field below. This will ensure that
+### method dispatch will always choose the method for Array in case a generic
+### has methods defined for both, Array and RectangularData.
+### Note that the fact that we need this "hack" is a hint that we could
+### achieve a cleaner class hierarchy by inserting a Matrix class in it.
+### Matrix would contain Array and RectangularData (in that order). Then
+### SparseMatrix would contain SparseArray and Matrix (in that order).
+### Unfortunately the Matrix package already defines a Matrix class so
+### we would need to use a different name.
+setClass("SparseMatrix",
+    contains=c("SparseArray", "Array", "RectangularData"),
+    representation("VIRTUAL"),
+    prototype(
+        dim=c(0L, 0L),
+        dimnames=list(NULL, NULL)
+    )
+)
+
+.validate_SparseMatrix <- function(x)
+{
+    if (length(x@dim) != 2L)
+        return("'dim' slot must be an integer vector of length 2")
+    TRUE
+}
+setValidity2("SparseMatrix", .validate_SparseMatrix)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

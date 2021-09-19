@@ -5,6 +5,12 @@
 \alias{COO_SparseArray-class}
 \alias{COO_SparseArray}
 
+\alias{class:COO_SparseMatrix}
+\alias{COO_SparseMatrix-class}
+\alias{COO_SparseMatrix}
+\alias{coerce,COO_SparseArray,COO_SparseMatrix-method}
+\alias{coerce,COO_SparseMatrix,COO_SparseArray-method}
+
 \alias{nzcoo}
 \alias{nzcoo,COO_SparseArray-method}
 \alias{nzvals}
@@ -42,8 +48,11 @@
   The COO_SparseArray class is a container for efficient in-memory
   representation of multidimensional sparse arrays.
 
-  IMPORTANT NOTE: COO_SparseArray is now superseded by the new and more
-  efficient \link{SVT_SparseArray} class.
+  A COO_SparseMatrix object is a COO_SparseArray object of 2 dimensions.
+
+  IMPORTANT NOTE: COO_SparseArray and COO_SparseMatrix objects are now
+  superseded by the new and more efficient \link{SVT_SparseArray} and
+  SVT_SparseMatrix objects.
 }
 
 \usage{
@@ -95,14 +104,16 @@ sparse2dense(coo)
 
 \value{
   \itemize{
-    \item For \code{COO_SparseArray()}: A COO_SparseArray instance.
+    \item For \code{COO_SparseArray()}: A COO_SparseArray or COO_SparseMatrix
+          object.
 
     \item For \code{nzcoo()}: The matrix containing the array coordinates
           of the nonzero values.
 
     \item For \code{nzvals()}: The vector of nonzero values.
 
-    \item For \code{dense2sparse()}: A COO_SparseArray instance.
+    \item For \code{dense2sparse()}: A COO_SparseArray or COO_SparseMatrix
+          object.
 
     \item For \code{sparse2dense()}: An ordinary array.
   }

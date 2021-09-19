@@ -88,7 +88,7 @@ setMethod("acbind", "COO_SparseArray",
     ans_dim <- C_ans[[1L]]
     ans_SVT <- C_ans[[2L]]
 
-    .new_SVT_SparseArray(ans_dim, ans_dimnames, ans_type, ans_SVT, check=FALSE)
+    new_SVT_SparseArray(ans_dim, ans_dimnames, ans_type, ans_SVT, check=FALSE)
 }
 
 setMethod("arbind", "SVT_SparseArray",

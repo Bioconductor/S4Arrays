@@ -5,6 +5,10 @@
 \alias{SparseArray-class}
 \alias{SparseArray}
 
+\alias{class:SparseMatrix}
+\alias{SparseMatrix-class}
+\alias{SparseMatrix}
+
 \alias{dimnames,SparseArray-method}
 \alias{dimnames<-,SparseArray-method}
 \alias{is_sparse}

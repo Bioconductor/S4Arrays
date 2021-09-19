@@ -1278,7 +1278,7 @@ static void count_nonzero_vals_per_row(SEXP SVT, int nrow, int ncol,
 		if (lv_len < 0)
 			error("S4Arrays internal error in "
 			      "count_nonzero_vals_per_row():\n"
-			      "    invalid SVT_SparseArray object");
+			      "    invalid SVT_SparseMatrix object");
 		for (k = 0, p = INTEGER(lv_offs); k < lv_len; k++, p++)
 			nzcounts[*p]++;
 	}
@@ -1494,7 +1494,7 @@ static SEXP transpose_SVT(SEXP SVT, SEXPTYPE Rtype, int nrow, int ncol,
 	if (transpose_col_FUN == NULL)
 		error("S4Arrays internal error in "
 		      "transpose_SVT():\n"
-		      "    SVT_SparseArray object has invalid type");
+		      "    SVT_SparseMatrix object has invalid type");
 
 	ans = PROTECT(NEW_LIST(nrow));
 	quick_out_offs_p = (int **) R_alloc(nrow, sizeof(int *));
@@ -1520,7 +1520,7 @@ static SEXP transpose_SVT(SEXP SVT, SEXPTYPE Rtype, int nrow, int ncol,
 			UNPROTECT(1);
 			error("S4Arrays internal error in "
 			      "transpose_SVT():\n"
-			      "    invalid SVT_SparseArray object");
+			      "    invalid SVT_SparseMatrix object");
 		}
 		transpose_col_FUN(j,
 			INTEGER(lv_offs), lv_vals,
@@ -1531,7 +1531,7 @@ static SEXP transpose_SVT(SEXP SVT, SEXPTYPE Rtype, int nrow, int ncol,
 	return ans;
 }
 
-SEXP C_transpose_SVT_SparseArray(SEXP x_dim, SEXP x_type, SEXP x_SVT)
+SEXP C_transpose_SVT_SparseMatrix(SEXP x_dim, SEXP x_type, SEXP x_SVT)
 {
 	SEXPTYPE Rtype;
 	int x_nrow, x_ncol, *nzcounts;
@@ -1539,8 +1539,8 @@ SEXP C_transpose_SVT_SparseArray(SEXP x_dim, SEXP x_type, SEXP x_SVT)
 	Rtype = _get_Rtype_from_Rstring(x_type);
 	if (Rtype == 0)
 		error("S4Arrays internal error in "
-		      "C_transpose_SVT_SparseArray():\n"
-		      "    SVT_SparseArray object has invalid type");
+		      "C_transpose_SVT_SparseMatrix():\n"
+		      "    SVT_SparseMatrix object has invalid type");
 
 	if (LENGTH(x_dim) != 2)
 		error("object to transpose must have exactly 2 dimensions");

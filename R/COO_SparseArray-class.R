@@ -35,6 +35,30 @@ setClass("COO_SparseArray",
     )
 )
 
+setClass("COO_SparseMatrix",
+    contains=c("COO_SparseArray", "SparseMatrix"),
+    prototype=prototype(
+        dim=c(0L, 0L),
+        dimnames=list(NULL, NULL),
+        nzcoo=matrix(integer(0), ncol=2L)
+    )
+)
+
+### Automatic coercion method from COO_SparseArray to COO_SparseMatrix silently
+### returns a broken object (unfortunately these dummy automatic coercion
+### methods don't bother to validate the object they return). So we overwrite
+### it with a method that will fail (as expected) thanks to the validity
+### method for SparseMatrix objects.
+setAs("COO_SparseArray", "COO_SparseMatrix",
+    function(from) new("COO_SparseMatrix", from)
+)
+
+### Also the user should not be able to degrade a COO_SparseMatrix object to a
+### COO_SparseArray object so 'as(x, "COO_SparseArray", strict=TRUE)' should
+### fail or be a no-op when 'x' is a COO_SparseMatrix object. Making this
+### coercion a no-op seems to be the easiest (and safest) way to go.
+setAs("COO_SparseMatrix", "COO_SparseArray", function(from) from)  # no-op
+
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### Validity
@@ -79,7 +103,6 @@ setClass("COO_SparseArray",
         return(msg)
     TRUE
 }
-
 setValidity2("COO_SparseArray", .validate_COO_SparseArray)
 
 
@@ -114,7 +137,6 @@ setMethod("nzvals", "COO_SparseArray", function(x) x@nzvals)
     nzidx <- which_is_nonzero(new_nzvals)
     new_nzcoo <- x@nzcoo[nzidx, , drop=FALSE]
     new_nzvals <- new_nzvals[nzidx]
-
     BiocGenerics:::replaceSlots(x, nzcoo=new_nzcoo,
                                    nzvals=new_nzvals,
                                    check=FALSE)
@@ -130,6 +152,25 @@ setReplaceMethod("type", "COO_SparseArray", .set_COO_SparseArray_type)
 setMethod("sparsity", "COO_SparseArray",
     function(x) { 1 - length(nzvals(x)) / length(x) }
 )
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### Low-level constructor
+###
+
+new_COO_SparseArray <- function(dim, dimnames=NULL,
+                                nzcoo=NULL, nzvals=NULL, check=TRUE)
+{
+    stopifnot(is.integer(dim))
+    if (length(dim) == 2L) {
+        ans_class <- "COO_SparseMatrix"
+    } else {
+        ans_class <- "COO_SparseArray"
+    }
+    dimnames <- normarg_dimnames(dimnames, dim)
+    new2(ans_class, dim=dim, dimnames=dimnames,
+                    nzcoo=nzcoo, nzvals=nzvals, check=check)
+}
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -179,10 +220,7 @@ COO_SparseArray <- function(dim, nzcoo=NULL, nzvals=NULL, dimnames=NULL,
             dimnames(nzcoo) <- NULL
         nzvals <- .normarg_nzvals(nzvals, nrow(nzcoo))
     }
-    dimnames <- normarg_dimnames(dimnames, dim)
-    new2("COO_SparseArray", dim=dim, dimnames=dimnames,
-                            nzcoo=nzcoo, nzvals=nzvals,
-                            check=check)
+    new_COO_SparseArray(dim, dimnames, nzcoo, nzvals, check=check)
 }
 
 
@@ -344,15 +382,13 @@ setAs("lgRMatrix", "COO_SparseArray",
     msg <- validate_perm(perm, a_dim)
     if (!isTRUE(msg))
         stop(wmsg(msg))
-    new_dim <- a_dim[perm]
-    new_dim[is.na(perm)] <- 1L
-    new_nzcoo <- a@nzcoo[ , perm, drop=FALSE]
-    new_nzcoo[ , is.na(perm)] <- 1L
-    new_dimnames <- a@dimnames[perm]
-    BiocGenerics:::replaceSlots(a, dim=new_dim,
-                                   dimnames=new_dimnames,
-                                   nzcoo=new_nzcoo,
-                                   check=FALSE)
+    ans_dim <- a_dim[perm]
+    ans_dim[is.na(perm)] <- 1L
+    ans_nzcoo <- a@nzcoo[ , perm, drop=FALSE]
+    ans_nzcoo[ , is.na(perm)] <- 1L
+    ans_dimnames <- a@dimnames[perm]
+    new_COO_SparseArray(ans_dim, ans_dimnames,
+                        ans_nzcoo, a@nzvals, check=FALSE)
 }
 
 ### S3/S4 combo for aperm.COO_SparseArray

@@ -29,13 +29,13 @@ exportClasses(
     ArrayGrid, DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid,
 
     ## SparseArray-class.R:
-    SparseArray,
+    SparseArray, SparseMatrix,
 
     ## COO_SparseArray-class.R:
-    COO_SparseArray,
+    COO_SparseArray, COO_SparseMatrix,
 
     ## SVT_SparseArray-class.R:
-    NULL_OR_list, SVT_SparseArray
+    NULL_OR_list, SVT_SparseArray, SVT_SparseMatrix
 )
 
 
@@ -79,7 +79,7 @@ S3method(range, COO_SparseArray)
 S3method(rowsum, dgCMatrix)
 
 S3method(t, Array)
-S3method(t, SVT_SparseArray)
+S3method(t, SVT_SparseMatrix)
 
 ### We also export them thru the export() directive so that (a) they can be
 ### called directly, (b) tab-completion on the name of the generic shows them,
@@ -122,7 +122,7 @@ export(
     rowsum.dgCMatrix,
 
     t.Array,
-    t.SVT_SparseArray
+    t.SVT_SparseMatrix
 )
 
 

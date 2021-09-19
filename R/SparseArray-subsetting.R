@@ -137,7 +137,7 @@ setMethod("extract_array", "COO_SparseArray",
     new_SVT <- C_ans[[2L]]
 
     ## Compute 'new_dimnames'.
-    if (ignore.dimnames) {
+    if (is.null(dimnames(x)) || ignore.dimnames) {
         new_dimnames <- vector("list", length(x@dim))
     } else {
         new_dimnames <- subset_dimnames_by_Nindex(x@dimnames, index)
@@ -161,16 +161,13 @@ setMethod("extract_sparse_array", "SVT_SparseArray",
 ### Always returns an SVT_SparseArray object (endomorphism).
 .drop_SVT_SparseArray <- function(x)
 {
-    ## Returns 'new_dim', 'new_dimnames', and 'new_SVT', in a list of length 3.
+    ## Returns 'ans_dim', 'ans_dimnames', and 'ans_SVT', in a list of length 3.
     C_ans <- .Call2("C_drop_SVT_SparseArray_ineffective_dims",
                     x@dim, x@dimnames, x@type, x@SVT, PACKAGE="S4Arrays")
-    new_dim <- C_ans[[1L]]
-    new_dimnames <- C_ans[[2L]]
-    new_SVT <- C_ans[[3L]]
-    BiocGenerics:::replaceSlots(x, dim=new_dim,
-                                   dimnames=new_dimnames,
-                                   SVT=new_SVT,
-                                   check=FALSE)
+    ans_dim <- C_ans[[1L]]
+    ans_dimnames <- C_ans[[2L]]
+    ans_SVT <- C_ans[[3L]]
+    new_SVT_SparseArray(ans_dim, ans_dimnames, x@type, ans_SVT, check=FALSE)
 }
 
 ### Returns an SVT_SparseArray object or an ordinary vector of type 'type(x)'.

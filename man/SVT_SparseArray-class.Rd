@@ -9,6 +9,12 @@
 \alias{SVT_SparseArray-class}
 \alias{SVT_SparseArray}
 
+\alias{class:SVT_SparseMatrix}
+\alias{SVT_SparseMatrix-class}
+\alias{SVT_SparseMatrix}
+\alias{coerce,SVT_SparseArray,SVT_SparseMatrix-method}
+\alias{coerce,SVT_SparseMatrix,SVT_SparseArray-method}
+
 \alias{type,SVT_SparseArray}
 \alias{type<-,SVT_SparseArray}
 
@@ -26,8 +32,8 @@
 \alias{coerce,ANY,SVT_SparseArray-method}
 \alias{coerce,RsparseMatrix,SVT_SparseArray-method}
 
-\alias{t.SVT_SparseArray}
-\alias{t,SVT_SparseArray-method}
+\alias{t.SVT_SparseMatrix}
+\alias{t,SVT_SparseMatrix-method}
 
 \title{SVT_SparseArray objects}
 
@@ -35,7 +41,10 @@
   SVT_SparseArray is a new class for efficient in-memory representation
   of multidimensional sparse arrays.
 
-  It replaces the older and less efficient \link{COO_SparseArray} class.
+  An SVT_SparseMatrix object is an SVT_SparseArray object of 2 dimensions.
+
+  Note that SVT_SparseArray and SVT_SparseMatrix objects replace the older
+  and less efficient \link{COO_SparseArray} and COO_SparseMatrix objects.
 }
 
 \usage{
@@ -90,7 +99,7 @@ SVT_SparseArray(x, type=NA)
 }
 
 \value{
-  An SVT_SparseArray object.
+  An SVT_SparseArray or SVT_SparseMatrix object.
 }
 
 \section{SVT layout}{

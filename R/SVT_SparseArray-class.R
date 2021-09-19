@@ -35,6 +35,29 @@ setClass("SVT_SparseArray",
     )
 )
 
+setClass("SVT_SparseMatrix",
+    contains=c("SVT_SparseArray", "SparseMatrix"),
+    prototype=prototype(
+        dim=c(0L, 0L),
+        dimnames=list(NULL, NULL)
+    )
+)
+
+### Automatic coercion method from SVT_SparseArray to SVT_SparseMatrix silently
+### returns a broken object (unfortunately these dummy automatic coercion
+### methods don't bother to validate the object they return). So we overwrite
+### it with a method that will fail (as expected) thanks to the validity
+### method for SparseMatrix objects.
+setAs("SVT_SparseArray", "SVT_SparseMatrix",
+    function(from) new("SVT_SparseMatrix", from)
+)
+
+### Also the user should not be able to degrade a SVT_SparseMatrix object to a
+### SVT_SparseArray object so 'as(x, "SVT_SparseArray", strict=TRUE)' should
+### fail or be a no-op when 'x' is a SVT_SparseMatrix object. Making this
+### coercion a no-op seems to be the easiest (and safest) way to go.
+setAs("SVT_SparseMatrix", "SVT_SparseArray", function(from) from)  # no-op
+
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### Validity
@@ -45,12 +68,18 @@ setClass("SVT_SparseArray",
 ### Low-level constructor
 ###
 
-.new_SVT_SparseArray <- function(dim, dimnames=NULL, type="logical",
-                                 SVT=NULL, check=TRUE)
+new_SVT_SparseArray <- function(dim, dimnames=NULL,
+                                type="logical", SVT=NULL, check=TRUE)
 {
+    stopifnot(is.integer(dim))
+    if (length(dim) == 2L) {
+        ans_class <- "SVT_SparseMatrix"
+    } else {
+        ans_class <- "SVT_SparseArray"
+    }
     dimnames <- normarg_dimnames(dimnames, dim)
-    new2("SVT_SparseArray", dim=dim, dimnames=dimnames, type=type,
-                            SVT=SVT, check=check)
+    new2(ans_class, dim=dim, dimnames=dimnames,
+                    type=type, SVT=SVT, check=check)
 }
 
 
@@ -89,7 +118,6 @@ setMethod("type", "SVT_SparseArray", function(x) x@type)
 
     new_SVT <- .Call2("C_set_SVT_SparseArray_type",
                       x@dim, x@type, x@SVT, value, PACKAGE="S4Arrays")
-
     BiocGenerics:::replaceSlots(x, type=value, SVT=new_SVT, check=FALSE)
 }
 
@@ -118,7 +146,7 @@ setMethod("as.array", "SVT_SparseArray", as.array.SVT_SparseArray)
         type <- type(x)
     ans_SVT <- .Call2("C_build_SVT_from_Rarray",
                       x, type, PACKAGE="S4Arrays")
-    .new_SVT_SparseArray(dim(x), dimnames(x), type, ans_SVT, check=FALSE)
+    new_SVT_SparseArray(dim(x), dimnames(x), type, ans_SVT, check=FALSE)
 }
 
 setAs("array", "SVT_SparseArray",
@@ -192,7 +220,7 @@ setAs("SVT_SparseArray", "lgCMatrix", .from_SVT_SparseArray_to_lgCMatrix)
         type <- type(x)
     ans_SVT <- .Call2("C_build_SVT_from_CsparseMatrix",
                       x, type, PACKAGE="S4Arrays")
-    .new_SVT_SparseArray(dim(x), dimnames(x), type, ans_SVT, check=FALSE)
+    new_SVT_SparseArray(dim(x), dimnames(x), type, ans_SVT, check=FALSE)
 }
 
 setAs("CsparseMatrix", "SVT_SparseArray",
@@ -212,9 +240,8 @@ setAs("CsparseMatrix", "SVT_SparseArray",
                     from@dim, from@type, from@SVT, PACKAGE="S4Arrays")
     ans_nzcoo <- C_ans[[1L]]
     ans_nzvals <- C_ans[[2L]]
-    new2("COO_SparseArray", dim=from@dim, dimnames=from@dimnames,
-                            nzcoo=ans_nzcoo, nzvals=ans_nzvals,
-                            check=FALSE)
+    new_COO_SparseArray(from@dim, from@dimnames,
+                        ans_nzcoo, ans_nzvals, check=FALSE)
 }
 
 setAs("SVT_SparseArray", "COO_SparseArray",
@@ -236,7 +263,7 @@ setAs("SVT_SparseArray", "COO_SparseArray",
     ans_SVT <- .Call2("C_build_SVT_from_COO_SparseArray",
                       x@dim, x@nzcoo, x@nzvals, type,
                       PACKAGE="S4Arrays")
-    .new_SVT_SparseArray(x@dim, x@dimnames, type, ans_SVT, check=FALSE)
+    new_SVT_SparseArray(x@dim, x@dimnames, type, ans_SVT, check=FALSE)
 }
 
 setAs("COO_SparseArray", "SVT_SparseArray",
@@ -319,21 +346,15 @@ SparseArray <- function(x, type=NA)
 ### Transposition
 ###
 
-### S3/S4 combo for t.SVT_SparseArray
-t.SVT_SparseArray <- function(x)
+### S3/S4 combo for t.SVT_SparseMatrix
+t.SVT_SparseMatrix <- function(x)
 {
-    x_dim <- dim(x)
-    if (length(x_dim) != 2L)
-        stop(wmsg("the ", class(x), " object to transpose ",
-                  "must have exactly 2 dimensions"))
-
-    new_SVT <- .Call2("C_transpose_SVT_SparseArray",
-                      x_dim, x@type, x@SVT, PACKAGE="S4Arrays")
-
-    BiocGenerics:::replaceSlots(x, dim=rev(x_dim),
+    new_SVT <- .Call2("C_transpose_SVT_SparseMatrix",
+                      x@dim, x@type, x@SVT, PACKAGE="S4Arrays")
+    BiocGenerics:::replaceSlots(x, dim=rev(x@dim),
                                    dimnames=rev(x@dimnames),
                                    SVT=new_SVT,
                                    check=FALSE)
 }
-setMethod("t", "SVT_SparseArray", t.SVT_SparseArray)
+setMethod("t", "SVT_SparseMatrix", t.SVT_SparseMatrix)
 
