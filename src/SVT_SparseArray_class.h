@@ -55,7 +55,7 @@ SEXP C_build_SVT_from_Rarray(
 	SEXP ans_type
 );
 
-SEXP C_from_SVT_SparseArray_to_CsparseMatrix(
+SEXP C_from_SVT_SparseMatrix_to_CsparseMatrix(
 	SEXP x_dim,
 	SEXP x_type,
 	SEXP x_SVT

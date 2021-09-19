@@ -737,7 +737,7 @@ SEXP C_build_SVT_from_Rarray(SEXP x, SEXP ans_type)
 
 
 /****************************************************************************
- * Going from SVT_SparseArray to [d|l]gCMatrix
+ * Going from SVT_SparseMatrix to [d|l]gCMatrix
  */
 
 /* Return nb of nonzero values in column. */
@@ -789,7 +789,7 @@ static int dump_SVT_to_CsparseMatrix_slots(SEXP x_SVT, int x_ncol,
 }
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
+SEXP C_from_SVT_SparseMatrix_to_CsparseMatrix(SEXP x_dim,
 		SEXP x_type, SEXP x_SVT)
 {
 	R_xlen_t nzdata_len;
@@ -803,14 +803,15 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
 
 	nzdata_len = REC_sum_leaf_vector_lengths(x_SVT, 2);
 	if (nzdata_len > INT_MAX)
-		error("SVT_SparseArray object contains too many nonzero "
-		      "values to be turned into a COO_SparseArray object");
+		error("SVT_SparseMatrix object contains too many nonzero "
+		      "values to be turned into a dgCMatrix or lgCMatrix "
+		      "object");
 
 	x_Rtype = _get_Rtype_from_Rstring(x_type);
 	if (x_Rtype == 0)
 		error("S4Arrays internal error in "
-		      "C_from_SVT_SparseArray_to_CsparseMatrix():\n"
-		      "    SVT_SparseArray object has invalid type");
+		      "C_from_SVT_SparseMatrix_to_CsparseMatrix():\n"
+		      "    SVT_SparseMatrix object has invalid type");
 
 	x_ncol = INTEGER(x_dim)[1];
 
@@ -824,9 +825,9 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
 						      ans_p, ans_i, ans_x);
 		if (ret < 0) {
 			UNPROTECT(3);
-			error("S4Arrays internal error "
-			      "in C_from_SVT_SparseArray_to_CsparseMatrix():\n"
-			      "    invalid SVT_SparseArray object");
+			error("S4Arrays internal error in "
+			      "C_from_SVT_SparseMatrix_to_CsparseMatrix():\n"
+			      "    invalid SVT_SparseMatrix object");
 		}
 	}
 
@@ -840,7 +841,7 @@ SEXP C_from_SVT_SparseArray_to_CsparseMatrix(SEXP x_dim,
 
 
 /****************************************************************************
- * Going from [d|l]gCMatrix to SVT_SparseArray
+ * Going from [d|l]gCMatrix to SVT_SparseMatrix
  */
 
 /* Returns R_NilValue or a "leaf vector" of length <= nzcount. */

@@ -21,16 +21,23 @@
 \alias{as.array.SVT_SparseArray}
 \alias{as.array,SVT_SparseArray-method}
 \alias{coerce,array,SVT_SparseArray-method}
+\alias{coerce,matrix,SVT_SparseMatrix-method}
 
-\alias{coerce,SVT_SparseArray,dgCMatrix-method}
-\alias{coerce,SVT_SparseArray,lgCMatrix-method}
-\alias{coerce,CsparseMatrix,SVT_SparseArray-method}
+\alias{coerce,SVT_SparseMatrix,dgCMatrix-method}
+\alias{coerce,SVT_SparseMatrix,lgCMatrix-method}
+\alias{coerce,CsparseMatrix,SVT_SparseMatrix-method}
+
+\alias{coerce,Matrix,SVT_SparseArray-method}
 
 \alias{coerce,SVT_SparseArray,COO_SparseArray-method}
+\alias{coerce,SVT_SparseMatrix,COO_SparseMatrix-method}
 \alias{coerce,COO_SparseArray,SVT_SparseArray-method}
+\alias{coerce,COO_SparseMatrix,SVT_SparseMatrix-method}
 
-\alias{coerce,ANY,SVT_SparseArray-method}
-\alias{coerce,RsparseMatrix,SVT_SparseArray-method}
+\alias{coerce,ANY,SparseArray-method}
+\alias{coerce,ANY,SparseMatrix-method}
+\alias{coerce,RsparseMatrix,SparseArray-method}
+\alias{coerce,RsparseMatrix,SparseMatrix-method}
 
 \alias{t.SVT_SparseMatrix}
 \alias{t,SVT_SparseMatrix-method}

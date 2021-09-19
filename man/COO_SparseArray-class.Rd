@@ -28,16 +28,19 @@
 \alias{as.array,COO_SparseArray-method}
 
 \alias{coerce,ANY,COO_SparseArray-method}
+\alias{coerce,ANY,COO_SparseMatrix-method}
 
-\alias{coerce,COO_SparseArray,dgCMatrix-method}
-\alias{coerce,COO_SparseArray,lgCMatrix-method}
-\alias{coerce,COO_SparseArray,dgRMatrix-method}
-\alias{coerce,COO_SparseArray,lgRMatrix-method}
+\alias{coerce,COO_SparseMatrix,dgCMatrix-method}
+\alias{coerce,COO_SparseMatrix,lgCMatrix-method}
+\alias{coerce,COO_SparseMatrix,dgRMatrix-method}
+\alias{coerce,COO_SparseMatrix,lgRMatrix-method}
 
-\alias{coerce,dgCMatrix,COO_SparseArray-method}
-\alias{coerce,lgCMatrix,COO_SparseArray-method}
-\alias{coerce,dgRMatrix,COO_SparseArray-method}
-\alias{coerce,lgRMatrix,COO_SparseArray-method}
+\alias{coerce,dgCMatrix,COO_SparseMatrix-method}
+\alias{coerce,lgCMatrix,COO_SparseMatrix-method}
+\alias{coerce,dgRMatrix,COO_SparseMatrix-method}
+\alias{coerce,lgRMatrix,COO_SparseMatrix-method}
+
+\alias{coerce,Matrix,COO_SparseArray-method}
 
 \alias{aperm.COO_SparseArray}
 \alias{aperm,COO_SparseArray-method}

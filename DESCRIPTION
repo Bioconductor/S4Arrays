@@ -38,5 +38,7 @@ Collate: utils.R
 	SparseArray-subsetting.R
 	SparseArray-combine.R
 	SparseArray-utils.R
+	SparseMatrix-mult.R
+	SparseMatrix-stats.R
 	readSparseCSV.R
 	zzz.R

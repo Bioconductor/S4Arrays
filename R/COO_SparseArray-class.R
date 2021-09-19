@@ -263,18 +263,16 @@ as.array.COO_SparseArray <- function(x, ...) sparse2dense(x)
 setMethod("as.array", "COO_SparseArray", as.array.COO_SparseArray)
 
 setAs("ANY", "COO_SparseArray", function(from) dense2sparse(from))
+setAs("ANY", "COO_SparseMatrix",
+    function(from) as(dense2sparse(from), "COO_SparseMatrix")
+)
 
-### Going back and forth between COO_SparseArray and [d|l]g[C|R]Matrix objects
+### Going back and forth between COO_SparseMatrix and [d|l]g[C|R]Matrix objects
 ### from the Matrix package:
 
-.make_sparseMatrix_from_COO_SparseArray <- function(from, to_type, form)
+.make_sparseMatrix_from_COO_SparseMatrix <- function(from, to_type, form)
 {
-    stopifnot(is(from, "COO_SparseArray"))
-    from_dim <- dim(from)
-    if (length(from_dim) != 2L)
-        stop(wmsg("the ", class(from), " object to coerce to ",
-                  "dg", form, "Matrix or lg", form, "Matrix ",
-                  "must have exactly 2 dimensions"))
+    stopifnot(is(from, "COO_SparseMatrix"))
 
     ## Coercion to dg[C|R]Matrix (i.e. to_type="double"):
     ## If 'type(from)' is "logical", "integer", or "raw", we'll coerce 'nzvals'
@@ -310,31 +308,31 @@ setAs("ANY", "COO_SparseArray", function(from) dense2sparse(from))
         storage.mode(nzvals) <- to_type  # late type switching
 
     if (form == "C") {
-        CsparseMatrix(from_dim, i, j, nzvals, dimnames=dimnames(from))
+        CsparseMatrix(dim(from), i, j, nzvals, dimnames=dimnames(from))
     } else {
-        RsparseMatrix(from_dim, i, j, nzvals, dimnames=dimnames(from))
+        RsparseMatrix(dim(from), i, j, nzvals, dimnames=dimnames(from))
     }
 }
 
-.from_COO_SparseArray_to_dgCMatrix <- function(from)
-    .make_sparseMatrix_from_COO_SparseArray(from, "double", "C")
+.from_COO_SparseMatrix_to_dgCMatrix <- function(from)
+    .make_sparseMatrix_from_COO_SparseMatrix(from, "double", "C")
 
-.from_COO_SparseArray_to_lgCMatrix <- function(from)
-    .make_sparseMatrix_from_COO_SparseArray(from, "logical", "C")
+.from_COO_SparseMatrix_to_lgCMatrix <- function(from)
+    .make_sparseMatrix_from_COO_SparseMatrix(from, "logical", "C")
 
-setAs("COO_SparseArray", "dgCMatrix", .from_COO_SparseArray_to_dgCMatrix)
-setAs("COO_SparseArray", "lgCMatrix", .from_COO_SparseArray_to_lgCMatrix)
+setAs("COO_SparseMatrix", "dgCMatrix", .from_COO_SparseMatrix_to_dgCMatrix)
+setAs("COO_SparseMatrix", "lgCMatrix", .from_COO_SparseMatrix_to_lgCMatrix)
 
-.from_COO_SparseArray_to_dgRMatrix <- function(from)
-    .make_sparseMatrix_from_COO_SparseArray(from, "double", "R")
+.from_COO_SparseMatrix_to_dgRMatrix <- function(from)
+    .make_sparseMatrix_from_COO_SparseMatrix(from, "double", "R")
 
-.from_COO_SparseArray_to_lgRMatrix <- function(from)
-    .make_sparseMatrix_from_COO_SparseArray(from, "logical", "R")
+.from_COO_SparseMatrix_to_lgRMatrix <- function(from)
+    .make_sparseMatrix_from_COO_SparseMatrix(from, "logical", "R")
 
-setAs("COO_SparseArray", "dgRMatrix", .from_COO_SparseArray_to_dgRMatrix)
-setAs("COO_SparseArray", "lgRMatrix", .from_COO_SparseArray_to_lgRMatrix)
+setAs("COO_SparseMatrix", "dgRMatrix", .from_COO_SparseMatrix_to_dgRMatrix)
+setAs("COO_SparseMatrix", "lgRMatrix", .from_COO_SparseMatrix_to_lgRMatrix)
 
-make_COO_SparseArray_from_dgCMatrix_or_lgCMatrix <-
+make_COO_SparseMatrix_from_dgCMatrix_or_lgCMatrix <-
     function(from, use.dimnames=TRUE)
 {
     i <- from@i + 1L
@@ -344,7 +342,7 @@ make_COO_SparseArray_from_dgCMatrix_or_lgCMatrix <-
     COO_SparseArray(dim(from), ans_nzcoo, from@x, ans_dimnames, check=FALSE)
 }
 
-make_COO_SparseArray_from_dgRMatrix_or_lgRMatrix <-
+make_COO_SparseMatrix_from_dgRMatrix_or_lgRMatrix <-
     function(from, use.dimnames=TRUE)
 {
     i <- rep.int(seq_len(nrow(from)), diff(from@p))
@@ -354,18 +352,20 @@ make_COO_SparseArray_from_dgRMatrix_or_lgRMatrix <-
     COO_SparseArray(dim(from), ans_nzcoo, from@x, ans_dimnames, check=FALSE)
 }
 
-setAs("dgCMatrix", "COO_SparseArray",
-    function(from) make_COO_SparseArray_from_dgCMatrix_or_lgCMatrix(from)
+setAs("dgCMatrix", "COO_SparseMatrix",
+    function(from) make_COO_SparseMatrix_from_dgCMatrix_or_lgCMatrix(from)
 )
-setAs("lgCMatrix", "COO_SparseArray",
-    function(from) make_COO_SparseArray_from_dgCMatrix_or_lgCMatrix(from)
+setAs("lgCMatrix", "COO_SparseMatrix",
+    function(from) make_COO_SparseMatrix_from_dgCMatrix_or_lgCMatrix(from)
 )
-setAs("dgRMatrix", "COO_SparseArray",
-    function(from) make_COO_SparseArray_from_dgRMatrix_or_lgRMatrix(from)
+setAs("dgRMatrix", "COO_SparseMatrix",
+    function(from) make_COO_SparseMatrix_from_dgRMatrix_or_lgRMatrix(from)
 )
-setAs("lgRMatrix", "COO_SparseArray",
-    function(from) make_COO_SparseArray_from_dgRMatrix_or_lgRMatrix(from)
+setAs("lgRMatrix", "COO_SparseMatrix",
+    function(from) make_COO_SparseMatrix_from_dgRMatrix_or_lgRMatrix(from)
 )
+
+setAs("Matrix", "COO_SparseArray", function(from) as(from, "COO_SparseMatrix"))
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

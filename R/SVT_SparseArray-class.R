@@ -152,18 +152,18 @@ setMethod("as.array", "SVT_SparseArray", as.array.SVT_SparseArray)
 setAs("array", "SVT_SparseArray",
     function(from) .build_SVT_SparseArray_from_array(from)
 )
+setAs("matrix", "SVT_SparseMatrix",
+    function(from) .build_SVT_SparseArray_from_array(from)
+)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Going back and forth between SVT_SparseArray and [d|l]gCMatrix objects
+### Going back and forth between SVT_SparseMatrix and [d|l]gCMatrix objects
 ###
 
-.make_CsparseMatrix_from_SVT_SparseArray <- function(from, to_type)
+.make_CsparseMatrix_from_SVT_SparseMatrix <- function(from, to_type)
 {
-    stopifnot(is(from, "SVT_SparseArray"))
-    if (length(from@dim) != 2L)
-        stop(wmsg("the ", class(from), " object to coerce to dgCMatrix ",
-                  "or lgCMatrix must have exactly 2 dimensions"))
+    stopifnot(is(from, "SVT_SparseMatrix"))
 
     ## Coercion to dgCMatrix (i.e. to_type="double"):
     ## If 'from@type' is "logical", "integer", or "raw", we'll coerce 'ans_x'
@@ -191,7 +191,7 @@ setAs("array", "SVT_SparseArray",
         type(from) <- to_type  # early type switching
 
     ## Returns 'ans_p', 'ans_i', and 'ans_x', in a list of length 3.
-    C_ans <- .Call2("C_from_SVT_SparseArray_to_CsparseMatrix",
+    C_ans <- .Call2("C_from_SVT_SparseMatrix_to_CsparseMatrix",
                     from@dim, from@type, from@SVT, PACKAGE="S4Arrays")
     ans_p <- C_ans[[1L]]
     ans_i <- C_ans[[2L]]
@@ -204,16 +204,16 @@ setAs("array", "SVT_SparseArray",
     new_CsparseMatrix(from@dim, ans_p, ans_i, ans_x, dimnames=from@dimnames)
 }
 
-.from_SVT_SparseArray_to_dgCMatrix <- function(from)
-    .make_CsparseMatrix_from_SVT_SparseArray(from, "double")
+.from_SVT_SparseMatrix_to_dgCMatrix <- function(from)
+    .make_CsparseMatrix_from_SVT_SparseMatrix(from, "double")
 
-.from_SVT_SparseArray_to_lgCMatrix <- function(from)
-    .make_CsparseMatrix_from_SVT_SparseArray(from, "logical")
+.from_SVT_SparseMatrix_to_lgCMatrix <- function(from)
+    .make_CsparseMatrix_from_SVT_SparseMatrix(from, "logical")
 
-setAs("SVT_SparseArray", "dgCMatrix", .from_SVT_SparseArray_to_dgCMatrix)
-setAs("SVT_SparseArray", "lgCMatrix", .from_SVT_SparseArray_to_lgCMatrix)
+setAs("SVT_SparseMatrix", "dgCMatrix", .from_SVT_SparseMatrix_to_dgCMatrix)
+setAs("SVT_SparseMatrix", "lgCMatrix", .from_SVT_SparseMatrix_to_lgCMatrix)
 
-.build_SVT_SparseArray_from_CsparseMatrix <- function(x, type=NA)
+.build_SVT_SparseMatrix_from_CsparseMatrix <- function(x, type=NA)
 {
     stopifnot(is(x, "CsparseMatrix"))
     if (identical(type, NA))
@@ -223,9 +223,11 @@ setAs("SVT_SparseArray", "lgCMatrix", .from_SVT_SparseArray_to_lgCMatrix)
     new_SVT_SparseArray(dim(x), dimnames(x), type, ans_SVT, check=FALSE)
 }
 
-setAs("CsparseMatrix", "SVT_SparseArray",
-    function(from) .build_SVT_SparseArray_from_CsparseMatrix(from)
+setAs("CsparseMatrix", "SVT_SparseMatrix",
+    function(from) .build_SVT_SparseMatrix_from_CsparseMatrix(from)
 )
+
+setAs("Matrix", "SVT_SparseArray", function(from) as(from, "SVT_SparseMatrix"))
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -245,6 +247,9 @@ setAs("CsparseMatrix", "SVT_SparseArray",
 }
 
 setAs("SVT_SparseArray", "COO_SparseArray",
+    .from_SVT_SparseArray_to_COO_SparseArray
+)
+setAs("SVT_SparseMatrix", "COO_SparseMatrix",
     .from_SVT_SparseArray_to_COO_SparseArray
 )
 
@@ -269,6 +274,9 @@ setAs("SVT_SparseArray", "COO_SparseArray",
 setAs("COO_SparseArray", "SVT_SparseArray",
     function(from) .build_SVT_SparseArray_from_COO_SparseArray(from)
 )
+setAs("COO_SparseMatrix", "SVT_SparseMatrix",
+    function(from) .build_SVT_SparseArray_from_COO_SparseArray(from)
+)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -288,7 +296,7 @@ setAs("COO_SparseArray", "SVT_SparseArray",
         return(.build_SVT_SparseArray_from_array(x, type=type))
 
     if (is(x, "CsparseMatrix"))
-        return(.build_SVT_SparseArray_from_CsparseMatrix(x, type=type))
+        return(.build_SVT_SparseMatrix_from_CsparseMatrix(x, type=type))
 
     if (is(x, "COO_SparseArray"))
         return(.build_SVT_SparseArray_from_COO_SparseArray(x, type=type))
@@ -321,7 +329,13 @@ SVT_SparseArray <- function(x, type=NA)
 ### SVT_SparseArray at the moment.
 
 setAs("ANY", "SparseArray", function(from) as(from, "SVT_SparseArray"))
-setAs("RsparseMatrix", "SparseArray", function(from) as(from, "COO_SparseArray"))
+setAs("ANY", "SparseMatrix", function(from) as(from, "SVT_SparseMatrix"))
+setAs("RsparseMatrix", "SparseArray",
+    function(from) as(from, "COO_SparseArray")
+)
+setAs("RsparseMatrix", "SparseMatrix",
+    function(from) as(from, "COO_SparseMatrix")
+)
 
 SparseArray <- function(x, type=NA)
 {

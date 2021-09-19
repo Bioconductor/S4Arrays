@@ -144,6 +144,7 @@ exportMethods(
     max, min, range, sum, prod, any, all,   # "Summary" group generic
     mean,
     nchar,
+    crossprod,
 
     ## Methods for generics defined in the methods package:
     coerce, show,
