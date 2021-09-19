@@ -80,7 +80,7 @@ static SEXP drop_dimnames_along_ineffective_dims(SEXP x_dimnames, SEXP x_dim)
 static SEXP make_leaf_vector_from_depth_one_SVT(SEXP SVT,
 		SEXPTYPE Rtype, CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
 {
-	int SVT_len, ans_len, i, lv_len, offset;
+	int SVT_len, ans_len, i, lv_len;
 	SEXP subSVT, ans_offs, ans_vals, lv_vals, ans;
 
 	SVT_len = LENGTH(SVT);
@@ -302,8 +302,31 @@ static inline int get_i2(const int *idx, int i1, int i2max)
 	return --i2;
 }
 
+static void build_lookup_table(int *lookup_table,
+		const int *lv_offs, int lv_len)
+{
+	for (int k = 0; k < lv_len; k++)
+		lookup_table[*(lv_offs++)] = k;
+	return;
+}
+
+static void reset_lookup_table(int *lookup_table,
+		const int *lv_offs, int lv_len)
+{
+	for (int k = 0; k < lv_len; k++)
+		lookup_table[*(lv_offs)++] = -1;
+	return;
+}
+
+static inline int map_i2_to_k2_with_lookup_table(int i2,
+		const int *lookup_table)
+{
+	return lookup_table[i2];
+}
+
 /* Returns a value >= 0 and < 'lv_len' if success, or -1 if failure. */
-static inline int int_bsearch(int i2, const int *lv_offs, int lv_len)
+static inline int map_i2_to_k2_with_bsearch(int i2,
+		const int *lv_offs, int lv_len)
 {
 	int k1, k2, k, off;
 
@@ -340,7 +363,7 @@ static inline int int_bsearch(int i2, const int *lv_offs, int lv_len)
 }
 
 static SEXP subset_leaf_vector(SEXP lv, SEXP idx, int i2max,
-		int *i1_buf, int *k2_buf)
+		int *i1_buf, int *k2_buf, int *lookup_table)
 {
 	int idx_len, lv_len, ans_len, i1, i2, k2;
 	SEXP lv_offs, lv_vals, ans_offs, ans_vals, ans;
@@ -353,16 +376,20 @@ static SEXP subset_leaf_vector(SEXP lv, SEXP idx, int i2max,
 		return R_NilValue;
 
 	lv_len = _split_leaf_vector(lv, &lv_offs, &lv_vals);
+	build_lookup_table(lookup_table, INTEGER(lv_offs), lv_len);
 	ans_len = 0;
 	for (i1 = 0; i1 < idx_len; i1++) {
 		i2 = get_i2(INTEGER(idx), i1, i2max);
-		k2 = int_bsearch(i2, INTEGER(lv_offs), lv_len);
+		//k2 = map_i2_to_k2_with_bsearch(i2, INTEGER(lv_offs), lv_len);
+		//k2 = map_i2_to_k2_with_lookup_table(i2, lookup_table);
+		k2 = lookup_table[i2];
 		if (k2 >= 0) {
 			i1_buf[ans_len] = i1;
 			k2_buf[ans_len] = k2;
 			ans_len++;
 		}
 	}
+	reset_lookup_table(lookup_table, INTEGER(lv_offs), lv_len);
 	if (ans_len == 0)
 		return R_NilValue;
 
@@ -379,7 +406,7 @@ static SEXP subset_leaf_vector(SEXP lv, SEXP idx, int i2max,
    Returns R_NilValue or a list of length 'ans_dim[ndim - 1]'. */
 static SEXP REC_subset_SVT(SEXP SVT, SEXP index,
 		const int *x_dim, const int *ans_dim, int ndim,
-		int *i1_buf, int *k2_buf)
+		int *i1_buf, int *k2_buf, int *lookup_table)
 {
 	SEXP idx, ans, SVT_elt, ans_elt;
 	int SVT_len, ans_len, is_empty, i1, i2;
@@ -392,7 +419,7 @@ static SEXP REC_subset_SVT(SEXP SVT, SEXP index,
 	if (ndim == 1) {
 		/* 'SVT' is a "leaf vector". */
 		return subset_leaf_vector(SVT, idx, x_dim[ndim - 1],
-					  i1_buf, k2_buf);
+					  i1_buf, k2_buf, lookup_table);
 	}
 
 	/* 'SVT' is a regular node (list). */
@@ -409,7 +436,7 @@ static SEXP REC_subset_SVT(SEXP SVT, SEXP index,
 		SVT_elt = VECTOR_ELT(SVT, i2);
 		ans_elt = REC_subset_SVT(SVT_elt, index,
 					 x_dim, ans_dim, ndim - 1,
-					 i1_buf, k2_buf);
+					 i1_buf, k2_buf, lookup_table);
 		if (ans_elt != R_NilValue) {
 			PROTECT(ans_elt);
 			SET_VECTOR_ELT(ans, i1, ans_elt);
@@ -427,7 +454,7 @@ SEXP C_subset_SVT_SparseArray(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 {
 	SEXPTYPE Rtype;
 	SEXP ans_dim, ans_SVT, ans;
-	int *i1_buf, *k2_buf;
+	int *i1_buf, *k2_buf, *lookup_table, i;
 
 	Rtype = _get_Rtype_from_Rstring(x_type);
 	if (Rtype == 0)
@@ -438,10 +465,13 @@ SEXP C_subset_SVT_SparseArray(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	ans_dim = PROTECT(compute_subset_dim(index, x_dim));
 	i1_buf = (int *) R_alloc(INTEGER(ans_dim)[0], sizeof(int));
 	k2_buf = (int *) R_alloc(INTEGER(ans_dim)[0], sizeof(int));
+	lookup_table = (int *) R_alloc(INTEGER(x_dim)[0], sizeof(int));
+	for (i = 0; i < INTEGER(x_dim)[0]; i++)
+		lookup_table[i] = -1;
 	ans_SVT = REC_subset_SVT(x_SVT, index,
 				 INTEGER(x_dim),
 				 INTEGER(ans_dim), LENGTH(ans_dim),
-				 i1_buf, k2_buf);
+				 i1_buf, k2_buf, lookup_table);
 	if (ans_SVT != R_NilValue)
 		PROTECT(ans_SVT);
 
