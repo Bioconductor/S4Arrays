@@ -262,13 +262,13 @@ setMethod("is_sparse", "lgRMatrix", function(x) TRUE)
 .extract_sparse_array_from_dgCMatrix_or_lgCMatrix <- function(x, index)
 {
     sm <- subset_by_Nindex(x, index)  # a dgCMatrix or lgCMatrix object
-    make_COO_SparseArray_from_dgCMatrix_or_lgCMatrix(sm, use.dimnames=FALSE)
+    make_COO_SparseMatrix_from_dgCMatrix_or_lgCMatrix(sm, use.dimnames=FALSE)
 }
 
 .extract_sparse_array_from_dgRMatrix_or_lgRMatrix <- function(x, index)
 {
     sm <- subset_by_Nindex(x, index)  # a dgRMatrix or lgRMatrix object
-    make_COO_SparseArray_from_dgRMatrix_or_lgRMatrix(sm, use.dimnames=FALSE)
+    make_COO_SparseMatrix_from_dgRMatrix_or_lgRMatrix(sm, use.dimnames=FALSE)
 }
 
 setMethod("extract_sparse_array", "dgCMatrix",
