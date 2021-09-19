@@ -1,7 +1,18 @@
+- Implement crossprod(), tcrossprod(), and %in%, for SVT_SparseMatrix objects.
+
 - Add unit tests for the SVT_SparseArray stuff.
 
-- Add 'as' argument to readSparseCSV() to choose the type of the returned
-  object (dgCMatrix, SVT_SparseArray, or COO_SparseArray).
+- Modify readSparseCSV() to return an SVT_SparseMatrix instead of a dgCMatrix.
+
+- Implement function for loading a TENxMatrixSeed subset as an
+  SVT_SparseMatrix. Test it on the 1.3 Million Brain Cell Dataset.
+
+- Implement Summary, Compare, and Logic group generics for SVT_SparseArray
+  objects.
+
+- Implement matrixStats methods for SVT_SparseMatrix objects.
+
+- Implement subassignment to an SVT_SparseArray object.
 
 - Coercion from COO_SparseArray to SVT_SparseArray: currently raises an
   error if offset/value pairs to store in leaf vectors are not strictly
