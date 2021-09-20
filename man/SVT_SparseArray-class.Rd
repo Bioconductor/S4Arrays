@@ -177,17 +177,55 @@ vector  vector          vector  vector  vector  vector}
 }
 
 \examples{
-m <- matrix(rpois(3e6, lambda=0.4), ncol=1200)
+## ---------------------------------------------------------------------
+## EXAMPLE 1
+## ---------------------------------------------------------------------
+m0 <- matrix(0L, nrow=6, ncol=4)
+m0[c(1:2, 8, 10, 15:17, 24)] <- (1:8)*10L
+m0
 
-## Note that 'SparseArray(m)' can also be used for this:
-svt <- SVT_SparseArray(m)
-svt
-type(svt)
-object.size(svt)
+svt0 <- as(m0, "SVT_SparseMatrix")
+svt0
 
-dgcm <- as(m, "dgCMatrix")
-type(dgcm)
-object.size(dgcm)
+## CSC (Compressed sparse column) layout vs SVT layout:
+
+dgcm <- as(m0, "dgCMatrix")
+dgcm@x
+dgcm@i
+dgcm@p
+
+str(svt0)
+
+## ---------------------------------------------------------------------
+## EXAMPLE 2
+## ---------------------------------------------------------------------
+m1 <- matrix(rpois(54e6, lambda=0.4), ncol=1200)
+
+## Note that 'SparseArray(m1)' can also be used for this:
+svt1 <- SVT_SparseArray(m1)
+svt1
+
+dgcm1 <- as(m1, "dgCMatrix")
+
+## Compare type and memory footprint:
+type(svt1)
+object.size(svt1)
+type(dgcm1)
+object.size(dgcm1)
+
+## Transpose:
+system.time(svt <- t(t(svt1)))
+system.time(dgcm <- t(t(dgcm1)))
+identical(svt, svt1)
+identical(dgcm, dgcm1)
+
+## rbind():
+m2 <- matrix(rpois(45e6, lambda=0.4), ncol=1200)
+svt2 <- SVT_SparseArray(m2)
+dgcm2 <- as(m2, "dgCMatrix")
+
+system.time(rbind(svt1, svt2))
+system.time(rbind(dgcm1, dgcm2))
 }
 \keyword{classes}
 \keyword{methods}
