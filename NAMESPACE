@@ -187,6 +187,9 @@ export(
     ## SVT_SparseArray-class.R:
     SVT_SparseArray, SparseArray,
 
+    ## makeRandomSparseArray.R:
+    makeRandomSparseArray, makeRandomSparseMatrix,
+
     ## readSparseCSV.R:
     readSparseCSV, readSparseTable
 )

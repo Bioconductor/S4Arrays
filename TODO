@@ -1,3 +1,7 @@
+- Implement subassignment to an SVT_SparseArray object.
+
+- Provide makeRandomSparseArray().
+
 - Implement crossprod(), tcrossprod(), and %in%, for SVT_SparseMatrix objects.
 
 - Add unit tests for the SVT_SparseArray stuff.
@@ -11,12 +15,4 @@
   objects.
 
 - Implement matrixStats methods for SVT_SparseMatrix objects.
-
-- Implement subassignment to an SVT_SparseArray object.
-
-- Coercion from COO_SparseArray to SVT_SparseArray: currently raises an
-  error if offset/value pairs to store in leaf vectors are not strictly
-  ordered by ascending offset. Improve this by sorting the offset/value
-  pairs (but still raise an error if duplicate offsets).
-  This is in C_build_SVT_from_COO_SparseArray().
 

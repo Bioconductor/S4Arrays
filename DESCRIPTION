@@ -40,5 +40,6 @@ Collate: utils.R
 	SparseArray-utils.R
 	SparseMatrix-mult.R
 	SparseMatrix-stats.R
+	makeRandomSparseArray.R
 	readSparseCSV.R
 	zzz.R

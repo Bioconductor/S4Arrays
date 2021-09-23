@@ -3,6 +3,8 @@
  ****************************************************************************/
 #include "SVT_SparseArray_class.h"
 
+#include "S4Vectors_interface.h"
+
 #include "Rvector_utils.h"
 #include "coerceVector2.h"
 
@@ -191,7 +193,8 @@ SEXP _new_leaf_vector(SEXP lv_offs, SEXP lv_vals)
 	if (!IS_INTEGER(lv_offs))
 		error(msg);
 	lv_offs_len = XLENGTH(lv_offs);
-	if (lv_offs_len > INT_MAX || lv_offs_len != XLENGTH(lv_vals))
+	if (lv_offs_len != XLENGTH(lv_vals) ||
+	    lv_offs_len < 1 || lv_offs_len > INT_MAX)
 		error(msg);
 
 	ans = PROTECT(NEW_LIST(2));
@@ -223,35 +226,78 @@ static SEXP alloc_and_split_leaf_vector(int lv_len, SEXPTYPE Rtype,
 	return ans;
 }
 
-static SEXP make_leaf_vector_from_one_based_positions(
-		const int *pos, SEXP lv_vals, int maxpos)
+/* Always used in a context where 'offs' and 'vals' are not empty.
+   Will sort the supplied offset/value pairs by strictly ascending offset
+   before storing them in the "leaf vector".
+   The presence of duplicates in 'offs' will trigger an error. */
+static SEXP make_leaf_vector(SEXP offs, SEXP vals,
+		int *order_buf, unsigned short int *rxbuf1, int *rxbuf2)
 {
-	int lv_len, k, prev_p, p;
-	SEXP lv_offs, ans;
+	int ans_len, k, ret;
+	const int *offs_p;
+	SEXP ans, ans_offs, ans_vals;
 
-	lv_len = LENGTH(lv_vals);
-	lv_offs = PROTECT(NEW_INTEGER(lv_len));
-	for (k = 0; k < lv_len; k++) {
-		prev_p = p;
+	ans_len = LENGTH(offs);
+	if (LENGTH(vals) != ans_len)
+		error("S4Arrays internal error in make_leaf_vector():\n"
+		      "    LENGTH(offs) != LENGTH(vals)");
+	if (ans_len == 1)
+		return _new_leaf_vector(offs, vals);
+
+	/* Sort the offset/value pairs by strictly ascending offset. */
+
+	for (k = 0; k < ans_len; k++)
+		order_buf[k] = k;
+	offs_p = INTEGER(offs);
+
+	ret = sort_ints(order_buf, ans_len, offs_p, 0, 1, rxbuf1, rxbuf2);
+	/* Note that ckecking the value returned by sort_ints() is not really
+	   necessary here because sort_ints() should never fail when 'rxbuf1'
+	   and 'rxbuf2' are supplied (see implementation of _sort_ints() in
+	   S4Vectors/src/sort_utils.c for the details). We perform this check
+	   nonetheless just to be on the safe side in case the implementation
+	   of sort_ints() changes in the future. */
+	if (ret < 0)
+		error("S4Arrays internal error in make_leaf_vector():\n"
+		      "    sort_ints() returned an error");
+
+	/* Check for duplicated offsets. */
+	for (k = 1; k < ans_len; k++)
+		if (offs_p[order_buf[k]] == offs_p[order_buf[k - 1]])
+			error("coercion from COO_SparseArray to "
+			      "SVT_SparseArray is not supported when\n"
+			      "  the \"nzcoo\" slot of the object to "
+			      "coerce contains duplicated coordinates");
+
+	ans = PROTECT(alloc_and_split_leaf_vector(ans_len, TYPEOF(vals),
+						  &ans_offs, &ans_vals));
+	_copy_selected_Rsubvec_elts(offs, 0, order_buf, ans_offs);
+	_copy_selected_Rsubvec_elts(vals, 0, order_buf, ans_vals);
+	UNPROTECT(1);
+	return ans;
+}
+
+/* Always used in a context where 'pos' and 'vals' are not empty. */
+static SEXP make_leaf_vector_from_one_based_positions(
+		const int *pos, SEXP vals, int maxpos,
+		int *order_buf, unsigned short int *rxbuf1, int *rxbuf2)
+{
+	int ans_len, k, p, *offs_p;
+	SEXP offs, ans;
+
+	ans_len = LENGTH(vals);
+	offs = PROTECT(NEW_INTEGER(ans_len));
+	for (k = 0, offs_p = INTEGER(offs); k < ans_len; k++, offs_p++) {
 		p = pos[k];
 		if (p < 1 || p > maxpos) {
 			UNPROTECT(1);
 			error("\"nzcoo\" slot of COO_SparseArray object "
 			      "to coerce contains invalid coordinates");
 		}
-		if (k != 0 && p <= prev_p) {
-			UNPROTECT(1);
-			error("coercion from COO_SparseArray to "
-			      "SVT_SparseArray is not supported when the\n"
-			      "  first column of the matrix in the "
-			      "\"nzcoo\" slot of the object to coerce is\n"
-			      "  not strictly sorted within each group of "
-			      "rows obtained by grouping the rows\n"
-			      "  with same values in the remaining columns");
-		}
-		INTEGER(lv_offs)[k] = p - 1;
+		*offs_p = p - 1;
 	}
-	ans = _new_leaf_vector(lv_offs, lv_vals);
+	ans = make_leaf_vector(offs, vals,
+			       order_buf, rxbuf1, rxbuf2);
 	UNPROTECT(1);
 	return ans;
 }
@@ -372,74 +418,88 @@ static SEXP coerce_leaf_vector(SEXP lv, SEXPTYPE new_Rtype,
 
 
 /****************************************************************************
- * Basic manipulation of "appendable leaf vectors"
+ * Basic manipulation of "proto leaf vectors"
+ *
+ * Used as temporary objects to collect offset/value pairs.
+ * Two differences with "leaf vectors":
+ *   1. Offset/value pairs can be appended to a "proto leaf vector" as they
+ *      are collected.
+ *   2. Offset/value pairs don't need to be sorted by strictly ascending
+ *      offset.
  */
 
-static SEXP alloc_appendable_leaf_vector(int alv_len, SEXPTYPE Rtype)
+static SEXP alloc_proto_leaf_vector(int plv_len, SEXPTYPE Rtype)
 {
-	SEXP alv_offs, alv_vals, alv_nelt, ans;
+	SEXP plv_offs, plv_vals, plv_nelt, ans;
 
-	alv_offs = PROTECT(NEW_INTEGER(alv_len));
-	alv_vals = PROTECT(allocVector(Rtype, alv_len));
-	alv_nelt = PROTECT(NEW_INTEGER(1));
-	INTEGER(alv_nelt)[0] = 0;
+	plv_offs = PROTECT(NEW_INTEGER(plv_len));
+	plv_vals = PROTECT(allocVector(Rtype, plv_len));
+	plv_nelt = PROTECT(NEW_INTEGER(1));
+	INTEGER(plv_nelt)[0] = 0;
 
 	ans = PROTECT(NEW_LIST(3));
-	SET_VECTOR_ELT(ans, 0, alv_offs);
-	SET_VECTOR_ELT(ans, 1, alv_vals);
-	SET_VECTOR_ELT(ans, 2, alv_nelt);
+	SET_VECTOR_ELT(ans, 0, plv_offs);
+	SET_VECTOR_ELT(ans, 1, plv_vals);
+	SET_VECTOR_ELT(ans, 2, plv_nelt);
 	UNPROTECT(4);
 	return ans;
 }
 
-static SEXP alloc_list_of_appendable_leaf_vectors(
-		const int *alv_lens, int alv_lens_len,
+static SEXP alloc_list_of_proto_leaf_vectors(
+		const int *plv_lens, int plv_lens_len,
 		SEXPTYPE Rtype)
 {
-	SEXP alvs, alv;
-	int i, alv_len;
+	SEXP plvs, plv;
+	int i, plv_len;
 
-	alvs = PROTECT(NEW_LIST(alv_lens_len));
-	for (i = 0; i < alv_lens_len; i++) {
-		alv_len = alv_lens[i];
-		if (alv_len != 0) {
-			alv = PROTECT(
-				alloc_appendable_leaf_vector(alv_len, Rtype)
-			);
-			SET_VECTOR_ELT(alvs, i, alv);
+	plvs = PROTECT(NEW_LIST(plv_lens_len));
+	for (i = 0; i < plv_lens_len; i++) {
+		plv_len = plv_lens[i];
+		if (plv_len != 0) {
+			plv = PROTECT( alloc_proto_leaf_vector(plv_len, Rtype));
+			SET_VECTOR_ELT(plvs, i, plv);
 			UNPROTECT(1);
 		}
 	}
 	UNPROTECT(1);
-	return alvs;
+	return plvs;
 }
 
-/* 'alv' must be an "appendable leaf vector".
-   Returns a value >= 0 if success (1 if the "appendable leaf vector" is full,
-   0 otherwise), and < 0 if error (-1 if unexpected error, and -2 if the offset
-   to append is not > than the previous one. */
-static inline int append_off_val_pair_to_leaf_vector(SEXP alv,
+/* 'plv' must be a "proto leaf vector".
+   Returns a value >= 0 if success (1 if the "proto leaf vector" is full,
+   0 otherwise), and < 0 if error. */
+static inline int append_off_val_pair_to_proto_leaf_vector(SEXP plv,
 		int off, SEXP nzvals, int nzvals_offset,
 		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
 {
-	SEXP alv_offs, alv_vals, alv_nelt;
-	int alv_len, nelt, *alv_offs_p;
+	SEXP plv_offs, plv_vals, plv_nelt;
+	int plv_len, nelt, *plv_offs_p;
 
-	alv_offs = VECTOR_ELT(alv, 0);
-	alv_vals = VECTOR_ELT(alv, 1);
-	alv_nelt = VECTOR_ELT(alv, 2);
+	plv_offs = VECTOR_ELT(plv, 0);
+	plv_vals = VECTOR_ELT(plv, 1);
+	plv_nelt = VECTOR_ELT(plv, 2);
 
-	alv_len = LENGTH(alv_offs);
-	nelt = INTEGER(alv_nelt)[0];
-	if (nelt >= alv_len)
+	plv_len = LENGTH(plv_offs);
+	nelt = INTEGER(plv_nelt)[0];
+	if (nelt >= plv_len)
 		return -1;
-	alv_offs_p = INTEGER(alv_offs);
-	if (nelt != 0 && off <= alv_offs_p[nelt - 1])
-		return -2;
-	alv_offs_p[nelt] = off;
+	plv_offs_p = INTEGER(plv_offs);
+	plv_offs_p[nelt] = off;
 	copy_Rvector_elt_FUN(nzvals, (R_xlen_t) nzvals_offset,
-			     alv_vals, (R_xlen_t) nelt);
-	return ++INTEGER(alv_nelt)[0] == alv_len;
+			     plv_vals, (R_xlen_t) nelt);
+	return ++INTEGER(plv_nelt)[0] == plv_len;
+}
+
+/* Always used in a context where 'plv' is not empty. */
+static SEXP make_leaf_vector_from_full_proto_leaf_vector(SEXP plv,
+		int *order_buf, unsigned short int *rxbuf1, int *rxbuf2)
+{
+	SEXP plv_offs, plv_vals;
+
+	plv_offs = VECTOR_ELT(plv, 0);
+	plv_vals = VECTOR_ELT(plv, 1);
+	return make_leaf_vector(plv_offs, plv_vals,
+				order_buf, rxbuf1, rxbuf2);
 }
 
 
@@ -1104,7 +1164,8 @@ static int store_nzoff_and_nzval_in_SVT(
 		const int *nzcoo, int nzdata_len, int nzcoo_ncol,
 		SEXP nzvals, int nzdata_offset,
 		SEXP SVT,
-		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
+		CopyRVectorElt_FUNType copy_Rvector_elt_FUN,
+		int *order_buf, unsigned short int *rxbuf1, int *rxbuf2)
 {
 	const int *p;
 	int along, i, ret;
@@ -1123,7 +1184,7 @@ static int store_nzoff_and_nzval_in_SVT(
 		/* 'subSVT' is an integer vector of counts or a list. */
 		if (IS_INTEGER(subSVT)) {
 			subSVT = PROTECT(
-				alloc_list_of_appendable_leaf_vectors(
+				alloc_list_of_proto_leaf_vectors(
 						INTEGER(subSVT),
 						LENGTH(subSVT),
 						TYPEOF(nzvals))
@@ -1138,20 +1199,19 @@ static int store_nzoff_and_nzval_in_SVT(
 	i = *p - 1;
 	subSVT = VECTOR_ELT(SVT, i);
 
-	/* 'subSVT' is an "appendable leaf vector". */
-	ret = append_off_val_pair_to_leaf_vector(subSVT,
-						 nzcoo[nzdata_offset] - 1,
-						 nzvals, nzdata_offset,
-						 copy_Rvector_elt_FUN);
+	/* 'subSVT' is a "proto leaf vector". */
+	ret = append_off_val_pair_to_proto_leaf_vector(subSVT,
+					nzcoo[nzdata_offset] - 1,
+					nzvals, nzdata_offset,
+					copy_Rvector_elt_FUN);
 	if (ret < 0)
 		return ret;
 	if (ret == 1) {
-		/* Appendable leaf vector 'subSVT' is now full.
-		   Replace it with a regular (i.e. non-appendable) "leaf
-		   vector". */
+		/* "Proto leaf vector" 'subSVT' is now full.
+		   Turn it into a regular (i.e. non-proto) "leaf vector". */
 		subSVT = PROTECT(
-			_new_leaf_vector(VECTOR_ELT(subSVT, 0),
-					 VECTOR_ELT(subSVT, 1))
+			make_leaf_vector_from_full_proto_leaf_vector(subSVT,
+						order_buf, rxbuf1, rxbuf2)
 		);
 		SET_VECTOR_ELT(SVT, i, subSVT);
 		UNPROTECT(1);
@@ -1168,6 +1228,8 @@ SEXP C_build_SVT_from_COO_SparseArray(
 	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
 	int x_ndim, nzdata_len, ans_len, i, ret;
 	SEXP x_nzcoo_dim, ans;
+	int *order_buf, *rxbuf2;
+	unsigned short int *rxbuf1;
 
 	/* The 'ans_type' argument is currently ignored.
 	   For now we take care of honoring the user-requested type at the R
@@ -1196,9 +1258,15 @@ SEXP C_build_SVT_from_COO_SparseArray(
 	if (nzdata_len == 0)
 		return R_NilValue;
 
+	order_buf = (int *) R_alloc(INTEGER(x_dim)[0], sizeof(int));
+	rxbuf1 = (unsigned short int *)
+			R_alloc(INTEGER(x_dim)[0], sizeof(unsigned short int));
+	rxbuf2 = (int *) R_alloc(INTEGER(x_dim)[0], sizeof(int));
+
 	if (x_ndim == 1)
 		return make_leaf_vector_from_one_based_positions(
-				INTEGER(x_nzcoo), x_nzvals, INTEGER(x_dim)[0]);
+				INTEGER(x_nzcoo), x_nzvals, INTEGER(x_dim)[0],
+				order_buf, rxbuf1, rxbuf2);
 
 	ans_len = INTEGER(x_dim)[x_ndim - 1];
 
@@ -1223,7 +1291,7 @@ SEXP C_build_SVT_from_COO_SparseArray(
 	/* 2nd pass: Add the leaf vectors to the tree. */
 	if (x_ndim == 2)
 		ans = PROTECT(
-			alloc_list_of_appendable_leaf_vectors(
+			alloc_list_of_proto_leaf_vectors(
 					INTEGER(ans), ans_len,
 					TYPEOF(x_nzvals))
 		);
@@ -1232,18 +1300,10 @@ SEXP C_build_SVT_from_COO_SparseArray(
 				INTEGER(x_nzcoo), nzdata_len, x_ndim,
 				x_nzvals, i,
 				ans,
-				copy_Rvector_elt_FUN);
+				copy_Rvector_elt_FUN,
+				order_buf, rxbuf1, rxbuf2);
 		if (ret < 0) {
-		    UNPROTECT(1);
-		    if (ret == -2)
-			error("coercion from COO_SparseArray to "
-			      "SVT_SparseArray is not supported when the\n"
-			      "  first column of the matrix in the "
-			      "\"nzcoo\" slot of the object to coerce is\n"
-			      "  not strictly sorted within each group of "
-			      "rows obtained by grouping the rows\n"
-			      "  with same values in the remaining columns");
-		    else
+			UNPROTECT(1);
 			error("S4Arrays internal error in "
 			      "C_from_COO_SparseArray_to_SVT():\n"
 			      "    store_nzoff_and_nzval_in_SVT() "

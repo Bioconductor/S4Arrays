@@ -345,6 +345,12 @@ SparseArray <- function(x, type=NA)
     if (missing(x))
         return(.new_empty_SVT_SparseArray(type))
 
+    if (is(x, "SparseArray")) {
+        if (!identical(type, NA))
+            type(x) <- type
+        return(x)
+    }
+
     if (is(x, "RsparseMatrix")) {
         ans <- as(x, "COO_SparseArray")
         if (!identical(type, NA))
