@@ -236,8 +236,12 @@ dense2sparse <- function(x)
     x_dim <- dim(x)
     if (is.null(x_dim))
         stop(wmsg("'x' must be an array-like object"))
-    nzcoo <- which_is_nonzero(x, arr.ind=TRUE)  # M-index
-    COO_SparseArray(x_dim, nzcoo, x[nzcoo], dimnames(x), check=FALSE)
+    ans_nzcoo <- which_is_nonzero(x, arr.ind=TRUE)  # M-index
+    ans_nzvals <- x[ans_nzcoo]
+    ## Work around bug in base::`[`
+    if (length(x_dim) == 1L)
+        ans_nzvals <- as.vector(ans_nzvals)
+    COO_SparseArray(x_dim, ans_nzcoo, ans_nzvals, dimnames(x), check=FALSE)
 }
 
 ### 'coo' must be a COO_SparseArray object.
