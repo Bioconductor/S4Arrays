@@ -98,36 +98,36 @@ CopyRVectorElts_FUNType _select_copy_Rvector_elts_FUN(SEXPTYPE Rtype)
 static void copy_selected_int_elts(const int *in,
 		const int *selection, int n, int *out)
 {
-	for (int k = 0; k < n; k++, out++)
-		*out = *(in + selection[k]);
+	for (int k = 0; k < n; k++, selection++, out++)
+		*out = in[*selection];
 	return;
 }
 
 static void copy_selected_double_elts(const double *in,
 		const int *selection, int n, double *out)
 {
-	for (int k = 0; k < n; k++, out++)
-		*out = *(in + selection[k]);
+	for (int k = 0; k < n; k++, selection++, out++)
+		*out = in[*selection];
 	return;
 }
 
 static void copy_selected_Rcomplex_elts(const Rcomplex *in,
 		const int *selection, int n, Rcomplex *out)
 {
-	for (int k = 0; k < n; k++, out++)
-		*out = *(in + selection[k]);
+	for (int k = 0; k < n; k++, selection++, out++)
+		*out = in[*selection];
 	return;
 }
 
 static void copy_selected_Rbyte_elts(const Rbyte *in,
 		const int *selection, int n, Rbyte *out)
 {
-	for (int k = 0; k < n; k++, out++)
-		*out = *(in + selection[k]);
+	for (int k = 0; k < n; k++, selection++, out++)
+		*out = in[*selection];
 	return;
 }
 
-/* The length of the selection must be the length of 'out_Rvector'.
+/* The selection is assumed to have the same length as 'out_Rvector'.
    Only for a 'selection' and 'out_Rvector' of length <= INT_MAX.
    Do NOT use on a 'selection' or 'out_Rvector' of length > INT_MAX! */
 void _copy_selected_Rsubvec_elts(
@@ -139,7 +139,7 @@ void _copy_selected_Rsubvec_elts(
 	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
 
 	Rtype = TYPEOF(in_Rvector);
-	out_len = LENGTH(out_Rvector);
+	out_len = LENGTH(out_Rvector);  /* also the length of the selection */
 
 	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
 	switch (TYPEOF(in_Rvector)) {
@@ -168,8 +168,8 @@ void _copy_selected_Rsubvec_elts(
 		      "copy_selected_Rsubvec_elts():\n"
 		      "  type \"%s\" is not supported", type2char(Rtype));
 
-	for (R_xlen_t k = 0; k < out_len; k++) {
-		R_xlen_t offset = in_offset + selection[k];
+	for (R_xlen_t k = 0; k < out_len; k++, selection++) {
+		R_xlen_t offset = in_offset + *selection;
 		copy_Rvector_elt_FUN(in_Rvector, offset, out_Rvector, k);
 	}
 	return;

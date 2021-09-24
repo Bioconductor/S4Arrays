@@ -42,6 +42,7 @@ static const R_CallMethodDef callMethods[] = {
 	CALLMETHOD_DEF(C_build_SVT_from_CsparseMatrix, 2),
 	CALLMETHOD_DEF(C_from_SVT_SparseArray_to_COO_SparseArray, 3),
 	CALLMETHOD_DEF(C_build_SVT_from_COO_SparseArray, 4),
+	CALLMETHOD_DEF(C_subassign_SVT_by_Mindex, 5),
 	CALLMETHOD_DEF(C_transpose_SVT_SparseMatrix, 3),
 
 /* SparseArray_subsetting.c */

@@ -10,6 +10,7 @@
 
 #include <limits.h>  /* for INT_MAX */
 #include <string.h>  /* for memset(), memcpy() */
+#include <stdlib.h>  /* for qsort() */
 
 
 /* All the atomic types + "list". */
@@ -289,7 +290,7 @@ static SEXP make_leaf_vector_from_one_based_positions(
 	offs = PROTECT(NEW_INTEGER(ans_len));
 	for (k = 0, offs_p = INTEGER(offs); k < ans_len; k++, offs_p++) {
 		p = pos[k];
-		if (p < 1 || p > maxpos) {
+		if (p == NA_INTEGER || p < 1 || p > maxpos) {
 			UNPROTECT(1);
 			error("\"nzcoo\" slot of COO_SparseArray object "
 			      "to coerce contains invalid coordinates");
@@ -1111,6 +1112,23 @@ SEXP C_from_SVT_SparseArray_to_COO_SparseArray(SEXP x_dim,
  * Going from COO_SparseArray to SVT_SparseArray
  */
 
+static SEXP check_Mindex_dim(SEXP Mindex, R_xlen_t vals_len, int ndim,
+		const char *what1, const char *what2, const char *what3)
+{
+	SEXP Mindex_dim;
+
+	Mindex_dim = GET_DIM(Mindex);
+	if (Mindex_dim == R_NilValue || LENGTH(Mindex_dim) != 2)
+		error("'%s' must be a matrix", what1);
+	if (!IS_INTEGER(Mindex))
+		error("'%s' must be an integer matrix", what1);
+	if (INTEGER(Mindex_dim)[0] != vals_len)
+		error("nrow(%s) != %s", what1, what2);
+	if (INTEGER(Mindex_dim)[1] != ndim)
+		error("ncol(%s) != %s", what1, what3);
+	return Mindex_dim;
+}
+
 static int grow_SVT(SEXP SVT,
 		const int *dim, int ndim,
 		const int *nzcoo, int nzdata_len, int nzdata_offset)
@@ -1120,16 +1138,16 @@ static int grow_SVT(SEXP SVT,
 	SEXP subSVT;
 
 	p = nzcoo + nzdata_offset;
-	if (*p < 1 || *p > dim[0])
+	if (*p == NA_INTEGER || *p < 1 || *p > dim[0])
 		return -1;
 
 	if (ndim >= 3) {
 		p += (size_t) nzdata_len * ndim;
 		for (along = ndim - 2; along >= 1; along--) {
 			p -= nzdata_len;
-			i = *p - 1;
-			if (i < 0 || i >= LENGTH(SVT))
+			if (*p == NA_INTEGER || *p < 1 || *p > dim[along])
 				return -1;
+			i = *p - 1;
 			subSVT = VECTOR_ELT(SVT, i);
 			if (along == 1)
 				break;
@@ -1153,10 +1171,9 @@ static int grow_SVT(SEXP SVT,
 	}
 
 	p = nzcoo + nzdata_offset + nzdata_len;
-	i = *p - 1;
-	if (i < 0 || i >= LENGTH(SVT))
+	if (*p == NA_INTEGER || *p < 1 || *p > LENGTH(SVT))
 		return -1;
-	INTEGER(SVT)[i]++;
+	INTEGER(SVT)[*p - 1]++;
 	return 0;
 }
 
@@ -1227,7 +1244,7 @@ SEXP C_build_SVT_from_COO_SparseArray(
 	//SEXPTYPE ans_Rtype;
 	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
 	int x_ndim, nzdata_len, ans_len, i, ret;
-	SEXP x_nzcoo_dim, ans;
+	SEXP ans;
 	int *order_buf, *rxbuf2;
 	unsigned short int *rxbuf1;
 
@@ -1246,14 +1263,9 @@ SEXP C_build_SVT_from_COO_SparseArray(
 	x_ndim = LENGTH(x_dim);
 	nzdata_len = LENGTH(x_nzvals);
 
-	/* Check 'x_nzcoo' dimensions. */
-	x_nzcoo_dim = GET_DIM(x_nzcoo);
-	if (LENGTH(x_nzcoo_dim) != 2)
-		error("'x@nzcoo' must be a matrix");
-	if (INTEGER(x_nzcoo_dim)[0] != nzdata_len)
-		error("nrow(x@nzcoo) != length(x@nzvals)");
-	if (INTEGER(x_nzcoo_dim)[1] != x_ndim)
-		error("ncol(x@nzcoo) != length(x@dim)");
+	/* Check 'x_nzcoo'. */
+	check_Mindex_dim(x_nzcoo, (R_xlen_t) nzdata_len, x_ndim,
+			 "x@nzcoo", "length(x@nzvals)", "length(x@dim)");
 
 	if (nzdata_len == 0)
 		return R_NilValue;
@@ -1305,7 +1317,7 @@ SEXP C_build_SVT_from_COO_SparseArray(
 		if (ret < 0) {
 			UNPROTECT(1);
 			error("S4Arrays internal error in "
-			      "C_from_COO_SparseArray_to_SVT():\n"
+			      "C_build_SVT_from_COO_SparseArray():\n"
 			      "    store_nzoff_and_nzval_in_SVT() "
 			      "returned an unexpected error");
 		}
@@ -1315,6 +1327,378 @@ SEXP C_build_SVT_from_COO_SparseArray(
 		UNPROTECT(1);
 	UNPROTECT(1);
 	return ans;
+}
+
+
+/****************************************************************************
+ * Basic manipulation of "extended leaves"
+ *
+ * An "extended leaf" is used to temporarily attach a subset of the incoming
+ * data (represented by 'Mindex' and 'vals') to a "bottom leaf" (a "bottom
+ * leaf" being a leaf located at the deepest possible depth in the SVT, i.e.
+ * at depth N - 1 where N is the number of dimensions of the sparse array).
+ * An "extended leaf" is **either**:
+ *   - A Global Offset Buffer (GOB). Global offsets are offsets w.r.t. the
+ *     incoming data i.e. w.r.t. 'Mindex' and 'vals'. A GOB is represented
+ *     by an IntAE buffer placed behind an external pointer.
+ *   - An "extended leaf vector" i.e. a "leaf vector with a GOB on it".
+ *     This is represented as a list of length 3: the 2 list elements of a
+ *     regular "leaf vector" (lv_offs + lv_vals) + a GOB.
+ */
+
+static SEXP new_GOB()
+{
+	IntAE *go_buf;
+
+	go_buf = new_IntAE(1, 0, 0);
+	return R_MakeExternalPtr(go_buf, R_NilValue, R_NilValue);
+}
+
+static SEXP new_extended_leaf_vector(SEXP lv)
+{
+	SEXP lv_offs, lv_vals, gob, ans;
+	int lv_len;
+
+	lv_len = _split_leaf_vector(lv, &lv_offs, &lv_vals);
+	if (lv_len < 0)
+		error("S4Arrays internal error in "
+		      "new_extended_leaf_vector():\n"
+		      "    unexpected error");
+	gob = PROTECT(new_GOB());
+	ans = PROTECT(NEW_LIST(3));
+	SET_VECTOR_ELT(ans, 0, lv_offs);
+	SET_VECTOR_ELT(ans, 1, lv_vals);
+	SET_VECTOR_ELT(ans, 2, gob);
+	UNPROTECT(2);
+	return ans;
+}
+
+/* As a side effect the function also puts a new GOB on 'bottom_leaf' if
+   it doesn't have one yet. More precisely:
+   - If 'bottom_leaf' is NULL, it gets replaced with a GOB.
+   - If 'bottom_leaf' is a "leaf vector", it gets replaced with an "extended
+     leaf vector".
+*/
+static int get_GOB(SEXP leaf_parent, int i, SEXP bottom_leaf, SEXP *gob)
+{
+	if (bottom_leaf == R_NilValue) {
+		*gob = PROTECT(new_GOB());
+		SET_VECTOR_ELT(leaf_parent, i, *gob);
+		UNPROTECT(1);
+		return 0;
+	}
+	if (TYPEOF(bottom_leaf) == EXTPTRSXP) {
+		/* 'bottom_leaf' is a GOB. */
+		*gob = bottom_leaf;
+		return 0;
+	}
+	if (!isVectorList(bottom_leaf))
+		error("S4Arrays internal error in get_GOB():\n"
+		      "    unexpected error");
+	/* 'bottom_leaf' is a "leaf vector" or an "extended leaf vector". */
+	if (LENGTH(bottom_leaf) == 2) {
+		/* 'bottom_leaf' is a "leaf vector". */
+		bottom_leaf = PROTECT(new_extended_leaf_vector(bottom_leaf));
+		SET_VECTOR_ELT(leaf_parent, i, bottom_leaf);
+		UNPROTECT(1);
+	} else if (LENGTH(bottom_leaf) != 3) {
+		error("S4Arrays internal error in get_GOB():\n"
+		      "    unexpected error");
+	}
+	*gob = VECTOR_ELT(bottom_leaf, 2);
+	return 0;
+}
+
+static void append_global_offset_to_GOB(SEXP gob, int global_offset)
+{
+	IntAE *go_buf;
+
+	go_buf = (IntAE *) R_ExternalPtrAddr(gob);
+	IntAE_insert_at(go_buf, go_buf->_nelt, global_offset);
+	return;
+}
+
+static const int *tmp_Mindex;  /* needed by compar_global_offsets() below */
+
+static inline int compar_global_offsets(const void *p1, const void *p2)
+{
+	int global_offset1, global_offset2, ret;
+
+	global_offset1 = *((const int *) p1);
+	global_offset2 = *((const int *) p2);
+	ret = tmp_Mindex[global_offset1] - tmp_Mindex[global_offset2];
+	if (ret != 0)
+		return ret;
+	/* Break tie by global offset value so the ordering is "stable". */
+	return global_offset1 - global_offset2;
+}
+
+static void qsort_GOB(SEXP gob, const int *Mindex)
+{
+	IntAE *go_buf;
+
+	tmp_Mindex = Mindex;
+	go_buf = (IntAE *) R_ExternalPtrAddr(gob);
+	qsort(go_buf->elts, go_buf->_nelt, sizeof(int), compar_global_offsets);
+	return;
+}
+
+/* Remove global offset duplicates (keep the last one), **then** remove global
+   offsets associated with a zero value in 'vals'. */
+static int normalize_GOB(SEXP gob, const int *Mindex, SEXP vals)
+{
+	IntAE *go_buf;
+	int k1, k2;
+
+	go_buf = (IntAE *) R_ExternalPtrAddr(gob);
+	k1 = 0;
+	for (k2 = 0; k2 < go_buf->_nelt; k2++) {
+		/* TODO: Implement this */
+		k1++;
+	}
+	return k1;
+}
+
+static SEXP make_leaf_vector_from_GOB(SEXP gob, SEXP Mindex, SEXP vals, int d)
+{
+	int ans_len, *ans_offs_p, k, m;
+	SEXP ans, ans_offs, ans_vals;
+	IntAE *go_buf;
+	const int *Mindex_p, *selection;
+
+	qsort_GOB(gob, INTEGER(Mindex));
+	ans_len = normalize_GOB(gob, INTEGER(Mindex), vals);
+	ans = PROTECT(alloc_and_split_leaf_vector(ans_len, TYPEOF(vals),
+						  &ans_offs, &ans_vals));
+	Mindex_p = INTEGER(Mindex);
+	go_buf = (IntAE *) R_ExternalPtrAddr(gob);
+	selection = go_buf->elts;
+	ans_offs_p = INTEGER(ans_offs);
+	for (k = 0; k < ans_len; k++, selection++, ans_offs_p++) {
+		m = Mindex_p[*selection];
+		if (m == NA_INTEGER || m < 1 || m > d)
+			error("'Mindex' contains invalid coordinates");
+		*ans_offs_p = m - 1;
+	}
+	_copy_selected_Rsubvec_elts(vals, 0, go_buf->elts, ans_vals);
+	UNPROTECT(1);
+	return ans;
+}
+
+static SEXP merge_GOB_into_leaf_vector(SEXP xlv, SEXP Mindex, SEXP vals)
+{
+	error("merge_GOB_into_leaf_vector() is not ready yet");
+	return R_NilValue;
+}
+
+
+/****************************************************************************
+ * C_subassign_SVT_by_Mindex() and C_subassign_SVT_by_Lindex()
+ */
+
+static SEXP shallow_list_copy(SEXP x)
+{
+	int x_len, i;
+	SEXP ans;
+
+	if (!isVectorList(x))  // IS_LIST() is broken
+		error("S4Arrays internal error in shallow_list_copy():\n"
+		      "    'x' is not a list");
+	x_len = LENGTH(x);
+	ans = PROTECT(NEW_LIST(x_len));
+	for (i = 0; i < x_len; i++)
+		SET_VECTOR_ELT(ans, i, VECTOR_ELT(x, i));
+	UNPROTECT(1);
+	return ans;
+}
+
+static int go_to_SVT_bottom(SEXP SVT, SEXP SVT0,
+		const int *dim, int ndim,
+		const int *M, int vals_len,
+		SEXP *leaf_parent, int *idx, SEXP *bottom_leaf)
+{
+	const int *m_p;
+	SEXP subSVT0, subSVT;
+	int along, d, m, i;
+
+	m_p = M + (size_t) vals_len * ndim;
+	subSVT0 = R_NilValue;
+	for (along = ndim - 1; along >= 1; along--) {
+		d = dim[along];
+		m_p -= vals_len;
+		m = *m_p;
+		if (m == NA_INTEGER || m < 1 || m > d)
+			error("'Mindex' contains invalid coordinates");
+		i = m - 1;
+		subSVT = VECTOR_ELT(SVT, i);
+		if (along == 1)
+			break;
+		if (SVT0 != R_NilValue)
+			subSVT0 = VECTOR_ELT(SVT0, i);
+		/* 'subSVT' is NULL or a list. */
+		if (subSVT == R_NilValue) {
+			subSVT = PROTECT(NEW_LIST(d));
+			SET_VECTOR_ELT(SVT, i, subSVT);
+			UNPROTECT(1);
+		} else if (isVectorList(subSVT) && LENGTH(subSVT) == d) {
+			/* Shallow copy **only** if 'subSVT' == corresponding
+			   node in original 'SVT0'. */
+			if (subSVT == subSVT0) {
+				subSVT = PROTECT(shallow_list_copy(subSVT));
+				SET_VECTOR_ELT(SVT, i, subSVT);
+				UNPROTECT(1);
+			}
+		} else {
+			error("S4Arrays internal error in "
+			      "go_to_SVT_bottom():\n"
+			      "    unexpected error");
+		}
+		SVT = subSVT;
+		if (SVT0 != R_NilValue)
+			SVT0 = subSVT0;
+	}
+	*leaf_parent = SVT;
+	*idx = i;
+	*bottom_leaf = subSVT;
+	return 0;
+}
+
+static int attach_incoming_vals_to_SVT(SEXP SVT, SEXP SVT0,
+		const int *dim, int ndim,
+		const int *Mindex, SEXP vals)
+{
+	int vals_len, global_offset, i, ret;
+	SEXP leaf_parent, bottom_leaf, gob;
+
+	/* We know 'vals' cannot be a long vector because 'XLENGTH(vals)'
+	   went thru check_Mindex_dim(). */
+	vals_len = LENGTH(vals);
+	for (global_offset = 0; global_offset < vals_len; global_offset++) {
+		ret = go_to_SVT_bottom(SVT, SVT0, dim, ndim,
+				Mindex + global_offset, vals_len,
+				&leaf_parent, &i, &bottom_leaf);
+		if (ret < 0)
+			return -1;
+		ret = get_GOB(leaf_parent, i, bottom_leaf, &gob);
+		if (ret < 0)
+			return -1;
+		append_global_offset_to_GOB(gob, global_offset);
+	}
+	return 0;
+}
+
+/* Recursive. */
+static SEXP REC_merge_attached_vals_to_SVT(SEXP SVT,
+		const int *dim, int ndim, SEXP Mindex, SEXP vals)
+{
+	int SVT_len, is_empty, i;
+	SEXP subSVT;
+
+	if (SVT == R_NilValue)
+		return R_NilValue;
+
+	if (ndim == 1) {
+		/* 'SVT' is a bottom leaf (GOB, "leaf vector", or
+		   "extended leaf vector"). */
+		if (TYPEOF(SVT) == EXTPTRSXP) {
+			/* 'SVT' is a GOB. */
+			return make_leaf_vector_from_GOB(SVT, Mindex, vals,
+							 dim[0]);
+		}
+		SVT_len = LENGTH(SVT);
+		if (SVT_len == 2) {
+			/* 'SVT' is a "leaf vector". */
+			return SVT;
+		}
+		if (SVT_len == 3) {
+			/* 'SVT' is an "extended leaf vector". */
+			return merge_GOB_into_leaf_vector(SVT, Mindex, vals);
+		}
+		error("S4Arrays internal error in "
+		      "REC_merge_attached_vals_to_SVT():\n"
+		      "    unexpected error");
+	}
+
+	/* 'SVT' is a regular node (list). */
+	SVT_len = LENGTH(SVT);  /* should be equal to 'd = dim[ndim - 1]' */
+	is_empty = 1;
+	for (i = 0; i < SVT_len; i++) {
+		subSVT = VECTOR_ELT(SVT, i);
+		subSVT = REC_merge_attached_vals_to_SVT(subSVT,
+					dim, ndim - 1, Mindex, vals);
+		if (subSVT != R_NilValue) {
+			PROTECT(subSVT);
+			SET_VECTOR_ELT(SVT, i, subSVT);
+			UNPROTECT(1);
+			is_empty = 0;
+		} else {
+			SET_VECTOR_ELT(SVT, i, subSVT);
+		}
+	}
+	return is_empty ? R_NilValue : SVT;
+}
+
+/* --- .Call ENTRY POINT --- */
+SEXP C_subassign_SVT_by_Mindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
+		SEXP Mindex, SEXP vals)
+{
+	SEXPTYPE Rtype;
+	int x_ndim, d, ret;
+	R_xlen_t vals_len;
+	SEXP ans;
+
+	Rtype = _get_Rtype_from_Rstring(x_type);
+	if (Rtype == 0)
+		error("S4Arrays internal error in "
+		      "C_subassign_SVT_by_Mindex():\n"
+		      "    SVT_SparseMatrix object has invalid type");
+
+	x_ndim = LENGTH(x_dim);
+	vals_len = XLENGTH(vals);
+	check_Mindex_dim(Mindex, vals_len, x_ndim,
+			 "Mindex", "length(vals)", "length(dim(x))");
+	if (vals_len == 0)
+		return x_SVT;  /* no-op */
+
+	if (x_ndim == 1) {
+		/* Will need special treatment like in
+		   C_build_SVT_from_COO_SparseArray(). */
+		error("'x_ndim == 1' case is not supported yet");
+	}
+
+	/* 1st pass */
+	d = INTEGER(x_dim)[x_ndim - 1];
+	if (x_SVT == R_NilValue) {
+		ans = PROTECT(NEW_LIST(d));
+	} else if (isVectorList(x_SVT) && LENGTH(x_SVT) == d) {
+		ans = PROTECT(shallow_list_copy(x_SVT));
+	} else {
+		error("unexpected error");
+	}
+	ret = attach_incoming_vals_to_SVT(ans, x_SVT,
+			INTEGER(x_dim), LENGTH(x_dim),
+			INTEGER(Mindex), vals);
+	if (ret < 0) {
+		UNPROTECT(1);
+		error("S4Arrays internal error in "
+		      "C_subassign_SVT_by_Mindex():\n"
+		      "    attach_incoming_vals_to_SVT() returned an error");
+	}
+
+	/* 2nd pass */
+	ans = REC_merge_attached_vals_to_SVT(ans,
+			INTEGER(x_dim), LENGTH(x_dim), Mindex, vals);
+	UNPROTECT(1);
+	return ans;
+}
+
+/* --- .Call ENTRY POINT --- */
+SEXP C_subassign_SVT_by_Lindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
+		SEXP Lindex, SEXP vals)
+{
+	if (!IS_INTEGER(Lindex) || !IS_NUMERIC(Lindex))
+		error("'Lindex' must be an integer or numeric vector");
+	return R_NilValue;
 }
 
 
