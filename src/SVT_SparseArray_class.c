@@ -178,8 +178,8 @@ static inline int copy_Rvector_elts(
  * A "leaf vector" is a vector of offset/value pairs sorted by strictly
  * ascending offset. It is represented by a list of 2 parallel vectors:
  * an integer vector of offsets (i.e. 0-based positions) and a vector
- * (atomic or list) of nonzero values.
- * The length of a leaf vector is always >= 1 and <= INT_MAX.
+ * (atomic or list) of values that are typically but not necessarily nonzeros.
+ * The length of a "leaf vector" is always >= 1 and <= INT_MAX.
  */
 
 SEXP _new_leaf_vector(SEXP lv_offs, SEXP lv_vals)
@@ -416,6 +416,13 @@ static SEXP coerce_leaf_vector(SEXP lv, SEXPTYPE new_Rtype,
 		ans = remove_zeros_from_leaf_vector(ans, offs_buf);
 	UNPROTECT(2);
 	return ans;
+}
+
+/* Returns R_NilValue or a "leaf vector". */
+static SEXP merge_leaf_vectors(SEXP lv1, SEXP lv2)
+{
+	error("merge_leaf_vectors() is not yet implemented");
+	return R_NilValue;
 }
 
 
@@ -1335,29 +1342,30 @@ SEXP C_build_SVT_from_COO_SparseArray(
  * Basic manipulation of "extended leaves"
  *
  * An "extended leaf" is used to temporarily attach a subset of the incoming
- * data (represented by 'Mindex' and 'vals') to a "bottom leaf" (a "bottom
- * leaf" being a leaf located at the deepest possible depth in the SVT, i.e.
- * at depth N - 1 where N is the number of dimensions of the sparse array).
+ * data (represented by 'Mindex' and 'vals') to a "bottom leaf" in the SVT.
+ * Note that a "bottom leaf" is a leaf located at the deepest possible depth
+ * in the SVT, that is, at depth N - 1 where N is the number of dimensions
+ * of the sparse array.
  * An "extended leaf" is **either**:
- *   - A Global Offset Buffer (GOB). Global offsets are offsets w.r.t. the
- *     incoming data i.e. w.r.t. 'Mindex' and 'vals'. A GOB is represented
- *     by an IntAE buffer placed behind an external pointer.
- *   - An "extended leaf vector" i.e. a "leaf vector with a GOB on it".
+ *   - An Incoming Data Subset (IDS). An IDS is simply a set of offsets
+ *     w.r.t. 'Mindex' and 'vals'. The offsets are stored in an IntAE buffer
+ *     placed behind an external pointer.
+ *   - An "extended leaf vector" i.e. a "leaf vector" with an IDS on it.
  *     This is represented as a list of length 3: the 2 list elements of a
- *     regular "leaf vector" (lv_offs + lv_vals) + a GOB.
+ *     regular "leaf vector" (lv_offs and lv_vals) + an IDS.
  */
 
-static SEXP new_GOB()
+static SEXP new_IDS()
 {
-	IntAE *go_buf;
+	IntAE *ioffsets_buf;
 
-	go_buf = new_IntAE(1, 0, 0);
-	return R_MakeExternalPtr(go_buf, R_NilValue, R_NilValue);
+	ioffsets_buf = new_IntAE(1, 0, 0);
+	return R_MakeExternalPtr(ioffsets_buf, R_NilValue, R_NilValue);
 }
 
 static SEXP new_extended_leaf_vector(SEXP lv)
 {
-	SEXP lv_offs, lv_vals, gob, ans;
+	SEXP lv_offs, lv_vals, IDS, ans;
 	int lv_len;
 
 	lv_len = _split_leaf_vector(lv, &lv_offs, &lv_vals);
@@ -1365,36 +1373,36 @@ static SEXP new_extended_leaf_vector(SEXP lv)
 		error("S4Arrays internal error in "
 		      "new_extended_leaf_vector():\n"
 		      "    unexpected error");
-	gob = PROTECT(new_GOB());
+	IDS = PROTECT(new_IDS());
 	ans = PROTECT(NEW_LIST(3));
 	SET_VECTOR_ELT(ans, 0, lv_offs);
 	SET_VECTOR_ELT(ans, 1, lv_vals);
-	SET_VECTOR_ELT(ans, 2, gob);
+	SET_VECTOR_ELT(ans, 2, IDS);
 	UNPROTECT(2);
 	return ans;
 }
 
-/* As a side effect the function also puts a new GOB on 'bottom_leaf' if
+/* As a side effect the function also puts a new IDS on 'bottom_leaf' if
    it doesn't have one yet. More precisely:
-   - If 'bottom_leaf' is NULL, it gets replaced with a GOB.
+   - If 'bottom_leaf' is NULL, it gets replaced with an IDS.
    - If 'bottom_leaf' is a "leaf vector", it gets replaced with an "extended
      leaf vector".
 */
-static int get_GOB(SEXP leaf_parent, int i, SEXP bottom_leaf, SEXP *gob)
+static int get_IDS(SEXP leaf_parent, int i, SEXP bottom_leaf, SEXP *IDS)
 {
 	if (bottom_leaf == R_NilValue) {
-		*gob = PROTECT(new_GOB());
-		SET_VECTOR_ELT(leaf_parent, i, *gob);
+		*IDS = PROTECT(new_IDS());
+		SET_VECTOR_ELT(leaf_parent, i, *IDS);
 		UNPROTECT(1);
 		return 0;
 	}
 	if (TYPEOF(bottom_leaf) == EXTPTRSXP) {
-		/* 'bottom_leaf' is a GOB. */
-		*gob = bottom_leaf;
+		/* 'bottom_leaf' is an IDS. */
+		*IDS = bottom_leaf;
 		return 0;
 	}
 	if (!isVectorList(bottom_leaf))
-		error("S4Arrays internal error in get_GOB():\n"
+		error("S4Arrays internal error in get_IDS():\n"
 		      "    unexpected error");
 	/* 'bottom_leaf' is a "leaf vector" or an "extended leaf vector". */
 	if (LENGTH(bottom_leaf) == 2) {
@@ -1403,63 +1411,64 @@ static int get_GOB(SEXP leaf_parent, int i, SEXP bottom_leaf, SEXP *gob)
 		SET_VECTOR_ELT(leaf_parent, i, bottom_leaf);
 		UNPROTECT(1);
 	} else if (LENGTH(bottom_leaf) != 3) {
-		error("S4Arrays internal error in get_GOB():\n"
+		error("S4Arrays internal error in get_IDS():\n"
 		      "    unexpected error");
 	}
-	*gob = VECTOR_ELT(bottom_leaf, 2);
+	*IDS = VECTOR_ELT(bottom_leaf, 2);
 	return 0;
 }
 
-static void append_global_offset_to_GOB(SEXP gob, int global_offset)
+static void append_ioffset_to_IDS(SEXP IDS, int ioffset)
 {
-	IntAE *go_buf;
+	IntAE *ioffsets_buf;
 
-	go_buf = (IntAE *) R_ExternalPtrAddr(gob);
-	IntAE_insert_at(go_buf, go_buf->_nelt, global_offset);
+	ioffsets_buf = (IntAE *) R_ExternalPtrAddr(IDS);
+	IntAE_insert_at(ioffsets_buf, ioffsets_buf->_nelt, ioffset);
 	return;
 }
 
-static const int *tmp_Mindex;  /* needed by compar_global_offsets() below */
+static const int *tmp_Mindex;  /* needed by compar_ioffsets() below */
 
-static inline int compar_global_offsets(const void *p1, const void *p2)
+static inline int compar_ioffsets(const void *p1, const void *p2)
 {
-	int global_offset1, global_offset2, ret;
+	int ioffset1, ioffset2, ret;
 
-	global_offset1 = *((const int *) p1);
-	global_offset2 = *((const int *) p2);
-	ret = tmp_Mindex[global_offset1] - tmp_Mindex[global_offset2];
+	ioffset1 = *((const int *) p1);
+	ioffset2 = *((const int *) p2);
+	ret = tmp_Mindex[ioffset1] - tmp_Mindex[ioffset2];
 	if (ret != 0)
 		return ret;
-	/* Break tie by global offset value so the ordering is "stable". */
-	return global_offset1 - global_offset2;
+	/* Break tie by ioffset value so the ordering is "stable". */
+	return ioffset1 - ioffset2;
 }
 
-static void qsort_GOB(SEXP gob, const int *Mindex)
+static void qsort_IDS(SEXP IDS, const int *Mindex)
 {
-	IntAE *go_buf;
+	IntAE *ioffsets_buf;
 
 	tmp_Mindex = Mindex;
-	go_buf = (IntAE *) R_ExternalPtrAddr(gob);
-	qsort(go_buf->elts, go_buf->_nelt, sizeof(int), compar_global_offsets);
+	ioffsets_buf = (IntAE *) R_ExternalPtrAddr(IDS);
+	qsort(ioffsets_buf->elts, ioffsets_buf->_nelt, sizeof(int),
+	      compar_ioffsets);
 	return;
 }
 
-static int uniq_GOB(SEXP gob, const int *Mindex)
+static int uniq_IDS(SEXP IDS, const int *Mindex)
 {
-	IntAE *go_buf;
+	IntAE *ioffsets_buf;
 	int *p1, k2;
 	const int *p2;
 
-	go_buf = (IntAE *) R_ExternalPtrAddr(gob);
-	if (go_buf->_nelt <= 1)
-		return go_buf->_nelt;
-	p1 = go_buf->elts;
-	for (k2 = 1, p2 = p1 + 1; k2 < go_buf->_nelt; k2++, p2++) {
+	ioffsets_buf = (IntAE *) R_ExternalPtrAddr(IDS);
+	if (ioffsets_buf->_nelt <= 1)
+		return ioffsets_buf->_nelt;
+	p1 = ioffsets_buf->elts;
+	for (k2 = 1, p2 = p1 + 1; k2 < ioffsets_buf->_nelt; k2++, p2++) {
 		if (Mindex[*p1] != Mindex[*p2])
 			p1++;
 		*p1 = *p2;
 	}
-	return go_buf->_nelt = p1 - go_buf->elts + 1;
+	return ioffsets_buf->_nelt = p1 - ioffsets_buf->elts + 1;
 }
 
 static void copy_selected_one_based_positions_as_offsets(const int *pos,
@@ -1476,45 +1485,57 @@ static void copy_selected_one_based_positions_as_offsets(const int *pos,
 	return;
 }
 
-/* IMPORTANT NOTE: Offset/value pairs where the value is zero are NOT dropped
-   at the moment! This means that the function always returns a "leaf vector"
-   of the same length as the GOB (which should never be 0).
-   FIXME: Offset/value pairs where the value is zero should be dropped.
-   Once this is implemented the function **will** sometimes return an
-   R_NilValue instead of a "leaf vector". */
-static SEXP make_leaf_vector_from_GOB(SEXP gob, SEXP Mindex, SEXP vals, int d)
+/* Capabilities:
+   - Sort offset/value pairs: YES, with qsort()
+   - Remove offset duplicates: YES
+   - Remove zeros: NO (but not a strict "leaf vector" requirement)
+   Note that offset/value pairs where the value is zero are NOT dropped at
+   the moment! This means that the function always returns a "leaf vector"
+   of length >= 1 and <= length(IDS) (length(IDS) should never be 0).
+   TODO: Offset/value pairs where the value is zero should probably be dropped.
+   The easiest way to do this is by calling remove_zeros_from_leaf_vector() on
+   the "leaf vector" returned by make_leaf_vector_from_IDS(). */
+static SEXP make_leaf_vector_from_IDS(SEXP IDS, SEXP Mindex, SEXP vals, int d)
 {
-	IntAE *go_buf;
+	IntAE *ioffsets_buf;
 	SEXP ans, ans_offs, ans_vals;
 
-	go_buf = (IntAE *) R_ExternalPtrAddr(gob);
-	qsort_GOB(gob, INTEGER(Mindex));  /* preserves GOB length */
-	uniq_GOB(gob, INTEGER(Mindex));  /* preserves GOB length */
-	//if (go_buf->_nelt == 0)  /* can't happen at the moment */
+	ioffsets_buf = (IntAE *) R_ExternalPtrAddr(IDS);
+	qsort_IDS(IDS, INTEGER(Mindex));  /* preserves IDS length */
+	uniq_IDS(IDS, INTEGER(Mindex));  /* possibly reduces IDS length */
+	//if (ioffsets_buf->_nelt == 0)  /* can't happen at the moment */
 	//	return R_NilValue;
-	ans = PROTECT(alloc_and_split_leaf_vector(go_buf->_nelt, TYPEOF(vals),
-						  &ans_offs, &ans_vals));
+	ans = PROTECT(alloc_and_split_leaf_vector(
+			ioffsets_buf->_nelt, TYPEOF(vals),
+			&ans_offs, &ans_vals));
 	copy_selected_one_based_positions_as_offsets(INTEGER(Mindex),
-			go_buf->elts, go_buf->_nelt, d, INTEGER(ans_offs));
-	_copy_selected_Rsubvec_elts(vals, 0, go_buf->elts, ans_vals);
+			ioffsets_buf->elts, ioffsets_buf->_nelt, d,
+			INTEGER(ans_offs));
+	_copy_selected_Rsubvec_elts(vals, 0, ioffsets_buf->elts, ans_vals);
 	UNPROTECT(1);
 	return ans;
 }
 
-/* Based on make_leaf_vector() so, unlike make_leaf_vector_from_GOB() above
+/* Capabilities:
+   - Sort offset/value pairs: YES, with radix sort
+   - Remove offset duplicates: NO (presence of duplicates triggers an error)
+   - Remove zeros: NO (but not a strict "leaf vector" requirement)
+   Based on make_leaf_vector() so, unlike make_leaf_vector_from_IDS() above
    which is able to remove duplicates, this version will choke on them! */
-static SEXP make_leaf_vector_from_GOB2(SEXP gob, SEXP Mindex, SEXP vals, int d,
+static SEXP make_leaf_vector_from_IDS2(SEXP IDS, SEXP Mindex, SEXP vals, int d,
 		int *order_buf, unsigned short int *rxbuf1, int *rxbuf2)
 {
-	IntAE *go_buf;
+	IntAE *ioffsets_buf;
+	int IDS_len;
 	SEXP offs0, vals0, ans;
 
-	go_buf = (IntAE *) R_ExternalPtrAddr(gob);
-	offs0 = PROTECT(NEW_INTEGER(go_buf->_nelt));
-	vals0 = PROTECT(allocVector(TYPEOF(vals), go_buf->_nelt));
+	ioffsets_buf = (IntAE *) R_ExternalPtrAddr(IDS);
+	IDS_len = ioffsets_buf->_nelt;
+	offs0 = PROTECT(NEW_INTEGER(IDS_len));
+	vals0 = PROTECT(allocVector(TYPEOF(vals), IDS_len));
 	copy_selected_one_based_positions_as_offsets(INTEGER(Mindex),
-			go_buf->elts, go_buf->_nelt, d, INTEGER(offs0));
-	_copy_selected_Rsubvec_elts(vals, 0, go_buf->elts, vals0);
+			ioffsets_buf->elts, IDS_len, d, INTEGER(offs0));
+	_copy_selected_Rsubvec_elts(vals, 0, ioffsets_buf->elts, vals0);
 	ans = make_leaf_vector(offs0, vals0,
 			       order_buf, rxbuf1, rxbuf2);
 	UNPROTECT(2);
@@ -1522,10 +1543,27 @@ static SEXP make_leaf_vector_from_GOB2(SEXP gob, SEXP Mindex, SEXP vals, int d,
 }
 
 /* Returns R_NilValue or a "leaf vector". */
-static SEXP merge_GOB_into_leaf_vector(SEXP xlv, SEXP Mindex, SEXP vals)
+static SEXP merge_IDS_into_leaf_vector(SEXP xlv, SEXP Mindex, SEXP vals, int d,
+		int *order_buf, unsigned short int *rxbuf1, int *rxbuf2)
 {
-	error("merge_GOB_into_leaf_vector() is not ready yet");
-	return R_NilValue;
+	SEXP xlv_offs, xlv_vals, xlv_IDS, lv1, lv2, ans;
+
+	xlv_offs = VECTOR_ELT(xlv, 0);
+	xlv_vals = VECTOR_ELT(xlv, 1);
+	xlv_IDS = VECTOR_ELT(xlv, 2);
+
+	/* Make 'lv1'. */
+	lv1 = PROTECT(_new_leaf_vector(xlv_offs, xlv_vals));
+
+	/* Make 'lv2'. */
+	lv2 = PROTECT(
+		make_leaf_vector_from_IDS2(xlv_IDS, Mindex, vals, d,
+					   order_buf, rxbuf1, rxbuf2)
+	);
+
+	ans = merge_leaf_vectors(lv1, lv2);
+	UNPROTECT(2);
+	return ans;
 }
 
 
@@ -1604,22 +1642,22 @@ static int attach_incoming_vals_to_SVT(SEXP SVT, SEXP SVT0,
 		const int *dim, int ndim,
 		const int *Mindex, SEXP vals)
 {
-	int vals_len, global_offset, i, ret;
-	SEXP leaf_parent, bottom_leaf, gob;
+	int vals_len, ioffset, i, ret;
+	SEXP leaf_parent, bottom_leaf, IDS;
 
 	/* We know 'vals' cannot be a long vector because 'XLENGTH(vals)'
 	   went thru check_Mindex_dim(). */
 	vals_len = LENGTH(vals);
-	for (global_offset = 0; global_offset < vals_len; global_offset++) {
+	for (ioffset = 0; ioffset < vals_len; ioffset++) {
 		ret = go_to_SVT_bottom(SVT, SVT0, dim, ndim,
-				Mindex + global_offset, vals_len,
+				Mindex + ioffset, vals_len,
 				&leaf_parent, &i, &bottom_leaf);
 		if (ret < 0)
 			return -1;
-		ret = get_GOB(leaf_parent, i, bottom_leaf, &gob);
+		ret = get_IDS(leaf_parent, i, bottom_leaf, &IDS);
 		if (ret < 0)
 			return -1;
-		append_global_offset_to_GOB(gob, global_offset);
+		append_ioffset_to_IDS(IDS, ioffset);
 	}
 	return 0;
 }
@@ -1636,13 +1674,13 @@ static SEXP REC_merge_attached_vals_to_SVT(SEXP SVT,
 		return R_NilValue;
 
 	if (ndim == 1) {
-		/* 'SVT' is a bottom leaf (GOB, "leaf vector", or
+		/* 'SVT' is a bottom leaf (IDS, "leaf vector", or
 		   "extended leaf vector"). */
 		if (TYPEOF(SVT) == EXTPTRSXP) {
-			/* 'SVT' is a GOB. */
-			//return make_leaf_vector_from_GOB(SVT, Mindex, vals,
+			/* 'SVT' is an IDS. */
+			//return make_leaf_vector_from_IDS(SVT, Mindex, vals,
 			//		dim[0]);
-			return make_leaf_vector_from_GOB2(SVT, Mindex, vals,
+			return make_leaf_vector_from_IDS2(SVT, Mindex, vals,
 					dim[0], order_buf, rxbuf1, rxbuf2);
 		}
 		SVT_len = LENGTH(SVT);
@@ -1652,7 +1690,8 @@ static SEXP REC_merge_attached_vals_to_SVT(SEXP SVT,
 		}
 		if (SVT_len == 3) {
 			/* 'SVT' is an "extended leaf vector". */
-			return merge_GOB_into_leaf_vector(SVT, Mindex, vals);
+			return merge_IDS_into_leaf_vector(SVT, Mindex, vals,
+					dim[0], order_buf, rxbuf1, rxbuf2);
 		}
 		error("S4Arrays internal error in "
 		      "REC_merge_attached_vals_to_SVT():\n"
