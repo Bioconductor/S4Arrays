@@ -1443,41 +1443,51 @@ static void qsort_GOB(SEXP gob, const int *Mindex)
 	return;
 }
 
-/* Remove global offset duplicates (keep the last one), **then** remove global
-   offsets associated with a zero value in 'vals'. */
-static int normalize_GOB(SEXP gob, const int *Mindex, SEXP vals)
+static int uniq_GOB(SEXP gob, const int *Mindex)
 {
 	IntAE *go_buf;
-	int k1, k2;
+	int *p1, k2;
+	const int *p2;
 
 	go_buf = (IntAE *) R_ExternalPtrAddr(gob);
-	k1 = 0;
-	for (k2 = 0; k2 < go_buf->_nelt; k2++) {
-		/* TODO: Implement this */
-		k1++;
+	if (go_buf->_nelt <= 1)
+		return go_buf->_nelt;
+	p1 = go_buf->elts;
+	for (k2 = 1, p2 = p1 + 1; k2 < go_buf->_nelt; k2++, p2++) {
+		if (Mindex[*p1] != Mindex[*p2])
+			p1++;
+		*p1 = *p2;
 	}
-	return k1;
+	return go_buf->_nelt = p1 - go_buf->elts + 1;
 }
 
+/* IMPORTANT NOTE: Offset/value pairs where the value is zero are NOT dropped
+   at the moment! This means that the function always returns a "leaf vector"
+   of the same length as the GOB (which should never be 0).
+   FIXME: Offset/value pairs where the value is zero should be dropped.
+   Once this is implemented the function **will** sometimes return an
+   R_NilValue instead of a "leaf vector". */
 static SEXP make_leaf_vector_from_GOB(SEXP gob, SEXP Mindex, SEXP vals, int d)
 {
-	int ans_len, *ans_offs_p, k, m;
-	SEXP ans, ans_offs, ans_vals;
 	IntAE *go_buf;
+	SEXP ans, ans_offs, ans_vals;
+	int *ans_offs_p, k, m;
 	const int *Mindex_p, *selection;
 
-	qsort_GOB(gob, INTEGER(Mindex));
-	ans_len = normalize_GOB(gob, INTEGER(Mindex), vals);
-	ans = PROTECT(alloc_and_split_leaf_vector(ans_len, TYPEOF(vals),
+	go_buf = (IntAE *) R_ExternalPtrAddr(gob);
+	qsort_GOB(gob, INTEGER(Mindex));  /* preserves GOB length */
+	uniq_GOB(gob, INTEGER(Mindex));  /* preserves GOB length */
+	//if (go_buf->_nelt == 0)  /* can't happen at the moment */
+	//	return R_NilValue;
+	ans = PROTECT(alloc_and_split_leaf_vector(go_buf->_nelt, TYPEOF(vals),
 						  &ans_offs, &ans_vals));
 	Mindex_p = INTEGER(Mindex);
-	go_buf = (IntAE *) R_ExternalPtrAddr(gob);
 	selection = go_buf->elts;
 	ans_offs_p = INTEGER(ans_offs);
-	for (k = 0; k < ans_len; k++, selection++, ans_offs_p++) {
+	for (k = 0; k < go_buf->_nelt; k++, selection++, ans_offs_p++) {
 		m = Mindex_p[*selection];
-		if (m == NA_INTEGER || m < 1 || m > d)
-			error("'Mindex' contains invalid coordinates");
+		//if (m == NA_INTEGER || m < 1 || m > d)
+		//	error("'Mindex' contains invalid coordinates");
 		*ans_offs_p = m - 1;
 	}
 	_copy_selected_Rsubvec_elts(vals, 0, go_buf->elts, ans_vals);
@@ -1485,6 +1495,7 @@ static SEXP make_leaf_vector_from_GOB(SEXP gob, SEXP Mindex, SEXP vals, int d)
 	return ans;
 }
 
+/* Returns R_NilValue or a "leaf vector". */
 static SEXP merge_GOB_into_leaf_vector(SEXP xlv, SEXP Mindex, SEXP vals)
 {
 	error("merge_GOB_into_leaf_vector() is not ready yet");
@@ -1527,8 +1538,8 @@ static int go_to_SVT_bottom(SEXP SVT, SEXP SVT0,
 		d = dim[along];
 		m_p -= vals_len;
 		m = *m_p;
-		if (m == NA_INTEGER || m < 1 || m > d)
-			error("'Mindex' contains invalid coordinates");
+		//if (m == NA_INTEGER || m < 1 || m > d)
+		//	error("'Mindex' contains invalid coordinates");
 		i = m - 1;
 		subSVT = VECTOR_ELT(SVT, i);
 		if (along == 1)
