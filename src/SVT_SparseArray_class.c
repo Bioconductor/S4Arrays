@@ -227,31 +227,32 @@ static SEXP alloc_and_split_leaf_vector(int lv_len, SEXPTYPE Rtype,
 	return ans;
 }
 
-/* Always used in a context where 'offs' and 'vals' are not empty.
+/* Always used in a context where 'in_offs' and 'in_vals' are not empty.
    Will sort the supplied offset/value pairs by strictly ascending offset
    before storing them in the "leaf vector".
-   The presence of duplicates in 'offs' will trigger an error. */
-static SEXP make_leaf_vector(SEXP offs, SEXP vals,
+   The presence of duplicates in 'in_offs' will trigger an error.
+   Returns a "leaf vector" of the same length as 'in_offs' and 'in_vals'. */
+static SEXP make_leaf_vector(SEXP in_offs, SEXP in_vals,
 		int *order_buf, unsigned short int *rxbuf1, int *rxbuf2)
 {
 	int ans_len, k, ret;
-	const int *offs_p;
+	const int *in_offs_p;
 	SEXP ans, ans_offs, ans_vals;
 
-	ans_len = LENGTH(offs);
-	if (LENGTH(vals) != ans_len)
+	ans_len = LENGTH(in_offs);
+	if (LENGTH(in_vals) != ans_len)
 		error("S4Arrays internal error in make_leaf_vector():\n"
-		      "    LENGTH(offs) != LENGTH(vals)");
+		      "    LENGTH(in_offs) != LENGTH(in_vals)");
 	if (ans_len == 1)
-		return _new_leaf_vector(offs, vals);
+		return _new_leaf_vector(in_offs, in_vals);
 
 	/* Sort the offset/value pairs by strictly ascending offset. */
 
 	for (k = 0; k < ans_len; k++)
 		order_buf[k] = k;
-	offs_p = INTEGER(offs);
+	in_offs_p = INTEGER(in_offs);
 
-	ret = sort_ints(order_buf, ans_len, offs_p, 0, 1, rxbuf1, rxbuf2);
+	ret = sort_ints(order_buf, ans_len, in_offs_p, 0, 1, rxbuf1, rxbuf2);
 	/* Note that ckecking the value returned by sort_ints() is not really
 	   necessary here because sort_ints() should never fail when 'rxbuf1'
 	   and 'rxbuf2' are supplied (see implementation of _sort_ints() in
@@ -264,16 +265,16 @@ static SEXP make_leaf_vector(SEXP offs, SEXP vals,
 
 	/* Check for duplicated offsets. */
 	for (k = 1; k < ans_len; k++)
-		if (offs_p[order_buf[k]] == offs_p[order_buf[k - 1]])
+		if (in_offs_p[order_buf[k]] == in_offs_p[order_buf[k - 1]])
 			error("coercion from COO_SparseArray to "
 			      "SVT_SparseArray is not supported when\n"
 			      "  the \"nzcoo\" slot of the object to "
 			      "coerce contains duplicated coordinates");
 
-	ans = PROTECT(alloc_and_split_leaf_vector(ans_len, TYPEOF(vals),
+	ans = PROTECT(alloc_and_split_leaf_vector(ans_len, TYPEOF(in_vals),
 						  &ans_offs, &ans_vals));
-	_copy_selected_Rsubvec_elts(offs, 0, order_buf, ans_offs);
-	_copy_selected_Rsubvec_elts(vals, 0, order_buf, ans_vals);
+	_copy_selected_Rsubvec_elts(in_offs, 0, order_buf, ans_offs);
+	_copy_selected_Rsubvec_elts(in_vals, 0, order_buf, ans_vals);
 	UNPROTECT(1);
 	return ans;
 }
@@ -283,19 +284,19 @@ static SEXP make_leaf_vector_from_one_based_positions(
 		const int *pos, SEXP vals, int maxpos,
 		int *order_buf, unsigned short int *rxbuf1, int *rxbuf2)
 {
-	int ans_len, k, p, *offs_p;
+	int ans_len, k, m, *offs_p;
 	SEXP offs, ans;
 
 	ans_len = LENGTH(vals);
 	offs = PROTECT(NEW_INTEGER(ans_len));
 	for (k = 0, offs_p = INTEGER(offs); k < ans_len; k++, offs_p++) {
-		p = pos[k];
-		if (p == NA_INTEGER || p < 1 || p > maxpos) {
+		m = pos[k];
+		if (m == NA_INTEGER || m < 1 || m > maxpos) {
 			UNPROTECT(1);
 			error("\"nzcoo\" slot of COO_SparseArray object "
 			      "to coerce contains invalid coordinates");
 		}
-		*offs_p = p - 1;
+		*offs_p = m - 1;
 	}
 	ans = make_leaf_vector(offs, vals,
 			       order_buf, rxbuf1, rxbuf2);
@@ -1461,6 +1462,20 @@ static int uniq_GOB(SEXP gob, const int *Mindex)
 	return go_buf->_nelt = p1 - go_buf->elts + 1;
 }
 
+static void copy_selected_one_based_positions_as_offsets(const int *pos,
+		const int *selection, int n, int maxpos, int *offs)
+{
+	int k, m;
+
+	for (k = 0; k < n; k++, selection++, offs++) {
+		m = pos[*selection];
+		if (m == NA_INTEGER || m < 1 || m > maxpos)
+			error("'Mindex' contains invalid coordinates");
+		*offs = m - 1;
+	}
+	return;
+}
+
 /* IMPORTANT NOTE: Offset/value pairs where the value is zero are NOT dropped
    at the moment! This means that the function always returns a "leaf vector"
    of the same length as the GOB (which should never be 0).
@@ -1471,8 +1486,6 @@ static SEXP make_leaf_vector_from_GOB(SEXP gob, SEXP Mindex, SEXP vals, int d)
 {
 	IntAE *go_buf;
 	SEXP ans, ans_offs, ans_vals;
-	int *ans_offs_p, k, m;
-	const int *Mindex_p, *selection;
 
 	go_buf = (IntAE *) R_ExternalPtrAddr(gob);
 	qsort_GOB(gob, INTEGER(Mindex));  /* preserves GOB length */
@@ -1481,17 +1494,30 @@ static SEXP make_leaf_vector_from_GOB(SEXP gob, SEXP Mindex, SEXP vals, int d)
 	//	return R_NilValue;
 	ans = PROTECT(alloc_and_split_leaf_vector(go_buf->_nelt, TYPEOF(vals),
 						  &ans_offs, &ans_vals));
-	Mindex_p = INTEGER(Mindex);
-	selection = go_buf->elts;
-	ans_offs_p = INTEGER(ans_offs);
-	for (k = 0; k < go_buf->_nelt; k++, selection++, ans_offs_p++) {
-		m = Mindex_p[*selection];
-		//if (m == NA_INTEGER || m < 1 || m > d)
-		//	error("'Mindex' contains invalid coordinates");
-		*ans_offs_p = m - 1;
-	}
+	copy_selected_one_based_positions_as_offsets(INTEGER(Mindex),
+			go_buf->elts, go_buf->_nelt, d, INTEGER(ans_offs));
 	_copy_selected_Rsubvec_elts(vals, 0, go_buf->elts, ans_vals);
 	UNPROTECT(1);
+	return ans;
+}
+
+/* Based on make_leaf_vector() so, unlike make_leaf_vector_from_GOB() above
+   which is able to remove duplicates, this version will choke on them! */
+static SEXP make_leaf_vector_from_GOB2(SEXP gob, SEXP Mindex, SEXP vals, int d,
+		int *order_buf, unsigned short int *rxbuf1, int *rxbuf2)
+{
+	IntAE *go_buf;
+	SEXP offs0, vals0, ans;
+
+	go_buf = (IntAE *) R_ExternalPtrAddr(gob);
+	offs0 = PROTECT(NEW_INTEGER(go_buf->_nelt));
+	vals0 = PROTECT(allocVector(TYPEOF(vals), go_buf->_nelt));
+	copy_selected_one_based_positions_as_offsets(INTEGER(Mindex),
+			go_buf->elts, go_buf->_nelt, d, INTEGER(offs0));
+	_copy_selected_Rsubvec_elts(vals, 0, go_buf->elts, vals0);
+	ans = make_leaf_vector(offs0, vals0,
+			       order_buf, rxbuf1, rxbuf2);
+	UNPROTECT(2);
 	return ans;
 }
 
@@ -1538,8 +1564,8 @@ static int go_to_SVT_bottom(SEXP SVT, SEXP SVT0,
 		d = dim[along];
 		m_p -= vals_len;
 		m = *m_p;
-		//if (m == NA_INTEGER || m < 1 || m > d)
-		//	error("'Mindex' contains invalid coordinates");
+		if (m == NA_INTEGER || m < 1 || m > d)
+			error("'Mindex' contains invalid coordinates");
 		i = m - 1;
 		subSVT = VECTOR_ELT(SVT, i);
 		if (along == 1)
@@ -1600,7 +1626,8 @@ static int attach_incoming_vals_to_SVT(SEXP SVT, SEXP SVT0,
 
 /* Recursive. */
 static SEXP REC_merge_attached_vals_to_SVT(SEXP SVT,
-		const int *dim, int ndim, SEXP Mindex, SEXP vals)
+		const int *dim, int ndim, SEXP Mindex, SEXP vals,
+		int *order_buf, unsigned short int *rxbuf1, int *rxbuf2)
 {
 	int SVT_len, is_empty, i;
 	SEXP subSVT;
@@ -1613,8 +1640,10 @@ static SEXP REC_merge_attached_vals_to_SVT(SEXP SVT,
 		   "extended leaf vector"). */
 		if (TYPEOF(SVT) == EXTPTRSXP) {
 			/* 'SVT' is a GOB. */
-			return make_leaf_vector_from_GOB(SVT, Mindex, vals,
-							 dim[0]);
+			//return make_leaf_vector_from_GOB(SVT, Mindex, vals,
+			//		dim[0]);
+			return make_leaf_vector_from_GOB2(SVT, Mindex, vals,
+					dim[0], order_buf, rxbuf1, rxbuf2);
 		}
 		SVT_len = LENGTH(SVT);
 		if (SVT_len == 2) {
@@ -1636,7 +1665,8 @@ static SEXP REC_merge_attached_vals_to_SVT(SEXP SVT,
 	for (i = 0; i < SVT_len; i++) {
 		subSVT = VECTOR_ELT(SVT, i);
 		subSVT = REC_merge_attached_vals_to_SVT(subSVT,
-					dim, ndim - 1, Mindex, vals);
+					dim, ndim - 1, Mindex, vals,
+					order_buf, rxbuf1, rxbuf2);
 		if (subSVT != R_NilValue) {
 			PROTECT(subSVT);
 			SET_VECTOR_ELT(SVT, i, subSVT);
@@ -1697,8 +1727,13 @@ SEXP C_subassign_SVT_by_Mindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	}
 
 	/* 2nd pass */
+	int *order_buf = (int *) R_alloc(INTEGER(x_dim)[0], sizeof(int));
+	unsigned short int *rxbuf1 = (unsigned short int *)
+			R_alloc(INTEGER(x_dim)[0], sizeof(unsigned short int));
+	int *rxbuf2 = (int *) R_alloc(INTEGER(x_dim)[0], sizeof(int));
 	ans = REC_merge_attached_vals_to_SVT(ans,
-			INTEGER(x_dim), LENGTH(x_dim), Mindex, vals);
+			INTEGER(x_dim), LENGTH(x_dim), Mindex, vals,
+			order_buf, rxbuf1, rxbuf2);
 	UNPROTECT(1);
 	return ans;
 }
