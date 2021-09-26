@@ -246,12 +246,10 @@ static SEXP make_leaf_vector(SEXP in_offs, SEXP in_vals,
 	if (ans_len == 1)
 		return _new_leaf_vector(in_offs, in_vals);
 
-	/* Sort the offset/value pairs by strictly ascending offset. */
-
+	/* Sort the offset/value pairs by ascending offset. */
 	for (k = 0; k < ans_len; k++)
 		order_buf[k] = k;
 	in_offs_p = INTEGER(in_offs);
-
 	ret = sort_ints(order_buf, ans_len, in_offs_p, 0, 1, rxbuf1, rxbuf2);
 	/* Note that ckecking the value returned by sort_ints() is not really
 	   necessary here because sort_ints() should never fail when 'rxbuf1'
@@ -1418,12 +1416,16 @@ static int get_IDS(SEXP leaf_parent, int i, SEXP bottom_leaf, SEXP *IDS)
 	return 0;
 }
 
-static void append_ioffset_to_IDS(SEXP IDS, int ioffset)
+static void append_ioffset_to_IDS(SEXP IDS, int ioffset, size_t *IDS_maxlen)
 {
 	IntAE *ioffsets_buf;
+	size_t IDS_len;
 
 	ioffsets_buf = (IntAE *) R_ExternalPtrAddr(IDS);
-	IntAE_insert_at(ioffsets_buf, ioffsets_buf->_nelt, ioffset);
+	IDS_len = ioffsets_buf->_nelt;
+	IntAE_insert_at(ioffsets_buf, IDS_len++, ioffset);
+	if (IDS_len > *IDS_maxlen)
+		*IDS_maxlen = IDS_len;
 	return;
 }
 
@@ -1472,9 +1474,10 @@ static int uniq_IDS(SEXP IDS, const int *Mindex)
 }
 
 static void copy_selected_one_based_positions_as_offsets(const int *pos,
-		const int *selection, int n, int maxpos, int *offs)
+		const int *selection, size_t n, int maxpos, int *offs)
 {
-	int k, m;
+	size_t k;
+	int m;
 
 	for (k = 0; k < n; k++, selection++, offs++) {
 		m = pos[*selection];
@@ -1498,19 +1501,21 @@ static void copy_selected_one_based_positions_as_offsets(const int *pos,
 static SEXP make_leaf_vector_from_IDS(SEXP IDS, SEXP Mindex, SEXP vals, int d)
 {
 	IntAE *ioffsets_buf;
+	size_t IDS_len;
 	SEXP ans, ans_offs, ans_vals;
 
-	ioffsets_buf = (IntAE *) R_ExternalPtrAddr(IDS);
 	qsort_IDS(IDS, INTEGER(Mindex));  /* preserves IDS length */
 	uniq_IDS(IDS, INTEGER(Mindex));  /* possibly reduces IDS length */
-	//if (ioffsets_buf->_nelt == 0)  /* can't happen at the moment */
+	ioffsets_buf = (IntAE *) R_ExternalPtrAddr(IDS);
+	IDS_len = ioffsets_buf->_nelt;
+	//if (IDS_len == 0)  /* can't happen at the moment */
 	//	return R_NilValue;
-	ans = PROTECT(alloc_and_split_leaf_vector(
-			ioffsets_buf->_nelt, TYPEOF(vals),
-			&ans_offs, &ans_vals));
+	ans = PROTECT(
+		alloc_and_split_leaf_vector((int) IDS_len, TYPEOF(vals),
+					    &ans_offs, &ans_vals)
+	);
 	copy_selected_one_based_positions_as_offsets(INTEGER(Mindex),
-			ioffsets_buf->elts, ioffsets_buf->_nelt, d,
-			INTEGER(ans_offs));
+			ioffsets_buf->elts, IDS_len, d, INTEGER(ans_offs));
 	_copy_selected_Rsubvec_elts(vals, 0, ioffsets_buf->elts, ans_vals);
 	UNPROTECT(1);
 	return ans;
@@ -1526,25 +1531,145 @@ static SEXP make_leaf_vector_from_IDS2(SEXP IDS, SEXP Mindex, SEXP vals, int d,
 		int *order_buf, unsigned short int *rxbuf1, int *rxbuf2)
 {
 	IntAE *ioffsets_buf;
-	int IDS_len;
+	size_t IDS_len;
 	SEXP offs0, vals0, ans;
 
 	ioffsets_buf = (IntAE *) R_ExternalPtrAddr(IDS);
 	IDS_len = ioffsets_buf->_nelt;
-	offs0 = PROTECT(NEW_INTEGER(IDS_len));
-	vals0 = PROTECT(allocVector(TYPEOF(vals), IDS_len));
+	offs0 = PROTECT(NEW_INTEGER((R_xlen_t) IDS_len));
+	vals0 = PROTECT(allocVector(TYPEOF(vals), (R_xlen_t) IDS_len));
 	copy_selected_one_based_positions_as_offsets(INTEGER(Mindex),
 			ioffsets_buf->elts, IDS_len, d, INTEGER(offs0));
 	_copy_selected_Rsubvec_elts(vals, 0, ioffsets_buf->elts, vals0);
-	ans = make_leaf_vector(offs0, vals0,
-			       order_buf, rxbuf1, rxbuf2);
+	ans = make_leaf_vector(offs0, vals0, order_buf, rxbuf1, rxbuf2);
 	UNPROTECT(2);
 	return ans;
 }
 
+typedef struct sort_bufs_t {
+	int *order;
+	unsigned short int *rxbuf1;
+	int *rxbuf2;
+	int *offs;
+} SortBufs;
+
+static SortBufs alloc_sort_bufs(size_t n)
+{
+	SortBufs sort_bufs;
+
+	sort_bufs.order = (int *) R_alloc(n, sizeof(int));
+	sort_bufs.rxbuf1 = (unsigned short int *)
+				R_alloc(n, sizeof(unsigned short int));
+	sort_bufs.rxbuf2 = (int *) R_alloc(n, sizeof(int));
+	sort_bufs.offs = (int *) R_alloc(n, sizeof(int));
+	return sort_bufs;
+}
+
+static int remove_offs_dups(int *order_buf, int n, const int *offs)
+{
+	int *p1, k2;
+	const int *p2;
+
+	if (n <= 1)
+		return n;
+	p1 = order_buf;
+	for (k2 = 1, p2 = p1 + 1; k2 < n; k2++, p2++) {
+		if (offs[*p1] != offs[*p2])
+			p1++;
+		*p1 = *p2;
+	}
+	return p1 - order_buf + 1;
+}
+
+static SEXP make_leaf_vector_from_valid_offs(const int *order, int n,
+		const int *offs, const int *ioffsets, SEXP vals)
+{
+	SEXP ans_offs, ans_vals, ans;
+	int *ans_offs_p, k;
+	double *ans_vals_p;
+	const double *vals_p;
+
+	ans_offs = PROTECT(NEW_INTEGER(n));
+	ans_vals = PROTECT(allocVector(TYPEOF(vals), n));
+	ans_offs_p = INTEGER(ans_offs);
+	ans_vals_p = REAL(ans_vals);
+	vals_p = REAL(vals);
+	for (k = 0; k < n; k++, order++, ans_offs_p++, ans_vals_p++) {
+		*ans_offs_p = offs[*order];
+		*ans_vals_p = vals_p[ioffsets[*order]];
+	}
+	ans = _new_leaf_vector(ans_offs, ans_vals);
+	UNPROTECT(2);
+	return ans;
+}
+
+/* Capabilities:
+   - Sort offset/value pairs: YES, with radix sort
+   - Remove offset duplicates: YES
+   - Remove zeros: NO (but not a strict "leaf vector" requirement) */
+static SEXP make_leaf_vector_from_IDS3(SEXP IDS, SEXP Mindex, SEXP vals, int d,
+		SortBufs *sort_bufs)
+{
+	IntAE *ioffsets_buf;
+	size_t IDS_len;
+	int k, ret, ans_len;
+
+	ioffsets_buf = (IntAE *) R_ExternalPtrAddr(IDS);
+	IDS_len = ioffsets_buf->_nelt;
+	/* The only reason we must have 'IDS_len' <= INT_MAX is because
+	   we use sort_ints() below to sort a vector of 'IDS_len' integers.
+	   Unfortunately sort_ints() only works with a vector of length <=
+	   INT_MAX!
+	   Note that 'IDS_len' > INT_MAX can't happen at the moment anyway
+	   because 'IDS_len' is necessarily <= 'nrow(Mindex)' which is
+	   guaranteed to be <= INT_MAX. However, this will change when
+	   we start supporting _long_ incoming data e.g. when
+	   C_subassign_SVT_by_Lindex() is called with a _long_ linear
+	   index (Lindex). Then it will be possible that more than INT_MAX
+	   incoming values end up getting attached to the same bottom leaf
+	   of the SVT! Note however that the supplied Lindex will need to
+	   contain duplicates for this to be possible, which is not something
+	   that happens in a typical SVT_SparseArray subassignment. */
+	if (IDS_len > INT_MAX)
+		error("assigning more than INT_MAX values to "
+		      "the same column is not supported");
+
+	/* Populate 'sort_bufs->offs'. */
+	copy_selected_one_based_positions_as_offsets(INTEGER(Mindex),
+			ioffsets_buf->elts, IDS_len, d, sort_bufs->offs);
+
+	/* Compute order of offsets in 'sort_bufs->offs'. */
+	for (k = 0; k < IDS_len; k++)
+		sort_bufs->order[k] = k;
+	ret = sort_ints(sort_bufs->order, IDS_len, sort_bufs->offs, 0, 1,
+			sort_bufs->rxbuf1, sort_bufs->rxbuf2);
+	/* Note that ckecking the value returned by sort_ints() is not really
+	   necessary here because sort_ints() should never fail when 'rxbuf1'
+	   and 'rxbuf2' are supplied (see implementation of _sort_ints() in
+	   S4Vectors/src/sort_utils.c for the details). We perform this check
+	   nonetheless just to be on the safe side in case the implementation
+	   of sort_ints() changes in the future. */
+	if (ret < 0)
+		error("S4Arrays internal error in "
+		      "make_leaf_vector_from_IDS3():\n"
+		      "    sort_ints() returned an error");
+
+	/* Remove offset duplicates. */
+	ans_len = remove_offs_dups(sort_bufs->order, IDS_len, sort_bufs->offs);
+
+	/* Remove zeros. */
+	//not implemented
+
+	//if (ans_len == 0)  /* can't happen at the moment */
+	//	return R_NilValue;
+
+	return make_leaf_vector_from_valid_offs(sort_bufs->order, ans_len,
+				sort_bufs->offs, ioffsets_buf->elts, vals);
+}
+
 /* Returns R_NilValue or a "leaf vector". */
 static SEXP merge_IDS_into_leaf_vector(SEXP xlv, SEXP Mindex, SEXP vals, int d,
-		int *order_buf, unsigned short int *rxbuf1, int *rxbuf2)
+		SortBufs *sort_bufs)
 {
 	SEXP xlv_offs, xlv_vals, xlv_IDS, lv1, lv2, ans;
 
@@ -1557,8 +1682,7 @@ static SEXP merge_IDS_into_leaf_vector(SEXP xlv, SEXP Mindex, SEXP vals, int d,
 
 	/* Make 'lv2'. */
 	lv2 = PROTECT(
-		make_leaf_vector_from_IDS2(xlv_IDS, Mindex, vals, d,
-					   order_buf, rxbuf1, rxbuf2)
+		make_leaf_vector_from_IDS3(xlv_IDS, Mindex, vals, d, sort_bufs)
 	);
 
 	ans = merge_leaf_vectors(lv1, lv2);
@@ -1640,7 +1764,8 @@ static int go_to_SVT_bottom(SEXP SVT, SEXP SVT0,
 
 static int attach_incoming_vals_to_SVT(SEXP SVT, SEXP SVT0,
 		const int *dim, int ndim,
-		const int *Mindex, SEXP vals)
+		const int *Mindex, SEXP vals,
+		size_t *IDS_maxlen)
 {
 	int vals_len, ioffset, i, ret;
 	SEXP leaf_parent, bottom_leaf, IDS;
@@ -1657,7 +1782,7 @@ static int attach_incoming_vals_to_SVT(SEXP SVT, SEXP SVT0,
 		ret = get_IDS(leaf_parent, i, bottom_leaf, &IDS);
 		if (ret < 0)
 			return -1;
-		append_ioffset_to_IDS(IDS, ioffset);
+		append_ioffset_to_IDS(IDS, ioffset, IDS_maxlen);
 	}
 	return 0;
 }
@@ -1665,7 +1790,7 @@ static int attach_incoming_vals_to_SVT(SEXP SVT, SEXP SVT0,
 /* Recursive. */
 static SEXP REC_merge_attached_vals_to_SVT(SEXP SVT,
 		const int *dim, int ndim, SEXP Mindex, SEXP vals,
-		int *order_buf, unsigned short int *rxbuf1, int *rxbuf2)
+		SortBufs *sort_bufs)
 {
 	int SVT_len, is_empty, i;
 	SEXP subSVT;
@@ -1680,8 +1805,10 @@ static SEXP REC_merge_attached_vals_to_SVT(SEXP SVT,
 			/* 'SVT' is an IDS. */
 			//return make_leaf_vector_from_IDS(SVT, Mindex, vals,
 			//		dim[0]);
-			return make_leaf_vector_from_IDS2(SVT, Mindex, vals,
-					dim[0], order_buf, rxbuf1, rxbuf2);
+			//return make_leaf_vector_from_IDS2(SVT, Mindex, vals,
+			//		dim[0], order_buf, rxbuf1, rxbuf2);
+			return make_leaf_vector_from_IDS3(SVT, Mindex, vals,
+					dim[0], sort_bufs);
 		}
 		SVT_len = LENGTH(SVT);
 		if (SVT_len == 2) {
@@ -1691,7 +1818,7 @@ static SEXP REC_merge_attached_vals_to_SVT(SEXP SVT,
 		if (SVT_len == 3) {
 			/* 'SVT' is an "extended leaf vector". */
 			return merge_IDS_into_leaf_vector(SVT, Mindex, vals,
-					dim[0], order_buf, rxbuf1, rxbuf2);
+					dim[0], sort_bufs);
 		}
 		error("S4Arrays internal error in "
 		      "REC_merge_attached_vals_to_SVT():\n"
@@ -1705,7 +1832,7 @@ static SEXP REC_merge_attached_vals_to_SVT(SEXP SVT,
 		subSVT = VECTOR_ELT(SVT, i);
 		subSVT = REC_merge_attached_vals_to_SVT(subSVT,
 					dim, ndim - 1, Mindex, vals,
-					order_buf, rxbuf1, rxbuf2);
+					sort_bufs);
 		if (subSVT != R_NilValue) {
 			PROTECT(subSVT);
 			SET_VECTOR_ELT(SVT, i, subSVT);
@@ -1726,6 +1853,8 @@ SEXP C_subassign_SVT_by_Mindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	int x_ndim, d, ret;
 	R_xlen_t vals_len;
 	SEXP ans;
+	size_t IDS_maxlen;
+	SortBufs sort_bufs;
 
 	Rtype = _get_Rtype_from_Rstring(x_type);
 	if (Rtype == 0)
@@ -1755,9 +1884,10 @@ SEXP C_subassign_SVT_by_Mindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	} else {
 		error("unexpected error");
 	}
+	IDS_maxlen = 0;
 	ret = attach_incoming_vals_to_SVT(ans, x_SVT,
 			INTEGER(x_dim), LENGTH(x_dim),
-			INTEGER(Mindex), vals);
+			INTEGER(Mindex), vals, &IDS_maxlen);
 	if (ret < 0) {
 		UNPROTECT(1);
 		error("S4Arrays internal error in "
@@ -1766,13 +1896,10 @@ SEXP C_subassign_SVT_by_Mindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	}
 
 	/* 2nd pass */
-	int *order_buf = (int *) R_alloc(INTEGER(x_dim)[0], sizeof(int));
-	unsigned short int *rxbuf1 = (unsigned short int *)
-			R_alloc(INTEGER(x_dim)[0], sizeof(unsigned short int));
-	int *rxbuf2 = (int *) R_alloc(INTEGER(x_dim)[0], sizeof(int));
+	sort_bufs = alloc_sort_bufs(IDS_maxlen);
 	ans = REC_merge_attached_vals_to_SVT(ans,
 			INTEGER(x_dim), LENGTH(x_dim), Mindex, vals,
-			order_buf, rxbuf1, rxbuf2);
+			&sort_bufs);
 	UNPROTECT(1);
 	return ans;
 }
