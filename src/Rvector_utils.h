@@ -153,6 +153,34 @@ CopyRVectorElt_FUNType _select_copy_Rvector_elt_FUN(SEXPTYPE Rtype);
 
 CopyRVectorElts_FUNType _select_copy_Rvector_elts_FUN(SEXPTYPE Rtype);
 
+void _copy_selected_ints(
+	const int *in,
+	const int *selection,
+	int n,
+	int *out
+);
+
+void _copy_selected_doubles(
+	const double *in,
+	const int *selection,
+	int n,
+	double *out
+);
+
+void _copy_selected_Rcomplexes(
+	const Rcomplex *in,
+	const int *selection,
+	int n,
+	Rcomplex *out
+);
+
+void _copy_selected_Rbytes(
+	const Rbyte *in,
+	const int *selection,
+	int n,
+	Rbyte *out
+);
+
 void _copy_selected_Rsubvec_elts(
 	SEXP in_Rvector,
 	R_xlen_t in_offset,

@@ -95,7 +95,7 @@ CopyRVectorElts_FUNType _select_copy_Rvector_elts_FUN(SEXPTYPE Rtype)
  * _copy_selected_Rsubvec_elts()
  */
 
-static void copy_selected_int_elts(const int *in,
+void _copy_selected_ints(const int *in,
 		const int *selection, int n, int *out)
 {
 	for (int k = 0; k < n; k++, selection++, out++)
@@ -103,7 +103,7 @@ static void copy_selected_int_elts(const int *in,
 	return;
 }
 
-static void copy_selected_double_elts(const double *in,
+void _copy_selected_doubles(const double *in,
 		const int *selection, int n, double *out)
 {
 	for (int k = 0; k < n; k++, selection++, out++)
@@ -111,7 +111,7 @@ static void copy_selected_double_elts(const double *in,
 	return;
 }
 
-static void copy_selected_Rcomplex_elts(const Rcomplex *in,
+void _copy_selected_Rcomplexes(const Rcomplex *in,
 		const int *selection, int n, Rcomplex *out)
 {
 	for (int k = 0; k < n; k++, selection++, out++)
@@ -119,7 +119,7 @@ static void copy_selected_Rcomplex_elts(const Rcomplex *in,
 	return;
 }
 
-static void copy_selected_Rbyte_elts(const Rbyte *in,
+void _copy_selected_Rbytes(const Rbyte *in,
 		const int *selection, int n, Rbyte *out)
 {
 	for (int k = 0; k < n; k++, selection++, out++)
@@ -144,19 +144,19 @@ void _copy_selected_Rsubvec_elts(
 	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
 	switch (TYPEOF(in_Rvector)) {
 	    case LGLSXP: case INTSXP:
-		copy_selected_int_elts(INTEGER(in_Rvector) + in_offset,
+		_copy_selected_ints(INTEGER(in_Rvector) + in_offset,
 				selection, out_len, INTEGER(out_Rvector));
 		return;
 	    case REALSXP:
-		copy_selected_double_elts(REAL(in_Rvector) + in_offset,
+		_copy_selected_doubles(REAL(in_Rvector) + in_offset,
 				selection, out_len, REAL(out_Rvector));
 		return;
 	    case CPLXSXP:
-		copy_selected_Rcomplex_elts(COMPLEX(in_Rvector) + in_offset,
+		_copy_selected_Rcomplexes(COMPLEX(in_Rvector) + in_offset,
 				selection, out_len, COMPLEX(out_Rvector));
 		return;
 	    case RAWSXP:
-		copy_selected_Rbyte_elts(RAW(in_Rvector) + in_offset,
+		_copy_selected_Rbytes(RAW(in_Rvector) + in_offset,
 				selection, out_len, RAW(out_Rvector));
 		return;
 	}
