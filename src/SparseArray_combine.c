@@ -4,7 +4,7 @@
 #include "SparseArray_combine.h"
 
 #include "Rvector_utils.h"
-#include "SVT_SparseArray_class.h"
+#include "leaf_vector_utils.h"  /* for _split_leaf_vector() */
 
 
 static SEXP check_and_combine_object_dims(SEXP objects, int along0,

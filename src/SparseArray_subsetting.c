@@ -4,7 +4,7 @@
 #include "SparseArray_subsetting.h"
 
 #include "Rvector_utils.h"
-#include "SVT_SparseArray_class.h"
+#include "leaf_vector_utils.h"  /* for _split_leaf_vector() */
 
 #include <limits.h>  /* for INT_MAX */
 #include <string.h>  /* for memcpy() */
