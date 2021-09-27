@@ -1540,24 +1540,104 @@ static int remove_offs_dups(int *order_buf, int n, const int *offs)
 	return p1 - order_buf + 1;
 }
 
+static void copy_ints_from_selected_loffsets(const int *in,
+		const long long *loffsets, const int *loffset_selection, int n,
+		int *out)
+{
+	for (int k = 0; k < n; k++, loffset_selection++, out++)
+		*out = in[loffsets[*loffset_selection]];
+	return;
+}
+
+static void copy_doubles_from_selected_loffsets(const double *in,
+		const long long *loffsets, const int *loffset_selection, int n,
+		double *out)
+{
+	for (int k = 0; k < n; k++, loffset_selection++, out++)
+		*out = in[loffsets[*loffset_selection]];
+	return;
+}
+
+static void copy_Rcomplexes_from_selected_loffsets(const Rcomplex *in,
+		const long long *loffsets, const int *loffset_selection, int n,
+		Rcomplex *out)
+{
+	for (int k = 0; k < n; k++, loffset_selection++, out++)
+		*out = in[loffsets[*loffset_selection]];
+	return;
+}
+
+static void copy_Rbytes_from_selected_loffsets(const Rbyte *in,
+		const long long *loffsets, const int *loffset_selection, int n,
+		Rbyte *out)
+{
+	for (int k = 0; k < n; k++, loffset_selection++, out++)
+		*out = in[loffsets[*loffset_selection]];
+	return;
+}
+
+/* The selection is assumed to have the same length as 'out_Rvector'.
+   Only for an 'loffset_selection' and 'out_Rvector' of length <= INT_MAX.
+   Don't use on an 'loffset_selection' or 'out_Rvector' of length > INT_MAX! */
+static void copy_Rvector_elts_from_selected_loffsets(SEXP in_Rvector,
+		const long long *loffsets, const int *loffset_selection,
+		SEXP out_Rvector)
+{
+	SEXPTYPE Rtype;
+	int out_len;
+	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
+
+	Rtype = TYPEOF(in_Rvector);
+	out_len = LENGTH(out_Rvector);  /* also the length of the selection */
+
+	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
+	switch (TYPEOF(in_Rvector)) {
+	    case LGLSXP: case INTSXP:
+		copy_ints_from_selected_loffsets(INTEGER(in_Rvector),
+				loffsets, loffset_selection, out_len,
+				INTEGER(out_Rvector));
+		return;
+	    case REALSXP:
+		copy_doubles_from_selected_loffsets(REAL(in_Rvector),
+				loffsets, loffset_selection, out_len,
+				REAL(out_Rvector));
+		return;
+	    case CPLXSXP:
+		copy_Rcomplexes_from_selected_loffsets(COMPLEX(in_Rvector),
+				loffsets, loffset_selection, out_len,
+				COMPLEX(out_Rvector));
+		return;
+	    case RAWSXP:
+		copy_Rbytes_from_selected_loffsets(RAW(in_Rvector),
+				loffsets, loffset_selection, out_len,
+				RAW(out_Rvector));
+		return;
+	}
+
+	/* STRSXP and VECSXP cases. */
+	copy_Rvector_elt_FUN = _select_copy_Rvector_elt_FUN(Rtype);
+	if (copy_Rvector_elt_FUN == NULL)
+		error("S4Arrays internal error in "
+		      "copy_Rvector_elts_from_selected_loffsets():\n"
+		      "  type \"%s\" is not supported", type2char(Rtype));
+
+	for (R_xlen_t k = 0; k < out_len; k++, loffset_selection++)
+		copy_Rvector_elt_FUN(in_Rvector, loffsets[*loffset_selection],
+				     out_Rvector, k);
+	return;
+}
+
 /* Returns a "leaf vector" of length 'lv_len'. */
 static SEXP make_leaf_vector_from_valid_offs(int lv_len, const int *order,
 		const int *offs, const long long *loffsets, SEXP vals)
 {
 	SEXP ans_offs, ans_vals, ans;
-	int *ans_offs_p, k;
-	double *ans_vals_p;
-	const double *vals_p;
 
 	ans_offs = PROTECT(NEW_INTEGER(lv_len));
+	_copy_selected_ints(offs, order, lv_len, INTEGER(ans_offs));
 	ans_vals = PROTECT(allocVector(TYPEOF(vals), lv_len));
-	ans_offs_p = INTEGER(ans_offs);
-	ans_vals_p = REAL(ans_vals);
-	vals_p = REAL(vals);
-	for (k = 0; k < lv_len; k++, order++, ans_offs_p++, ans_vals_p++) {
-		*ans_offs_p = offs[*order];
-		*ans_vals_p = vals_p[loffsets[*order]];
-	}
+	copy_Rvector_elts_from_selected_loffsets(vals, loffsets, order,
+						 ans_vals);
 	ans = _new_leaf_vector(ans_offs, ans_vals);
 	UNPROTECT(2);
 	return ans;
