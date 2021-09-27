@@ -188,5 +188,12 @@ void _copy_selected_Rsubvec_elts(
 	SEXP out_Rvector
 );
 
+void _copy_Rvector_elts_from_selected_lloffsets(
+	SEXP in_Rvector,
+	const long long *lloffsets,
+	const int *lloffset_selection,
+	SEXP out_Rvector
+);
+
 #endif  /* _RVECTOR_UTILS_H_ */
 

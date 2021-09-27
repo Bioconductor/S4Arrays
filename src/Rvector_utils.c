@@ -31,7 +31,8 @@ SEXP _new_Rvector(SEXPTYPE Rtype, R_xlen_t len)
 		if (Rtype_size == 0) {
 			UNPROTECT(1);
 			error("S4Arrays internal error in _new_Rvector():\n"
-			      "  unsupported 'Rtype'");
+			      "    type \"%s\" is not supported",
+			      type2char(Rtype));
 		}
 		memset(DATAPTR(ans), 0, Rtype_size * XLENGTH(ans));
 	}
@@ -55,7 +56,8 @@ SEXP _new_Rarray(SEXPTYPE Rtype, SEXP dim, SEXP dimnames)
 		if (Rtype_size == 0) {
 			UNPROTECT(1);
 			error("S4Arrays internal error in _new_Rarray():\n"
-			      "  unsupported 'Rtype'");
+			      "    type \"%s\" is not supported",
+			      type2char(Rtype));
 		}
 		memset(DATAPTR(ans), 0, Rtype_size * XLENGTH(ans));
 	}
@@ -166,12 +168,104 @@ void _copy_selected_Rsubvec_elts(
 	if (copy_Rvector_elt_FUN == NULL)
 		error("S4Arrays internal error in "
 		      "copy_selected_Rsubvec_elts():\n"
-		      "  type \"%s\" is not supported", type2char(Rtype));
+		      "    type \"%s\" is not supported", type2char(Rtype));
 
 	for (R_xlen_t k = 0; k < out_len; k++, selection++) {
 		R_xlen_t offset = in_offset + *selection;
 		copy_Rvector_elt_FUN(in_Rvector, offset, out_Rvector, k);
 	}
+	return;
+}
+
+
+/****************************************************************************
+ * _copy_Rvector_elts_from_selected_lloffsets()
+ */
+
+static void copy_ints_from_selected_lloffsets(const int *in,
+		const long long *lloffsets, const int *lloffset_selection,
+		int n, int *out)
+{
+	for (int k = 0; k < n; k++, lloffset_selection++, out++)
+		*out = in[lloffsets[*lloffset_selection]];
+	return;
+}
+
+static void copy_doubles_from_selected_lloffsets(const double *in,
+		const long long *lloffsets, const int *lloffset_selection,
+		int n, double *out)
+{
+	for (int k = 0; k < n; k++, lloffset_selection++, out++)
+		*out = in[lloffsets[*lloffset_selection]];
+	return;
+}
+
+static void copy_Rcomplexes_from_selected_lloffsets(const Rcomplex *in,
+		const long long *lloffsets, const int *lloffset_selection,
+		int n, Rcomplex *out)
+{
+	for (int k = 0; k < n; k++, lloffset_selection++, out++)
+		*out = in[lloffsets[*lloffset_selection]];
+	return;
+}
+
+static void copy_Rbytes_from_selected_lloffsets(const Rbyte *in,
+		const long long *lloffsets, const int *lloffset_selection,
+		int n, Rbyte *out)
+{
+	for (int k = 0; k < n; k++, lloffset_selection++, out++)
+		*out = in[lloffsets[*lloffset_selection]];
+	return;
+}
+
+/* The selection is assumed to have the same length as 'out_Rvector'.
+   Only for an 'lloffset_selection' and 'out_Rvector' of length <= INT_MAX.
+   Don't use on an 'lloffset_selection' or 'out_Rvector' of length > INT_MAX! */
+void _copy_Rvector_elts_from_selected_lloffsets(SEXP in_Rvector,
+		const long long *lloffsets, const int *lloffset_selection,
+		SEXP out_Rvector)
+{
+	SEXPTYPE Rtype;
+	int out_len;
+	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
+
+	Rtype = TYPEOF(in_Rvector);
+	out_len = LENGTH(out_Rvector);  /* also the length of the selection */
+
+	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
+	switch (TYPEOF(in_Rvector)) {
+	    case LGLSXP: case INTSXP:
+		copy_ints_from_selected_lloffsets(INTEGER(in_Rvector),
+				lloffsets, lloffset_selection, out_len,
+				INTEGER(out_Rvector));
+		return;
+	    case REALSXP:
+		copy_doubles_from_selected_lloffsets(REAL(in_Rvector),
+				lloffsets, lloffset_selection, out_len,
+				REAL(out_Rvector));
+		return;
+	    case CPLXSXP:
+		copy_Rcomplexes_from_selected_lloffsets(COMPLEX(in_Rvector),
+				lloffsets, lloffset_selection, out_len,
+				COMPLEX(out_Rvector));
+		return;
+	    case RAWSXP:
+		copy_Rbytes_from_selected_lloffsets(RAW(in_Rvector),
+				lloffsets, lloffset_selection, out_len,
+				RAW(out_Rvector));
+		return;
+	}
+
+	/* STRSXP and VECSXP cases. */
+	copy_Rvector_elt_FUN = _select_copy_Rvector_elt_FUN(Rtype);
+	if (copy_Rvector_elt_FUN == NULL)
+		error("S4Arrays internal error in "
+		      "copy_Rvector_elts_from_selected_lloffsets():\n"
+		      "    type \"%s\" is not supported", type2char(Rtype));
+
+	for (R_xlen_t k = 0; k < out_len; k++, lloffset_selection++)
+		copy_Rvector_elt_FUN(in_Rvector, lloffsets[*lloffset_selection],
+				     out_Rvector, k);
 	return;
 }
 
