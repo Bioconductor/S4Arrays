@@ -5,6 +5,7 @@
 #include "ArraySelection_class.h"
 #include "array_selection.h"
 #include "SVT_SparseArray_class.h"
+#include "SparseArray_subassignment.h"
 #include "SparseArray_subsetting.h"
 #include "SparseArray_combine.h"
 #include "SparseMatrix_mult.h"
@@ -42,8 +43,10 @@ static const R_CallMethodDef callMethods[] = {
 	CALLMETHOD_DEF(C_build_SVT_from_CsparseMatrix, 2),
 	CALLMETHOD_DEF(C_from_SVT_SparseArray_to_COO_SparseArray, 3),
 	CALLMETHOD_DEF(C_build_SVT_from_COO_SparseArray, 4),
-	CALLMETHOD_DEF(C_subassign_SVT_by_Mindex, 5),
 	CALLMETHOD_DEF(C_transpose_SVT_SparseMatrix, 3),
+
+/* SparseArray_subassignment.c */
+	CALLMETHOD_DEF(C_subassign_SVT_by_Mindex, 5),
 
 /* SparseArray_subsetting.c */
 	CALLMETHOD_DEF(C_drop_SVT_SparseArray_ineffective_dims, 4),

@@ -1,14 +1,9 @@
-#ifndef _SVTSPARSEARRAY_CLASS_H_
-#define _SVTSPARSEARRAY_CLASS_H_
+#ifndef _SVT_SPARSEARRAY_CLASS_H_
+#define _SVT_SPARSEARRAY_CLASS_H_
 
 #include <Rdefines.h>
 
 SEXPTYPE _get_Rtype_from_Rstring(SEXP type);
-
-SEXP _new_leaf_vector(
-	SEXP lv_offs,
-	SEXP lv_vals
-);
 
 SEXP C_get_SVT_SparseArray_nzdata_length(
 	SEXP x_dim,
@@ -58,19 +53,11 @@ SEXP C_build_SVT_from_COO_SparseArray(
 	SEXP ans_type
 );
 
-SEXP C_subassign_SVT_by_Mindex(
-	SEXP x_dim,
-	SEXP x_type,
-	SEXP x_SVT,
-	SEXP Mindex,
-	SEXP vals
-);
-
 SEXP C_transpose_SVT_SparseMatrix(
 	SEXP x_dim,
 	SEXP x_type,
 	SEXP x_SVT
 );
 
-#endif  /* _SVTSPARSEARRAY_CLASS_H_ */
+#endif  /* _SVT_SPARSEARRAY_CLASS_H_ */
 

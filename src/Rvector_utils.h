@@ -188,6 +188,13 @@ void _copy_selected_Rsubvec_elts(
 	SEXP out_Rvector
 );
 
+void _copy_Rvector_elts_from_selected_offsets(
+	SEXP in_Rvector,
+	const int *offsets,
+	const int *offset_selection,
+	SEXP out_Rvector
+);
+
 void _copy_Rvector_elts_from_selected_lloffsets(
 	SEXP in_Rvector,
 	const long long *lloffsets,
