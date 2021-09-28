@@ -736,7 +736,12 @@ SEXP C_subassign_SVT_by_Mindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	if (Rtype == 0)
 		error("S4Arrays internal error in "
 		      "C_subassign_SVT_by_Mindex():\n"
-		      "    SVT_SparseMatrix object has invalid type");
+		      "    SVT_SparseArray object has invalid type");
+	if (TYPEOF(vals) != Rtype)
+		error("S4Arrays internal error in "
+		      "C_subassign_SVT_by_Mindex():\n"
+		      "    SVT_SparseArray object and 'vals' "
+		      "must have the same type");
 
 	x_ndim = LENGTH(x_dim);
 	vals_len = XLENGTH(vals);
@@ -820,7 +825,12 @@ SEXP C_subassign_SVT_by_Lindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	if (Rtype == 0)
 		error("S4Arrays internal error in "
 		      "C_subassign_SVT_by_Lindex():\n"
-		      "    SVT_SparseMatrix object has invalid type");
+		      "    SVT_SparseArray object has invalid type");
+	if (TYPEOF(vals) != Rtype)
+		error("S4Arrays internal error in "
+		      "C_subassign_SVT_by_Lindex():\n"
+		      "    SVT_SparseArray object and 'vals' "
+		      "must have the same type");
 
 	x_ndim = LENGTH(x_dim);
 	vals_len = XLENGTH(vals);

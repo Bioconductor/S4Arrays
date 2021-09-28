@@ -639,7 +639,36 @@ SEXP C_from_SVT_SparseMatrix_to_CsparseMatrix(SEXP x_dim,
  * Going from [d|l]gCMatrix to SVT_SparseMatrix
  */
 
-/* Returns R_NilValue or a "leaf vector" of length <= nzcount. */
+/* Returns R_NilValue or a "leaf vector" of length <= nzcount.
+
+   Note that, quite surprisingly, and unfortunately, [d|l]gCMatrix objects
+   can sometimes have zeros in their "x" slot.
+   For example, with Matrix 1.3-4:
+
+       dgcm <- as(matrix(c(11:13, 0, 0, 21:25), ncol=2), "dgCMatrix")
+       dgcm[cbind(3:4, 2)] <- 0
+       dgcm
+       # 5 x 2 sparse Matrix of class "dgCMatrix"
+       # [1,] 11 21
+       # [2,] 12 22
+       # [3,] 13  0
+       # [4,]  .  0
+       # [5,]  . 25
+       dgcm@x
+       # [1] 11 12 13 21 22  0  0 25
+
+   Interestingly this doesn't happen when using a linear index in the
+   subassignment:
+
+       dgcm[1:2] <- 0
+       dgcm@x
+       # [1] 13 21 22 25
+
+   We want to make sure that these zeros don't end up in the "leaf vector"
+   returned by build_leaf_vector_from_CsparseMatrix_col(). Unfortunately,
+   this introduces an additional cost to coercion from [d|l]gCMatrix to
+   SVT_SparseMatrix. This cost is a slowdown that is (approx.) between 1.5x
+   and 2x. */
 static SEXP build_leaf_vector_from_CsparseMatrix_col(SEXP x_i, SEXP x_x,
 		int offset, int nzcount,
 		SEXPTYPE ans_Rtype, int *warn, int *offs_buf,
@@ -656,13 +685,16 @@ static SEXP build_leaf_vector_from_CsparseMatrix_col(SEXP x_i, SEXP x_x,
 	copy_Rvector_elts_FUN(x_x, (R_xlen_t) offset,
 			lv_vals, (R_xlen_t) 0,
 			XLENGTH(lv_vals));
-	ans = _new_leaf_vector(lv_offs, lv_vals);
+	ans = PROTECT(_new_leaf_vector(lv_offs, lv_vals));
 	if (ans_Rtype == TYPEOF(x_x)) {
-		UNPROTECT(2);
-		return ans;
+		/* Because [d|l]gCMatrix objects can have zeros in their "x"
+		   slot. This introduces a slowdown that is (approx.) between
+		   1.5x and 2x. */
+		ans = _remove_zeros_from_leaf_vector(ans, offs_buf);
+	} else {
+		/* _coerce_leaf_vector() will remove zero vals if any. */
+		ans = _coerce_leaf_vector(ans, ans_Rtype, warn, offs_buf);
 	}
-	PROTECT(ans);
-	ans = _coerce_leaf_vector(ans, ans_Rtype, warn, offs_buf);
 	UNPROTECT(3);
 	return ans;
 }

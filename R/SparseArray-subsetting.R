@@ -179,8 +179,14 @@ setMethod("drop", "SVT_SparseArray",
     {
         x <- .drop_SVT_SparseArray(x)
         if (length(dim(x)) != 1L)
-            return(x)      # SVT_SparseArray object
-        drop(as.array(x))  # ordinary vector
+            return(x)     # SVT_SparseArray object
+        a <- as.array(x)  # 1d ordinary array
+        ans <- as.vector(a)  # unfortunately, this drops the names
+        ## Restore the names.
+        a_dimnames <- dimnames(a)  # NULL or list of length 1
+        if (!is.null(a_dimnames))
+            names(ans) <- a_dimnames[[1L]]
+        ans
     }
 )
 
