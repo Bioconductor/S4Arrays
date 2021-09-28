@@ -161,6 +161,7 @@ setMethod("extract_sparse_array", "SVT_SparseArray",
 ### Always returns an SVT_SparseArray object (endomorphism).
 .drop_SVT_SparseArray <- function(x)
 {
+    stopifnot(is(x, "SVT_SparseArray"))
     ## Returns 'ans_dim', 'ans_dimnames', and 'ans_SVT', in a list of length 3.
     C_ans <- .Call2("C_drop_SVT_SparseArray_ineffective_dims",
                     x@dim, x@dimnames, x@type, x@SVT, PACKAGE="S4Arrays")

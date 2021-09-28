@@ -35,6 +35,7 @@ Collate: utils.R
 	SparseArray-class.R
 	COO_SparseArray-class.R
 	SVT_SparseArray-class.R
+	SparseArray-subassignment.R
 	SparseArray-subsetting.R
 	SparseArray-combine.R
 	SparseArray-utils.R

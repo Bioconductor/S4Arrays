@@ -280,19 +280,6 @@ setAs("COO_SparseMatrix", "SVT_SparseMatrix",
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Subassignment
-###
-
-.subassign_SVT_SparseArray_by_Mindex <- function(x, Mindex, vals)
-{
-    stopifnot(is(x, "SVT_SparseArray"))
-    new_SVT <- .Call2("C_subassign_SVT_by_Mindex",
-                      x@dim, x@type, x@SVT, Mindex, vals, PACKAGE="S4Arrays")
-    BiocGenerics:::replaceSlots(x, SVT=new_SVT, check=FALSE)
-}
-
-
-### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### SVT_SparseArray() constructor
 ###
 
