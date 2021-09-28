@@ -94,6 +94,127 @@ CopyRVectorElts_FUNType _select_copy_Rvector_elts_FUN(SEXPTYPE Rtype)
 
 
 /****************************************************************************
+ * _collect_offsets_of_nonzero_Rsubvec_elts()
+ */
+
+static int collect_offsets_of_nonzero_int_elts(
+		const int *in, int in_len, int *offs_buf)
+{
+	int *off_p = offs_buf;
+	for (int offset = 0; offset < in_len; offset++, in++)
+		if (*in != 0)
+			*(off_p++) = offset;
+	return (int) (off_p - offs_buf);
+}
+
+static int collect_offsets_of_nonzero_double_elts(
+		const double *in, int in_len, int *offs_buf)
+{
+	int *off_p = offs_buf;
+	for (int offset = 0; offset < in_len; offset++, in++)
+		if (*in != 0.0)
+			*(off_p++) = offset;
+	return (int) (off_p - offs_buf);
+}
+
+#define	IS_NONZERO_RCOMPLEX(x) ((x)->r != 0.0 || (x)->i != 0.0)
+static int collect_offsets_of_nonzero_Rcomplex_elts(
+		const Rcomplex *in, int in_len, int *offs_buf)
+{
+	int *off_p = offs_buf;
+	for (int offset = 0; offset < in_len; offset++, in++)
+		if (IS_NONZERO_RCOMPLEX(in))
+			*(off_p++) = offset;
+	return (int) (off_p - offs_buf);
+}
+
+static int collect_offsets_of_nonzero_Rbyte_elts(
+		const Rbyte *in, int in_len, int *offs_buf)
+{
+	int *off_p = offs_buf;
+	for (int offset = 0; offset < in_len; offset++, in++)
+		if (*in != 0)
+			*(off_p++) = offset;
+	return (int) (off_p - offs_buf);
+}
+
+#define	IS_NONEMPTY_CHARSXP(x) ((x) == NA_STRING || XLENGTH(x) != 0)
+static int collect_offsets_of_nonempty_character_elts(
+		SEXP Rvector, R_xlen_t subvec_offset, int subvec_len,
+		int *offs_buf)
+{
+	int *off_p = offs_buf;
+	for (int offset = 0; offset < subvec_len; offset++, subvec_offset++) {
+		SEXP Rvector_elt = STRING_ELT(Rvector, subvec_offset);
+		if (IS_NONEMPTY_CHARSXP(Rvector_elt))
+			*(off_p++) = offset;
+	}
+	return (int) (off_p - offs_buf);
+}
+
+static int collect_offsets_of_nonnull_list_elts(
+		SEXP Rvector, R_xlen_t subvec_offset, int subvec_len,
+		int *offs_buf)
+{
+	int *off_p = offs_buf;
+	for (int offset = 0; offset < subvec_len; offset++, subvec_offset++) {
+		SEXP Rvector_elt = VECTOR_ELT(Rvector, subvec_offset);
+		if (Rvector_elt != R_NilValue)
+			*(off_p++) = offset;
+	}
+	return (int) (off_p - offs_buf);
+}
+
+/* Only looks at the subvector of 'Rvector' made of the range of elements
+   defined by 'subvec_offset' and 'subvec_len'.
+   Offsets of nonzero elements are collected with respect to this subvector.
+   Caller must make sure to supply an 'offs_buf' buffer that is big enough
+   to store all the collected offsets. Safe choice is to make the buffer of
+   length 'subvec_len'.
+   Note that even though 'Rvector' can be a long vector, the subvector
+   defined by 'subvec_offset/subvec_len' cannot i.e. 'subvec_len' must be
+   supplied as an int. */
+int _collect_offsets_of_nonzero_Rsubvec_elts(
+		SEXP Rvector, R_xlen_t subvec_offset, int subvec_len,
+		int *offs_buf)
+{
+	SEXPTYPE Rtype;
+
+	Rtype = TYPEOF(Rvector);
+	switch (Rtype) {
+	    case LGLSXP: case INTSXP:
+		return collect_offsets_of_nonzero_int_elts(
+				INTEGER(Rvector) + subvec_offset,
+				subvec_len, offs_buf);
+	    case REALSXP:
+		return collect_offsets_of_nonzero_double_elts(
+				REAL(Rvector) + subvec_offset,
+				subvec_len, offs_buf);
+	    case CPLXSXP:
+		return collect_offsets_of_nonzero_Rcomplex_elts(
+				COMPLEX(Rvector) + subvec_offset,
+				subvec_len, offs_buf);
+	    case RAWSXP:
+		return collect_offsets_of_nonzero_Rbyte_elts(
+				RAW(Rvector) + subvec_offset,
+				subvec_len, offs_buf);
+	    case STRSXP:
+		return collect_offsets_of_nonempty_character_elts(
+				Rvector, subvec_offset,
+				subvec_len, offs_buf);
+	    case VECSXP:
+		return collect_offsets_of_nonnull_list_elts(
+				Rvector, subvec_offset,
+				subvec_len, offs_buf);
+	}
+	error("S4Arrays internal error in "
+	      "_collect_offsets_of_nonzero_Rsubvec_elts():\n"
+	      "    type \"%s\" is not supported", type2char(Rtype));
+	return -1;  /* will never reach this */
+}
+
+
+/****************************************************************************
  * _copy_selected_Rsubvec_elts()
  */
 
@@ -167,7 +288,7 @@ void _copy_selected_Rsubvec_elts(
 	copy_Rvector_elt_FUN = _select_copy_Rvector_elt_FUN(Rtype);
 	if (copy_Rvector_elt_FUN == NULL)
 		error("S4Arrays internal error in "
-		      "copy_selected_Rsubvec_elts():\n"
+		      "_copy_selected_Rsubvec_elts():\n"
 		      "    type \"%s\" is not supported", type2char(Rtype));
 
 	for (R_xlen_t k = 0; k < out_len; k++, selection++) {
@@ -293,7 +414,7 @@ void _copy_Rvector_elts_from_selected_offsets(SEXP in_Rvector,
 	copy_Rvector_elt_FUN = _select_copy_Rvector_elt_FUN(Rtype);
 	if (copy_Rvector_elt_FUN == NULL)
 		error("S4Arrays internal error in "
-		      "copy_Rvector_elts_from_selected_offsets():\n"
+		      "_copy_Rvector_elts_from_selected_offsets():\n"
 		      "    type \"%s\" is not supported", type2char(Rtype));
 
 	for (R_xlen_t k = 0; k < out_len; k++, offset_selection++)
@@ -345,7 +466,7 @@ void _copy_Rvector_elts_from_selected_lloffsets(SEXP in_Rvector,
 	copy_Rvector_elt_FUN = _select_copy_Rvector_elt_FUN(Rtype);
 	if (copy_Rvector_elt_FUN == NULL)
 		error("S4Arrays internal error in "
-		      "copy_Rvector_elts_from_selected_lloffsets():\n"
+		      "_copy_Rvector_elts_from_selected_lloffsets():\n"
 		      "    type \"%s\" is not supported", type2char(Rtype));
 
 	for (R_xlen_t k = 0; k < out_len; k++, lloffset_selection++)

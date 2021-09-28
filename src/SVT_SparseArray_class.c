@@ -667,50 +667,37 @@ SEXP C_from_SVT_SparseMatrix_to_CsparseMatrix(SEXP x_dim,
    We want to make sure that these zeros don't end up in the "leaf vector"
    returned by build_leaf_vector_from_CsparseMatrix_col(). Unfortunately,
    this introduces an additional cost to coercion from [d|l]gCMatrix to
-   SVT_SparseMatrix. This cost is a slowdown that is (approx.) between 1.5x
-   and 2x. */
+   SVT_SparseMatrix. This cost is a slowdown that is (approx.) between 1.3x
+   and 1.5x. */
 static SEXP build_leaf_vector_from_CsparseMatrix_col(SEXP x_i, SEXP x_x,
 		int offset, int nzcount,
-		SEXPTYPE ans_Rtype, int *warn, int *offs_buf,
-		CopyRVectorElts_FUNType copy_Rvector_elts_FUN)
+		SEXPTYPE ans_Rtype, int *warn, int *offs_buf)
 {
-	SEXP lv_offs, lv_vals, ans;
+	SEXP ans, ans_offs;
+	int ans_len;
 
-	lv_offs = PROTECT(NEW_INTEGER(nzcount));
-	/* Copy 0-based row indices from 'x_i' to 'lv_offs'. */
-	_copy_INTEGER_elts(x_i, (R_xlen_t) offset,
-			lv_offs, (R_xlen_t) 0,
-			XLENGTH(lv_offs));
-	lv_vals = PROTECT(allocVector(TYPEOF(x_x), nzcount));
-	copy_Rvector_elts_FUN(x_x, (R_xlen_t) offset,
-			lv_vals, (R_xlen_t) 0,
-			XLENGTH(lv_vals));
-	ans = PROTECT(_new_leaf_vector(lv_offs, lv_vals));
-	if (ans_Rtype == TYPEOF(x_x)) {
-		/* Because [d|l]gCMatrix objects can have zeros in their "x"
-		   slot. This introduces a slowdown that is (approx.) between
-		   1.5x and 2x. */
-		ans = _remove_zeros_from_leaf_vector(ans, offs_buf);
-	} else {
-		/* _coerce_leaf_vector() will remove zero vals if any. */
+	/* Will skip zeros from 'x_x' if any. */
+	ans = _make_leaf_vector_from_Rsubvec(x_x, (R_xlen_t) offset, nzcount,
+					     offs_buf);
+	if (ans == R_NilValue)
+		return ans;
+	PROTECT(ans);
+	ans_offs = VECTOR_ELT(ans, 0);
+	ans_len = LENGTH(ans_offs);  /* can only be <= 'nzcount' */
+	_copy_selected_ints(INTEGER(x_i) + offset, INTEGER(ans_offs), ans_len,
+			    INTEGER(ans_offs));
+	if (ans_Rtype != TYPEOF(x_x))
 		ans = _coerce_leaf_vector(ans, ans_Rtype, warn, offs_buf);
-	}
-	UNPROTECT(3);
+	UNPROTECT(1);
 	return ans;
 }
 
 /* --- .Call ENTRY POINT --- */
 SEXP C_build_SVT_from_CsparseMatrix(SEXP x, SEXP ans_type)
 {
-	SEXP x_x, x_Dim, x_p, x_i, ans, ans_elt;
-	CopyRVectorElts_FUNType copy_Rvector_elts_FUN;
 	SEXPTYPE ans_Rtype;
+	SEXP x_Dim, x_p, x_i, x_x, ans, ans_elt;
 	int x_nrow, x_ncol, j, offset, nzcount, warn, *offs_buf, is_empty;
-
-	x_x = GET_SLOT(x, install("x"));
-	copy_Rvector_elts_FUN = _select_copy_Rvector_elts_FUN(TYPEOF(x_x));
-	if (copy_Rvector_elts_FUN == NULL)
-		error("unsupported CsparseMatrix type");
 
 	ans_Rtype = _get_Rtype_from_Rstring(ans_type);
 	if (ans_Rtype == 0)
@@ -725,6 +712,7 @@ SEXP C_build_SVT_from_CsparseMatrix(SEXP x, SEXP ans_type)
 		return R_NilValue;
 
 	x_i = GET_SLOT(x, install("i"));
+	x_x = GET_SLOT(x, install("x"));
 
 	warn = 0;
 	offs_buf = (int *) R_alloc(x_nrow, sizeof(int));
@@ -737,8 +725,7 @@ SEXP C_build_SVT_from_CsparseMatrix(SEXP x, SEXP ans_type)
 			ans_elt = build_leaf_vector_from_CsparseMatrix_col(
 						x_i, x_x,
 						offset, nzcount,
-						ans_Rtype, &warn, offs_buf,
-						copy_Rvector_elts_FUN);
+						ans_Rtype, &warn, offs_buf);
 			if (ans_elt != R_NilValue) {
 				PROTECT(ans_elt);
 				SET_VECTOR_ELT(ans, j, ans_elt);

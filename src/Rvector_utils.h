@@ -153,6 +153,13 @@ CopyRVectorElt_FUNType _select_copy_Rvector_elt_FUN(SEXPTYPE Rtype);
 
 CopyRVectorElts_FUNType _select_copy_Rvector_elts_FUN(SEXPTYPE Rtype);
 
+int _collect_offsets_of_nonzero_Rsubvec_elts(
+	SEXP Rvector,
+	R_xlen_t subvec_offset,
+	int subvec_len,
+	int *offs_buf
+);
+
 void _copy_selected_ints(
 	const int *in,
 	const int *selection,

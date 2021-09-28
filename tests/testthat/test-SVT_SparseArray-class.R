@@ -131,6 +131,24 @@ test_that("dgCMatrix <==> SVT_SparseMatrix coercions", {
     expect_identical(as(svt, "dgCMatrix"), dgcm)
     expect_identical(as(svt, "CsparseMatrix"), dgcm)
     expect_identical(as(svt, "sparseMatrix"), dgcm)
+
+    ## dgCMatrix object with zeros in the "x" slot.
+    m0 <- matrix(c(11:13, 0, 0, NA, 22:25), ncol=2)
+    dgcm0 <- as(m0, "dgCMatrix")
+    m0[cbind(3:4, 2)] <- dgcm0[cbind(3:4, 2)] <- 0  # sneak zeros in "x" slot
+    svt <- as(dgcm0, "SVT_SparseMatrix")
+    check_SparseArray_object(svt, "SVT_SparseMatrix", m0)
+    expect_identical(as(m0, "SVT_SparseMatrix"), svt)
+    expect_identical(as(svt, "dgCMatrix"), as(m0, "dgCMatrix"))
+
+    ## With no nonzero values in the 1st column.
+    m0[cbind(1:3, 1)] <- dgcm0[cbind(1:3, 1)] <- 0
+    svt <- as(dgcm0, "SVT_SparseMatrix")
+    check_SparseArray_object(svt, "SVT_SparseMatrix", m0)
+    expected_SVT <- list(NULL, list(c(0L, 1L, 4L), c(NA, 22, 25)))
+    expect_identical(svt@SVT, expected_SVT)
+    expect_identical(as(m0, "SVT_SparseMatrix"), svt)
+    expect_identical(as(svt, "dgCMatrix"), as(m0, "dgCMatrix"))
 })
 
 test_that("lgCMatrix <==> SVT_SparseMatrix coercions", {
@@ -186,6 +204,24 @@ test_that("lgCMatrix <==> SVT_SparseMatrix coercions", {
     expect_identical(as(svt, "lgCMatrix"), lgcm)
     expect_identical(as(svt, "CsparseMatrix"), lgcm)
     expect_identical(as(svt, "sparseMatrix"), lgcm)
+
+    ## lgCMatrix object with zeros (i.e. FALSEs) in the "x" slot.
+    m0 <- matrix(c(rep(TRUE, 3), FALSE, FALSE, NA, rep(TRUE, 4)), ncol=2)
+    lgcm0 <- as(m0, "lgCMatrix")
+    m0[cbind(3:4, 2)] <- lgcm0[cbind(3:4, 2)] <- FALSE  # sneak Fs in "x" slot
+    svt <- as(lgcm0, "SVT_SparseMatrix")
+    check_SparseArray_object(svt, "SVT_SparseMatrix", m0)
+    expect_identical(as(m0, "SVT_SparseMatrix"), svt)
+    expect_identical(as(svt, "lgCMatrix"), as(m0, "lgCMatrix"))
+
+    ## With no TRUEs in the 1st column.
+    m0[cbind(1:3, 1)] <- lgcm0[cbind(1:3, 1)] <- FALSE
+    svt <- as(lgcm0, "SVT_SparseMatrix")
+    check_SparseArray_object(svt, "SVT_SparseMatrix", m0)
+    expected_SVT <- list(NULL, list(c(0L, 1L, 4L), c(NA, TRUE, TRUE)))
+    expect_identical(svt@SVT, expected_SVT)
+    expect_identical(as(m0, "SVT_SparseMatrix"), svt)
+    expect_identical(as(svt, "lgCMatrix"), as(m0, "lgCMatrix"))
 })
 
 .make_test_3D_coo <- function()
