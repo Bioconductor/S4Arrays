@@ -73,6 +73,8 @@ static inline R_xlen_t get_Lidx(SEXP Lindex, long long atid_lloff)
  * the first column of the sparse matrix! A very atypical situation.
  */
 
+typedef SEXP (*NewIDS_FUNType)();
+
 static SEXP new_IDS()
 {
 	IntAE *atid_offs_buf;
@@ -86,6 +88,66 @@ static SEXP new_llIDS()
 
 	atid_lloffs_buf = new_LLongAE(1, 0, 0);
 	return R_MakeExternalPtr(atid_lloffs_buf, R_NilValue, R_NilValue);
+}
+
+static SEXP new_extended_leaf_vector(SEXP lv, NewIDS_FUNType new_IDS_FUN)
+{
+	SEXP lv_offs, lv_vals, IDS, ans;
+	int lv_len;
+
+	lv_len = _split_leaf_vector(lv, &lv_offs, &lv_vals);
+	if (lv_len < 0)
+		error("S4Arrays internal error in "
+		      "new_extended_leaf_vector():\n"
+		      "    unexpected error");
+	IDS = PROTECT(new_IDS_FUN());
+	ans = PROTECT(NEW_LIST(3));
+	SET_VECTOR_ELT(ans, 0, lv_offs);
+	SET_VECTOR_ELT(ans, 1, lv_vals);
+	SET_VECTOR_ELT(ans, 2, IDS);
+	UNPROTECT(2);
+	return ans;
+}
+
+/* As a side effect the function also puts a new IDS on 'bottom_leaf' if
+   it doesn't have one yet. More precisely:
+   - If 'bottom_leaf' is NULL, it gets replaced with an IDS.
+   - If 'bottom_leaf' is a "leaf vector", it gets replaced with an "extended
+     leaf vector". */
+static inline int get_IDS(SEXP leaf_parent, int i, SEXP bottom_leaf,
+			  NewIDS_FUNType new_IDS_FUN, int *lv_len, SEXP *IDS)
+{
+	if (bottom_leaf == R_NilValue) {
+		*lv_len = 0;
+		*IDS = PROTECT(new_IDS_FUN());
+		SET_VECTOR_ELT(leaf_parent, i, *IDS);
+		UNPROTECT(1);
+		return 0;
+	}
+	if (TYPEOF(bottom_leaf) == EXTPTRSXP) {
+		/* 'bottom_leaf' is an IDS. */
+		*lv_len = 0;
+		*IDS = bottom_leaf;
+		return 0;
+	}
+	if (!isVectorList(bottom_leaf))
+		error("S4Arrays internal error in get_IDS():\n"
+		      "    unexpected error");
+	/* 'bottom_leaf' is a "leaf vector" or an "extended leaf vector". */
+	if (LENGTH(bottom_leaf) == 2) {
+		/* 'bottom_leaf' is a "leaf vector". */
+		bottom_leaf = PROTECT(
+			new_extended_leaf_vector(bottom_leaf, new_IDS_FUN)
+		);
+		SET_VECTOR_ELT(leaf_parent, i, bottom_leaf);
+		UNPROTECT(1);
+	} else if (LENGTH(bottom_leaf) != 3) {
+		error("S4Arrays internal error in get_IDS():\n"
+		      "    unexpected bottom leaf");
+	}
+	*lv_len = LENGTH(VECTOR_ELT(bottom_leaf, 0));
+	*IDS = VECTOR_ELT(bottom_leaf, 2);
+	return 0;
 }
 
 /* Returns IDS new length. */
@@ -108,64 +170,6 @@ static inline size_t append_atid_lloff_to_IDS(SEXP IDS, long long atid_lloff)
 	IDS_len = atid_lloffs_buf->_nelt;
 	LLongAE_insert_at(atid_lloffs_buf, IDS_len++, atid_lloff);
 	return IDS_len;
-}
-
-static SEXP new_extended_leaf_vector(SEXP lv)
-{
-	SEXP lv_offs, lv_vals, IDS, ans;
-	int lv_len;
-
-	lv_len = _split_leaf_vector(lv, &lv_offs, &lv_vals);
-	if (lv_len < 0)
-		error("S4Arrays internal error in "
-		      "new_extended_leaf_vector():\n"
-		      "    unexpected error");
-	IDS = PROTECT(new_IDS());
-	ans = PROTECT(NEW_LIST(3));
-	SET_VECTOR_ELT(ans, 0, lv_offs);
-	SET_VECTOR_ELT(ans, 1, lv_vals);
-	SET_VECTOR_ELT(ans, 2, IDS);
-	UNPROTECT(2);
-	return ans;
-}
-
-/* As a side effect the function also puts a new IDS on 'bottom_leaf' if
-   it doesn't have one yet. More precisely:
-   - If 'bottom_leaf' is NULL, it gets replaced with an IDS.
-   - If 'bottom_leaf' is a "leaf vector", it gets replaced with an "extended
-     leaf vector". */
-static inline int get_IDS(SEXP leaf_parent, int i, SEXP bottom_leaf,
-			  int *lv_len, SEXP *IDS)
-{
-	if (bottom_leaf == R_NilValue) {
-		*lv_len = 0;
-		*IDS = PROTECT(new_IDS());
-		SET_VECTOR_ELT(leaf_parent, i, *IDS);
-		UNPROTECT(1);
-		return 0;
-	}
-	if (TYPEOF(bottom_leaf) == EXTPTRSXP) {
-		/* 'bottom_leaf' is an IDS. */
-		*lv_len = 0;
-		*IDS = bottom_leaf;
-		return 0;
-	}
-	if (!isVectorList(bottom_leaf))
-		error("S4Arrays internal error in get_IDS():\n"
-		      "    unexpected error");
-	/* 'bottom_leaf' is a "leaf vector" or an "extended leaf vector". */
-	if (LENGTH(bottom_leaf) == 2) {
-		/* 'bottom_leaf' is a "leaf vector". */
-		bottom_leaf = PROTECT(new_extended_leaf_vector(bottom_leaf));
-		SET_VECTOR_ELT(leaf_parent, i, bottom_leaf);
-		UNPROTECT(1);
-	} else if (LENGTH(bottom_leaf) != 3) {
-		error("S4Arrays internal error in get_IDS():\n"
-		      "    unexpected bottom leaf");
-	}
-	*lv_len = LENGTH(VECTOR_ELT(bottom_leaf, 0));
-	*IDS = VECTOR_ELT(bottom_leaf, 2);
-	return 0;
 }
 
 typedef struct sort_bufs_t {
@@ -206,22 +210,8 @@ static void import_selected_Mindex_coord1_to_offs_buf(const int *coord1,
 	}
 	return;
 }
-static void import_llselected_Mindex_coord1_to_offs_buf(const int *coord1,
-		const long long *atid_lloffs, int n, int maxcoord1,
-		int *offs_buf)
-{
-	int k, m;
 
-	for (k = 0; k < n; k++, atid_lloffs++, offs_buf++) {
-		m = coord1[*atid_lloffs];
-		if (m == NA_INTEGER || m < 1 || m > maxcoord1)
-			error("'Mindex' contains invalid coordinates");
-		*offs_buf = m - 1;
-	}
-	return;
-}
-
-static void import_llselected_Lindex_elts_to_offs_buf(SEXP Lindex,
+static void import_selected_Lindex_elts_to_offs_buf(SEXP Lindex,
 		const long long *atid_lloffs, int n, int d1,
 		int *offs_buf)
 {
@@ -323,22 +313,6 @@ static SEXP make_leaf_vector_from_IDS_Mindex_vals(SEXP IDS,
 				sort_bufs->order, sort_bufs->offs,
 				atid_offs_buf->elts, vals);
 }
-static SEXP make_leaf_vector_from_llIDS_Mindex_vals(SEXP IDS,
-		SEXP Mindex, SEXP vals, int d, SortBufs *sort_bufs)
-{
-	LLongAE *atid_lloffs_buf;
-	int IDS_len, ans_len;
-
-	atid_lloffs_buf = (LLongAE *) R_ExternalPtrAddr(IDS);
-	IDS_len = atid_lloffs_buf->_nelt;  /* guaranteed to be <= INT_MAX */
-	import_llselected_Mindex_coord1_to_offs_buf(INTEGER(Mindex),
-			atid_lloffs_buf->elts, IDS_len, d, sort_bufs->offs);
-	compute_offs_order(sort_bufs, IDS_len);
-	ans_len = remove_offs_dups(sort_bufs->order, IDS_len, sort_bufs->offs);
-	return make_leaf_vector_from_selected_lloffsets(ans_len,
-				sort_bufs->order, sort_bufs->offs,
-				atid_lloffs_buf->elts, vals);
-}
 
 /* Does NOT drop offset/value pairs where the value is zero! This is done
    later. This means that the function always returns a "leaf vector"
@@ -351,7 +325,7 @@ static SEXP make_leaf_vector_from_llIDS_Lindex_vals(SEXP IDS,
 
 	atid_lloffs_buf = (LLongAE *) R_ExternalPtrAddr(IDS);
 	IDS_len = atid_lloffs_buf->_nelt;  /* guaranteed to be <= INT_MAX */
-	import_llselected_Lindex_elts_to_offs_buf(Lindex,
+	import_selected_Lindex_elts_to_offs_buf(Lindex,
 			atid_lloffs_buf->elts, IDS_len, d, sort_bufs->offs);
 	compute_offs_order(sort_bufs, IDS_len);
 	ans_len = remove_offs_dups(sort_bufs->order, IDS_len, sort_bufs->offs);
@@ -568,7 +542,8 @@ static int dispatch_vals_by_Mindex(SEXP SVT, SEXP SVT0,
 				&leaf_parent, &i, &bottom_leaf);
 		if (ret < 0)
 			return -1;
-		ret = get_IDS(leaf_parent, i, bottom_leaf, &lv_len, &IDS);
+		ret = get_IDS(leaf_parent, i, bottom_leaf, new_IDS,
+			      &lv_len, &IDS);
 		if (ret < 0)
 			return -1;
 		IDS_len = append_atid_off_to_IDS(IDS, atid_off);
@@ -606,7 +581,8 @@ static int dispatch_vals_by_Lindex(SEXP SVT, SEXP SVT0,
 				&leaf_parent, &i, &bottom_leaf);
 		if (ret < 0)
 			return -1;
-		ret = get_IDS(leaf_parent, i, bottom_leaf, &lv_len, &IDS);
+		ret = get_IDS(leaf_parent, i, bottom_leaf, new_llIDS,
+			      &lv_len, &IDS);
 		if (ret < 0)
 			return -1;
 		IDS_len = append_atid_lloff_to_IDS(IDS, atid_lloff);
