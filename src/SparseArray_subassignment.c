@@ -976,3 +976,40 @@ SEXP C_subassign_SVT_by_Lindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	return ans;
 }
 
+
+/****************************************************************************
+ * C_subassign_SVT_with_short_Rvector()
+ */
+
+/* --- .Call ENTRY POINT --- */
+SEXP C_subassign_SVT_with_short_Rvector(
+		SEXP x_dim, SEXP x_type, SEXP x_SVT, SEXP index,
+		SEXP Rvector)
+{
+	error("not ready yet");
+	return R_NilValue;
+}
+
+
+/****************************************************************************
+ * C_subassign_SVT_with_Rarray() and C_subassign_SVT_with_SVT()
+ */
+
+/* --- .Call ENTRY POINT --- */
+SEXP C_subassign_SVT_with_Rarray(
+		SEXP x_dim, SEXP x_type, SEXP x_SVT, SEXP index,
+		SEXP Rarray)
+{
+	error("not ready yet");
+	return R_NilValue;
+}
+
+/* --- .Call ENTRY POINT --- */
+SEXP C_subassign_SVT_with_SVT(
+		SEXP x_dim, SEXP x_type, SEXP x_SVT, SEXP index,
+		SEXP v_dim, SEXP v_type, SEXP v_SVT)
+{
+	error("not ready yet");
+	return R_NilValue;
+}
+

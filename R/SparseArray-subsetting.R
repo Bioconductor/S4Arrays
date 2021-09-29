@@ -121,8 +121,8 @@ setMethod("extract_array", "COO_SparseArray",
 ### and `[` methods for SVT_SparseArray objects.
 ### Like for 'extract_array()', the supplied 'index' must be a list with
 ### one list element per dimension in 'x'. Each list element must be an
-### integer vector of valid indices along the corresponding dimension in 'x',
-### or a NULL.
+### integer vector of valid indices along the corresponding dimension
+### in 'x', or a NULL.
 .subset_SVT_SparseArray <- function(x, index, ignore.dimnames=FALSE)
 {
     stopifnot(is(x, "SVT_SparseArray"),
