@@ -182,13 +182,13 @@ static inline size_t append_atid_lloff_to_IDS(SEXP IDS, long long atid_lloff)
  * This implements the 1st pass of C_subassign_SVT_by_[M|L]index().
  */
 
-static SEXP shallow_list_copy(SEXP x)
+static SEXP shallow_copy_list(SEXP x)
 {
 	int x_len, i;
 	SEXP ans;
 
 	if (!isVectorList(x))  // IS_LIST() is broken
-		error("S4Arrays internal error in shallow_list_copy():\n"
+		error("S4Arrays internal error in shallow_copy_list():\n"
 		      "    'x' is not a list");
 	x_len = LENGTH(x);
 	ans = PROTECT(NEW_LIST(x_len));
@@ -198,33 +198,36 @@ static SEXP shallow_list_copy(SEXP x)
 	return ans;
 }
 
-static inline void move_down(SEXP *SVT, SEXP *SVT0, int i,
-		SEXP *subSVT, SEXP *subSVT0, int subSVT_len)
+/* 'SVT' must be R_NilValue or a list of length 'd'.
+   Always returns a list of length 'd'. Can be a newly allocated list
+   or 'SVT' itself. */
+static inline SEXP make_SVT_node(SEXP SVT, int d, SEXP SVT0)
 {
-	if (*SVT0 != R_NilValue)
-		*subSVT0 = VECTOR_ELT(*SVT0, i);
-	/* '*subSVT' is NULL or a list. */
-	if (*subSVT == R_NilValue) {
-		*subSVT = PROTECT(NEW_LIST(subSVT_len));
-		SET_VECTOR_ELT(*SVT, i, *subSVT);
-		UNPROTECT(1);
-	} else if (!isVectorList(*subSVT) ||
-		   LENGTH(*subSVT) != subSVT_len)
-	{
-		error("S4Arrays internal error in "
-		      "move_down():\n"
+	if (SVT == R_NilValue)
+		return NEW_LIST(d);
+	if (!isVectorList(SVT) || LENGTH(SVT) != d)
+		error("S4Arrays internal error in make_SVT_node():\n"
 		      "    unexpected error");
-	} else if (*subSVT == *subSVT0) {
-		/* Shallow copy **only** if '*subSVT' == corresponding
-		   node in original '*SVT0'. */
-		*subSVT = PROTECT(shallow_list_copy(*subSVT));
-		SET_VECTOR_ELT(*SVT, i, *subSVT);
-		UNPROTECT(1);
-	}
-	*SVT = *subSVT;
-	if (*SVT0 != R_NilValue)
-		*SVT0 = *subSVT0;
-	return;
+	/* Shallow copy **only** if 'SVT' == corresponding node in
+	   original 'SVT0'. */
+	if (SVT == SVT0)
+		return shallow_copy_list(SVT);
+	return SVT;
+}
+
+#define	MOVE_DOWN(SVT, SVT0, i, subSVT, subSVT0, subSVT_len)		\
+{									\
+	if ((SVT0) != R_NilValue)					\
+		(subSVT0) = VECTOR_ELT(SVT0, i);			\
+	SEXP new_subSVT = make_SVT_node(subSVT, subSVT_len, subSVT0);	\
+	if (new_subSVT != (subSVT)) {					\
+		PROTECT(new_subSVT);					\
+		SET_VECTOR_ELT(SVT, i, new_subSVT);			\
+		UNPROTECT(1);						\
+	}								\
+	(SVT) = new_subSVT;						\
+	if ((SVT0) != R_NilValue)					\
+		(SVT0) = (subSVT0);					\
 }
 
 /* Must be called with 'ndim' >= 2. */
@@ -251,7 +254,7 @@ static inline int descend_to_bottom_by_Mindex_row(SEXP SVT, SEXP SVT0,
 		if (along == 1)
 			break;
 		along--;
-		move_down(&SVT, &SVT0, i, &subSVT, &subSVT0, dim[along]);
+		MOVE_DOWN(SVT, SVT0, i, subSVT, subSVT0, dim[along]);
 	} while (1);
 	*bottom_leaf_parent = SVT;
 	*idx = i;
@@ -280,7 +283,7 @@ static inline int descend_to_bottom_by_Lidx(SEXP SVT, SEXP SVT0,
 			break;
 		idx0 %= p;
 		along--;
-		move_down(&SVT, &SVT0, i, &subSVT, &subSVT0, dim[along]);
+		MOVE_DOWN(SVT, SVT0, i, subSVT, subSVT0, dim[along]);
 	} while (1);
 	*bottom_leaf_parent = SVT;
 	*idx = i;
@@ -768,13 +771,7 @@ SEXP C_subassign_SVT_by_Mindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	/* 1st pass */
 	//clock_t t0 = clock();
 	d = INTEGER(x_dim)[x_ndim - 1];
-	if (x_SVT == R_NilValue) {
-		ans = PROTECT(NEW_LIST(d));
-	} else if (isVectorList(x_SVT) && LENGTH(x_SVT) == d) {
-		ans = PROTECT(shallow_list_copy(x_SVT));
-	} else {
-		error("unexpected error");
-	}
+	ans = PROTECT(make_SVT_node(x_SVT, d, R_NilValue));
 	max_IDS_len = 0;
 	max_postmerge_lv_len = 0;
 	ret = dispatch_vals_by_Mindex(ans, x_SVT,
@@ -865,13 +862,7 @@ SEXP C_subassign_SVT_by_Lindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	/* 1st pass */
 	//clock_t t0 = clock();
 	d = INTEGER(x_dim)[x_ndim - 1];
-	if (x_SVT == R_NilValue) {
-		ans = PROTECT(NEW_LIST(d));
-	} else if (isVectorList(x_SVT) && LENGTH(x_SVT) == d) {
-		ans = PROTECT(shallow_list_copy(x_SVT));
-	} else {
-		error("unexpected error");
-	}
+	ans = PROTECT(make_SVT_node(x_SVT, d, R_NilValue));
 	max_IDS_len = 0;
 	max_postmerge_lv_len = 0;
 	ret = dispatch_vals_by_Lindex(ans, x_SVT,
