@@ -291,16 +291,30 @@ static inline int descend_to_bottom_by_Lidx(SEXP SVT, SEXP SVT0,
 	return 0;
 }
 
+#define	UPDATE_MAX_IDS_LEN(max_IDS_len)					\
+{									\
+	if (IDS_len > *(max_IDS_len))					\
+		*(max_IDS_len) = IDS_len;				\
+}
+#define	UPDATE_MAX_POSTMERGE_LV_LEN(max_postmerge_lv_len)		\
+{									\
+	size_t worst_merged_len = lv_len + IDS_len;			\
+	if (worst_merged_len > INT_MAX)					\
+		worst_merged_len = INT_MAX;				\
+	if (worst_merged_len > *(max_postmerge_lv_len))			\
+		*(max_postmerge_lv_len) = (int) worst_merged_len;	\
+}
+
 static int dispatch_vals_by_Mindex(SEXP SVT, SEXP SVT0,
 		const int *dim, int ndim,
 		const int *Mindex, SEXP vals,
 		size_t *max_IDS_len, int *max_postmerge_lv_len)
 {
 	R_xlen_t vals_len;
-	int atid_off;  /* offset along incoming data */
+	int atid_off;  /* offset along the incoming data */
 	SEXP bottom_leaf_parent, bottom_leaf, IDS;
 	int i, lv_len, ret;
-	size_t IDS_len, worst_merged_len;
+	size_t IDS_len;
 
 	vals_len = XLENGTH(vals);
 	for (atid_off = 0; atid_off < vals_len; atid_off++) {
@@ -315,15 +329,8 @@ static int dispatch_vals_by_Mindex(SEXP SVT, SEXP SVT0,
 		if (ret < 0)
 			return -1;
 		IDS_len = append_atid_off_to_IDS(IDS, atid_off);
-		/* Update '*max_IDS_len'. */
-		if (IDS_len > *max_IDS_len)
-			*max_IDS_len = IDS_len;
-		/* Update '*max_postmerge_lv_len'. */
-		worst_merged_len = lv_len + IDS_len;
-		if (worst_merged_len > INT_MAX)
-			worst_merged_len = INT_MAX;
-		if (worst_merged_len > *max_postmerge_lv_len)
-			*max_postmerge_lv_len = (int) worst_merged_len;
+		UPDATE_MAX_IDS_LEN(max_IDS_len);
+		UPDATE_MAX_POSTMERGE_LV_LEN(max_postmerge_lv_len);
 	}
 	return 0;
 }
@@ -334,10 +341,10 @@ static int dispatch_vals_by_Lindex(SEXP SVT, SEXP SVT0,
 		size_t *max_IDS_len, int *max_postmerge_lv_len)
 {
 	R_xlen_t vals_len, Lidx;
-	long long atid_lloff;  /* offset along incoming data */
+	long long atid_lloff;  /* offset along the incoming data */
 	SEXP bottom_leaf_parent, bottom_leaf, IDS;
 	int i, lv_len, ret;
-	size_t IDS_len, worst_merged_len;
+	size_t IDS_len;
 
 	vals_len = XLENGTH(vals);
 	for (atid_lloff = 0; atid_lloff < vals_len; atid_lloff++) {
@@ -354,15 +361,8 @@ static int dispatch_vals_by_Lindex(SEXP SVT, SEXP SVT0,
 		if (ret < 0)
 			return -1;
 		IDS_len = append_atid_lloff_to_IDS(IDS, atid_lloff);
-		/* Update '*max_IDS_len'. */
-		if (IDS_len > *max_IDS_len)
-			*max_IDS_len = IDS_len;
-		/* Update '*max_postmerge_lv_len'. */
-		worst_merged_len = lv_len + IDS_len;
-		if (worst_merged_len > INT_MAX)
-			worst_merged_len = INT_MAX;
-		if (worst_merged_len > *max_postmerge_lv_len)
-			*max_postmerge_lv_len = (int) worst_merged_len;
+		UPDATE_MAX_IDS_LEN(max_IDS_len);
+		UPDATE_MAX_POSTMERGE_LV_LEN(max_postmerge_lv_len);
 	}
 	return 0;
 }
@@ -519,7 +519,7 @@ static SEXP make_leaf_vector_from_IDS_Mindex_vals(SEXP IDS,
 /* Does NOT drop offset/value pairs where the value is zero! This is done
    later. This means that the function always returns a "leaf vector"
    of length >= 1 and <= length(IDS) (length(IDS) should never be 0). */
-static SEXP make_leaf_vector_from_llIDS_Lindex_vals(SEXP IDS,
+static SEXP make_leaf_vector_from_IDS_Lindex_vals(SEXP IDS,
 		SEXP Lindex, SEXP vals, int d, SortBufs *sort_bufs)
 {
 	LLongAE *atid_lloffs_buf;
@@ -573,7 +573,7 @@ static SEXP make_and_merge_leaf_vector_from_IDS_Lindex_vals(SEXP xlv,
 
 	lv1 = PROTECT(_new_leaf_vector(xlv_offs, xlv_vals));
 	lv2 = PROTECT(
-		make_leaf_vector_from_llIDS_Lindex_vals(xlv_IDS,
+		make_leaf_vector_from_IDS_Lindex_vals(xlv_IDS,
 					Lindex, vals, d, sort_bufs)
 	);
 
@@ -664,7 +664,7 @@ static SEXP REC_absorb_vals_dispatched_by_Lindex(SEXP SVT,
 		if (TYPEOF(SVT) == EXTPTRSXP) {
 			/* 'SVT' is an IDS. */
 			ans = PROTECT(
-				make_leaf_vector_from_llIDS_Lindex_vals(SVT,
+				make_leaf_vector_from_IDS_Lindex_vals(SVT,
 					Lindex, vals, (int) dimcumprod[0],
 					sort_bufs)
 			);
@@ -731,6 +731,72 @@ static SEXP check_Mindex_dim(SEXP Mindex, R_xlen_t vals_len, int ndim,
 	return Mindex_dim;
 }
 
+/* 'Lindex' and 'vals' are assumed to have the same length.
+   This length is assumed to be >= 1 and <= INT_MAX.
+   Returns a "leaf vector" of length >= 1 and <= length(vals). */
+static SEXP make_leaf_vector_from_Lindex_vals(SEXP Lindex, SEXP vals, int d,
+		SortBufs *sort_bufs)
+{
+	int vals_len, ans_len;
+	R_xlen_t Lidx;
+	int atid_off;  /* offset along the incoming data */
+	SEXP ans_offs, ans_vals, ans;
+
+	vals_len = LENGTH(vals);  /* we know 'length(vals)' is <= INT_MAX */
+	for (atid_off = 0; atid_off < vals_len; atid_off++) {
+		Lidx = get_Lidx(Lindex, atid_off);
+		if (Lidx > d)
+			error("subassignment subscript contains "
+			      "invalid indices");
+		sort_bufs->offs[atid_off] = Lidx - 1;
+	}
+	compute_offs_order(sort_bufs, vals_len);
+	ans_len = remove_offs_dups(sort_bufs->order, vals_len, sort_bufs->offs);
+	ans_offs = PROTECT(NEW_INTEGER(ans_len));
+	_copy_selected_ints(sort_bufs->offs, sort_bufs->order, ans_len,
+			    INTEGER(ans_offs));
+	ans_vals = PROTECT(allocVector(TYPEOF(vals), ans_len));
+	_copy_selected_Rsubvec_elts(vals, 0, sort_bufs->order, ans_vals);
+	ans = _new_leaf_vector(ans_offs, ans_vals);
+	UNPROTECT(2);
+	return ans;
+}
+
+/* 'SVT' is either R_NilValue or a "leaf vector".
+   'Lindex' and 'vals' are assumed to have the same nonzero length. */
+static SEXP subassign_1D_SVT_by_Lindex(int d, SEXP SVT, SEXP Lindex, SEXP vals)
+{
+	R_xlen_t vals_len;
+	size_t worst_merged_len;
+	SortBufs sort_bufs;
+	SEXP ans;
+
+	vals_len = XLENGTH(vals);
+	if (vals_len > INT_MAX)
+		error("assigning more than INT_MAX values to "
+		      "a mono-dimensional SVT_SparseArray object "
+		      "is not supported");
+	if (SVT == R_NilValue) {
+		worst_merged_len = vals_len;
+	} else {
+		int lv_len = LENGTH(VECTOR_ELT(SVT, 0));
+		worst_merged_len = lv_len + vals_len;
+		if (worst_merged_len > INT_MAX)
+			worst_merged_len = INT_MAX;
+	}
+	sort_bufs = alloc_sort_bufs((int) vals_len, (int) worst_merged_len);
+	ans = PROTECT(
+		make_leaf_vector_from_Lindex_vals(Lindex, vals, d, &sort_bufs)
+	);
+	if (SVT != R_NilValue)
+		ans = PROTECT(_merge_leaf_vectors(SVT, ans));
+	/* We've made sure that 'sort_bufs.offs' is big enough (its length
+	   is 'worst_merged_len'). */
+	ans = _remove_zeros_from_leaf_vector(ans, sort_bufs.offs);
+	UNPROTECT(SVT != R_NilValue ? 2 : 1);
+	return ans;
+}
+
 /* --- .Call ENTRY POINT --- */
 SEXP C_subassign_SVT_by_Mindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 		SEXP Mindex, SEXP vals)
@@ -760,11 +826,9 @@ SEXP C_subassign_SVT_by_Mindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	if (vals_len == 0)
 		return x_SVT;  /* no-op */
 
-	if (x_ndim == 1) {
-		/* Will need special treatment like in
-		   C_build_SVT_from_COO_SparseArray(). */
-		error("'x_ndim == 1' case is not supported yet");
-	}
+	if (x_ndim == 1)
+		return subassign_1D_SVT_by_Lindex(INTEGER(x_dim)[0],
+						  x_SVT, Mindex, vals);
 
 	// FIXME: Bad things will happen if some of the dimensions are 0!
 
@@ -840,14 +904,14 @@ SEXP C_subassign_SVT_by_Lindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	vals_len = XLENGTH(vals);
 	if (!IS_INTEGER(Lindex) && !IS_NUMERIC(Lindex))
 		error("'Lindex' must be an integer or numeric vector");
+	if (XLENGTH(Lindex) != vals_len)
+		error("length(Lindex) != length(vals)");
 	if (vals_len == 0)
 		return x_SVT;  /* no-op */
 
-	if (x_ndim == 1) {
-		/* Will need special treatment like in
-		   C_build_SVT_from_COO_SparseArray(). */
-		error("'x_ndim == 1' case is not supported yet");
-	}
+	if (x_ndim == 1)
+		return subassign_1D_SVT_by_Lindex(INTEGER(x_dim)[0],
+						  x_SVT, Lindex, vals);
 
 	dimcumprod = (R_xlen_t *) R_alloc(x_ndim, sizeof(R_xlen_t));
 	p = 1;
