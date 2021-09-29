@@ -12,6 +12,9 @@
 //#include <time.h>
 
 
+#define	COORD_IS_INVALID(coord, maxcoord) \
+	((coord) == NA_INTEGER || (coord) < 1 || (coord) > (maxcoord))
+
 static inline R_xlen_t get_Lidx(SEXP Lindex, long long atid_lloff)
 {
 	R_xlen_t Lidx;
@@ -114,13 +117,13 @@ static SEXP new_extended_leaf_vector(SEXP lv, NewIDS_FUNType new_IDS_FUN)
    - If 'bottom_leaf' is NULL, it gets replaced with an IDS.
    - If 'bottom_leaf' is a "leaf vector", it gets replaced with an "extended
      leaf vector". */
-static inline int get_IDS(SEXP leaf_parent, int i, SEXP bottom_leaf,
+static inline int get_IDS(SEXP bottom_leaf_parent, int i, SEXP bottom_leaf,
 			  NewIDS_FUNType new_IDS_FUN, int *lv_len, SEXP *IDS)
 {
 	if (bottom_leaf == R_NilValue) {
 		*lv_len = 0;
 		*IDS = PROTECT(new_IDS_FUN());
-		SET_VECTOR_ELT(leaf_parent, i, *IDS);
+		SET_VECTOR_ELT(bottom_leaf_parent, i, *IDS);
 		UNPROTECT(1);
 		return 0;
 	}
@@ -139,7 +142,7 @@ static inline int get_IDS(SEXP leaf_parent, int i, SEXP bottom_leaf,
 		bottom_leaf = PROTECT(
 			new_extended_leaf_vector(bottom_leaf, new_IDS_FUN)
 		);
-		SET_VECTOR_ELT(leaf_parent, i, bottom_leaf);
+		SET_VECTOR_ELT(bottom_leaf_parent, i, bottom_leaf);
 		UNPROTECT(1);
 	} else if (LENGTH(bottom_leaf) != 3) {
 		error("S4Arrays internal error in get_IDS():\n"
@@ -172,6 +175,202 @@ static inline size_t append_atid_lloff_to_IDS(SEXP IDS, long long atid_lloff)
 	return IDS_len;
 }
 
+
+/****************************************************************************
+ * dispatch_vals_by_[M|L]index()
+ *
+ * This implements the 1st pass of C_subassign_SVT_by_[M|L]index().
+ */
+
+static SEXP shallow_list_copy(SEXP x)
+{
+	int x_len, i;
+	SEXP ans;
+
+	if (!isVectorList(x))  // IS_LIST() is broken
+		error("S4Arrays internal error in shallow_list_copy():\n"
+		      "    'x' is not a list");
+	x_len = LENGTH(x);
+	ans = PROTECT(NEW_LIST(x_len));
+	for (i = 0; i < x_len; i++)
+		SET_VECTOR_ELT(ans, i, VECTOR_ELT(x, i));
+	UNPROTECT(1);
+	return ans;
+}
+
+static inline void move_down(SEXP *SVT, SEXP *SVT0, int i,
+		SEXP *subSVT, SEXP *subSVT0, int subSVT_len)
+{
+	if (*SVT0 != R_NilValue)
+		*subSVT0 = VECTOR_ELT(*SVT0, i);
+	/* '*subSVT' is NULL or a list. */
+	if (*subSVT == R_NilValue) {
+		*subSVT = PROTECT(NEW_LIST(subSVT_len));
+		SET_VECTOR_ELT(*SVT, i, *subSVT);
+		UNPROTECT(1);
+	} else if (!isVectorList(*subSVT) ||
+		   LENGTH(*subSVT) != subSVT_len)
+	{
+		error("S4Arrays internal error in "
+		      "move_down():\n"
+		      "    unexpected error");
+	} else if (*subSVT == *subSVT0) {
+		/* Shallow copy **only** if '*subSVT' == corresponding
+		   node in original '*SVT0'. */
+		*subSVT = PROTECT(shallow_list_copy(*subSVT));
+		SET_VECTOR_ELT(*SVT, i, *subSVT);
+		UNPROTECT(1);
+	}
+	*SVT = *subSVT;
+	if (*SVT0 != R_NilValue)
+		*SVT0 = *subSVT0;
+	return;
+}
+
+/* Must be called with 'ndim' >= 2. */
+static inline int descend_to_bottom_by_Mindex_row(SEXP SVT, SEXP SVT0,
+		const int *dim, int ndim,
+		const int *M, R_xlen_t vals_len,
+		SEXP *bottom_leaf_parent, int *idx, SEXP *bottom_leaf)
+{
+	SEXP subSVT0, subSVT;
+	const int *m_p;
+	int along, d, m, i;
+
+	subSVT0 = R_NilValue;
+	m_p = M + vals_len * ndim;
+	along = ndim - 1;
+	do {
+		d = dim[along];
+		m_p -= vals_len;
+		m = *m_p;
+		if (COORD_IS_INVALID(m, d))
+			error("'Mindex' contains invalid coordinates");
+		i = m - 1;
+		subSVT = VECTOR_ELT(SVT, i);
+		if (along == 1)
+			break;
+		along--;
+		move_down(&SVT, &SVT0, i, &subSVT, &subSVT0, dim[along]);
+	} while (1);
+	*bottom_leaf_parent = SVT;
+	*idx = i;
+	*bottom_leaf = subSVT;
+	return 0;
+}
+
+/* Must be called with 'ndim' >= 2. */
+static inline int descend_to_bottom_by_Lidx(SEXP SVT, SEXP SVT0,
+		const int *dim, const R_xlen_t *dimcumprod, int ndim,
+		R_xlen_t Lidx,
+		SEXP *bottom_leaf_parent, int *idx, SEXP *bottom_leaf)
+{
+	SEXP subSVT0, subSVT;
+	R_xlen_t idx0, p;
+	int along, i;
+
+	subSVT0 = R_NilValue;
+	idx0 = Lidx - 1;
+	along = ndim - 1;
+	do {
+		p = dimcumprod[along - 1];
+		i = idx0 / p;  /* guaranteed to be >= 0 and < 'dim[along]'. */
+		subSVT = VECTOR_ELT(SVT, i);
+		if (along == 1)
+			break;
+		idx0 %= p;
+		along--;
+		move_down(&SVT, &SVT0, i, &subSVT, &subSVT0, dim[along]);
+	} while (1);
+	*bottom_leaf_parent = SVT;
+	*idx = i;
+	*bottom_leaf = subSVT;
+	return 0;
+}
+
+static int dispatch_vals_by_Mindex(SEXP SVT, SEXP SVT0,
+		const int *dim, int ndim,
+		const int *Mindex, SEXP vals,
+		size_t *max_IDS_len, int *max_postmerge_lv_len)
+{
+	R_xlen_t vals_len;
+	int atid_off;  /* offset along incoming data */
+	SEXP bottom_leaf_parent, bottom_leaf, IDS;
+	int i, lv_len, ret;
+	size_t IDS_len, worst_merged_len;
+
+	vals_len = XLENGTH(vals);
+	for (atid_off = 0; atid_off < vals_len; atid_off++) {
+		ret = descend_to_bottom_by_Mindex_row(SVT, SVT0,
+				dim, ndim,
+				Mindex + atid_off, vals_len,
+				&bottom_leaf_parent, &i, &bottom_leaf);
+		if (ret < 0)
+			return -1;
+		ret = get_IDS(bottom_leaf_parent, i, bottom_leaf,
+			      new_IDS, &lv_len, &IDS);
+		if (ret < 0)
+			return -1;
+		IDS_len = append_atid_off_to_IDS(IDS, atid_off);
+		/* Update '*max_IDS_len'. */
+		if (IDS_len > *max_IDS_len)
+			*max_IDS_len = IDS_len;
+		/* Update '*max_postmerge_lv_len'. */
+		worst_merged_len = lv_len + IDS_len;
+		if (worst_merged_len > INT_MAX)
+			worst_merged_len = INT_MAX;
+		if (worst_merged_len > *max_postmerge_lv_len)
+			*max_postmerge_lv_len = (int) worst_merged_len;
+	}
+	return 0;
+}
+
+static int dispatch_vals_by_Lindex(SEXP SVT, SEXP SVT0,
+		const int *dim, const R_xlen_t *dimcumprod, int ndim,
+		SEXP Lindex, SEXP vals,
+		size_t *max_IDS_len, int *max_postmerge_lv_len)
+{
+	R_xlen_t vals_len, Lidx;
+	long long atid_lloff;  /* offset along incoming data */
+	SEXP bottom_leaf_parent, bottom_leaf, IDS;
+	int i, lv_len, ret;
+	size_t IDS_len, worst_merged_len;
+
+	vals_len = XLENGTH(vals);
+	for (atid_lloff = 0; atid_lloff < vals_len; atid_lloff++) {
+		Lidx = get_Lidx(Lindex, atid_lloff);
+		if (Lidx > dimcumprod[ndim - 1])
+			error("'Lindex' contains invalid linear indices");
+		ret = descend_to_bottom_by_Lidx(SVT, SVT0,
+				dim, dimcumprod, ndim, Lidx,
+				&bottom_leaf_parent, &i, &bottom_leaf);
+		if (ret < 0)
+			return -1;
+		ret = get_IDS(bottom_leaf_parent, i, bottom_leaf,
+			      new_llIDS, &lv_len, &IDS);
+		if (ret < 0)
+			return -1;
+		IDS_len = append_atid_lloff_to_IDS(IDS, atid_lloff);
+		/* Update '*max_IDS_len'. */
+		if (IDS_len > *max_IDS_len)
+			*max_IDS_len = IDS_len;
+		/* Update '*max_postmerge_lv_len'. */
+		worst_merged_len = lv_len + IDS_len;
+		if (worst_merged_len > INT_MAX)
+			worst_merged_len = INT_MAX;
+		if (worst_merged_len > *max_postmerge_lv_len)
+			*max_postmerge_lv_len = (int) worst_merged_len;
+	}
+	return 0;
+}
+
+
+/****************************************************************************
+ * REC_absorb_vals_dispatched_by_[M|L]index()
+ *
+ * This implements the 2nd pass of C_subassign_SVT_by_[M|L]index().
+ */
+
 typedef struct sort_bufs_t {
 	int *order;
 	unsigned short int *rxbuf1;
@@ -195,9 +394,6 @@ static SortBufs alloc_sort_bufs(int max_IDS_len, int max_postmerge_lv_len)
 	sort_bufs.offs = (int *) R_alloc(max_postmerge_lv_len, sizeof(int));
 	return sort_bufs;
 }
-
-#define	COORD_IS_INVALID(coord, maxcoord) \
-	((coord) == NA_INTEGER || (coord) < 1 || (coord) > (maxcoord))
 
 static void import_selected_Mindex_coord1_to_offs_buf(const int *coord1,
 		const int *atid_offs, int n, int maxcoord1,
@@ -388,227 +584,6 @@ static SEXP make_and_merge_leaf_vector_from_IDS_Lindex_vals(SEXP xlv,
 	return ans;
 }
 
-
-/****************************************************************************
- * C_subassign_SVT_by_Mindex() and C_subassign_SVT_by_Lindex()
- */
-
-static SEXP check_Mindex_dim(SEXP Mindex, R_xlen_t vals_len, int ndim,
-		const char *what1, const char *what2, const char *what3)
-{
-	SEXP Mindex_dim;
-
-	Mindex_dim = GET_DIM(Mindex);
-	if (Mindex_dim == R_NilValue || LENGTH(Mindex_dim) != 2)
-		error("'%s' must be a matrix", what1);
-	if (!IS_INTEGER(Mindex))
-		error("'%s' must be an integer matrix", what1);
-	if (INTEGER(Mindex_dim)[0] != vals_len)
-		error("nrow(%s) != %s", what1, what2);
-	if (INTEGER(Mindex_dim)[1] != ndim)
-		error("ncol(%s) != %s", what1, what3);
-	return Mindex_dim;
-}
-
-static SEXP shallow_list_copy(SEXP x)
-{
-	int x_len, i;
-	SEXP ans;
-
-	if (!isVectorList(x))  // IS_LIST() is broken
-		error("S4Arrays internal error in shallow_list_copy():\n"
-		      "    'x' is not a list");
-	x_len = LENGTH(x);
-	ans = PROTECT(NEW_LIST(x_len));
-	for (i = 0; i < x_len; i++)
-		SET_VECTOR_ELT(ans, i, VECTOR_ELT(x, i));
-	UNPROTECT(1);
-	return ans;
-}
-
-static int descend_to_bottom_find_by_Mindex_row(SEXP SVT, SEXP SVT0,
-		const int *dim, int ndim,
-		const int *M, R_xlen_t vals_len,
-		SEXP *leaf_parent, int *idx, SEXP *bottom_leaf)
-{
-	const int *m_p;
-	SEXP subSVT0, subSVT;
-	int along, d, m, i, subSVT_len;
-
-	m_p = M + vals_len * ndim;
-	subSVT0 = R_NilValue;
-	for (along = ndim - 1; along >= 1; along--) {
-		d = dim[along];
-		m_p -= vals_len;
-		m = *m_p;
-		if (COORD_IS_INVALID(m, d))
-			error("'Mindex' contains invalid coordinates");
-		i = m - 1;
-		subSVT = VECTOR_ELT(SVT, i);
-		if (along == 1)
-			break;
-		if (SVT0 != R_NilValue)
-			subSVT0 = VECTOR_ELT(SVT0, i);
-		subSVT_len = dim[along - 1];
-		/* 'subSVT' is NULL or a list. */
-		if (subSVT == R_NilValue) {
-			subSVT = PROTECT(NEW_LIST(subSVT_len));
-			SET_VECTOR_ELT(SVT, i, subSVT);
-			UNPROTECT(1);
-		} else if (isVectorList(subSVT) &&
-			   LENGTH(subSVT) == subSVT_len)
-		{
-			/* Shallow copy **only** if 'subSVT' == corresponding
-			   node in original 'SVT0'. */
-			if (subSVT == subSVT0) {
-				subSVT = PROTECT(shallow_list_copy(subSVT));
-				SET_VECTOR_ELT(SVT, i, subSVT);
-				UNPROTECT(1);
-			}
-		} else {
-			error("S4Arrays internal error in "
-			      "descend_to_bottom_find_by_Mindex_row():\n"
-			      "    unexpected error");
-		}
-		SVT = subSVT;
-		if (SVT0 != R_NilValue)
-			SVT0 = subSVT0;
-	}
-	*leaf_parent = SVT;
-	*idx = i;
-	*bottom_leaf = subSVT;
-	return 0;
-}
-
-static int descend_to_bottom_by_Lidx(SEXP SVT, SEXP SVT0,
-		const int *dim, const R_xlen_t *dimcumprod, int ndim,
-		R_xlen_t Lidx,
-		SEXP *leaf_parent, int *idx, SEXP *bottom_leaf)
-{
-	R_xlen_t idx0;
-	SEXP subSVT0, subSVT;
-	int along, d, i, subSVT_len;
-
-	idx0 = Lidx - 1;
-	subSVT0 = R_NilValue;
-	for (along = ndim - 1; along >= 1; along--) {
-		d = dim[along];
-		/* 'i' is guaranteed to be >= 0 and < 'd'. */
-		i = idx0 / dimcumprod[along - 1];
-		idx0 %= dimcumprod[along - 1];
-		subSVT = VECTOR_ELT(SVT, i);
-		if (along == 1)
-			break;
-		if (SVT0 != R_NilValue)
-			subSVT0 = VECTOR_ELT(SVT0, i);
-		subSVT_len = dim[along - 1];
-		/* 'subSVT' is NULL or a list. */
-		if (subSVT == R_NilValue) {
-			subSVT = PROTECT(NEW_LIST(subSVT_len));
-			SET_VECTOR_ELT(SVT, i, subSVT);
-			UNPROTECT(1);
-		} else if (isVectorList(subSVT) &&
-			   LENGTH(subSVT) == subSVT_len)
-		{
-			/* Shallow copy **only** if 'subSVT' == corresponding
-			   node in original 'SVT0'. */
-			if (subSVT == subSVT0) {
-				subSVT = PROTECT(shallow_list_copy(subSVT));
-				SET_VECTOR_ELT(SVT, i, subSVT);
-				UNPROTECT(1);
-			}
-		} else {
-			error("S4Arrays internal error in "
-			      "descend_to_bottom_by_Lidx():\n"
-			      "    unexpected error");
-		}
-		SVT = subSVT;
-		if (SVT0 != R_NilValue)
-			SVT0 = subSVT0;
-	}
-	*leaf_parent = SVT;
-	*idx = i;
-	*bottom_leaf = subSVT;
-	return 0;
-}
-
-static int dispatch_vals_by_Mindex(SEXP SVT, SEXP SVT0,
-		const int *dim, int ndim,
-		const int *Mindex, SEXP vals,
-		size_t *max_IDS_len, int *max_postmerge_lv_len)
-{
-	R_xlen_t vals_len;
-	int atid_off;  /* offset along incoming data */
-	//long long atid_lloff;  /* offset along incoming data */
-	SEXP leaf_parent, bottom_leaf, IDS;
-	int i, lv_len, ret;
-	size_t IDS_len, worst_merged_len;
-
-	vals_len = XLENGTH(vals);
-	for (atid_off = 0; atid_off < vals_len; atid_off++) {
-		ret = descend_to_bottom_find_by_Mindex_row(SVT, SVT0,
-				dim, ndim,
-				Mindex + atid_off, vals_len,
-				&leaf_parent, &i, &bottom_leaf);
-		if (ret < 0)
-			return -1;
-		ret = get_IDS(leaf_parent, i, bottom_leaf, new_IDS,
-			      &lv_len, &IDS);
-		if (ret < 0)
-			return -1;
-		IDS_len = append_atid_off_to_IDS(IDS, atid_off);
-		/* Update '*max_IDS_len'. */
-		if (IDS_len > *max_IDS_len)
-			*max_IDS_len = IDS_len;
-		/* Update '*max_postmerge_lv_len'. */
-		worst_merged_len = lv_len + IDS_len;
-		if (worst_merged_len > INT_MAX)
-			worst_merged_len = INT_MAX;
-		if (worst_merged_len > *max_postmerge_lv_len)
-			*max_postmerge_lv_len = (int) worst_merged_len;
-	}
-	return 0;
-}
-
-static int dispatch_vals_by_Lindex(SEXP SVT, SEXP SVT0,
-		const int *dim, const R_xlen_t *dimcumprod, int ndim,
-		SEXP Lindex, SEXP vals,
-		size_t *max_IDS_len, int *max_postmerge_lv_len)
-{
-	R_xlen_t vals_len, Lidx;
-	long long atid_lloff;  /* offset along incoming data */
-	SEXP leaf_parent, bottom_leaf, IDS;
-	int i, lv_len, ret;
-	size_t IDS_len, worst_merged_len;
-
-	vals_len = XLENGTH(vals);
-	for (atid_lloff = 0; atid_lloff < vals_len; atid_lloff++) {
-		Lidx = get_Lidx(Lindex, atid_lloff);
-		if (Lidx > dimcumprod[ndim - 1])
-			error("'Lindex' contains invalid linear indices");
-		ret = descend_to_bottom_by_Lidx(SVT, SVT0,
-				dim, dimcumprod, ndim, Lidx,
-				&leaf_parent, &i, &bottom_leaf);
-		if (ret < 0)
-			return -1;
-		ret = get_IDS(leaf_parent, i, bottom_leaf, new_llIDS,
-			      &lv_len, &IDS);
-		if (ret < 0)
-			return -1;
-		IDS_len = append_atid_lloff_to_IDS(IDS, atid_lloff);
-		/* Update '*max_IDS_len'. */
-		if (IDS_len > *max_IDS_len)
-			*max_IDS_len = IDS_len;
-		/* Update '*max_postmerge_lv_len'. */
-		worst_merged_len = lv_len + IDS_len;
-		if (worst_merged_len > INT_MAX)
-			worst_merged_len = INT_MAX;
-		if (worst_merged_len > *max_postmerge_lv_len)
-			*max_postmerge_lv_len = (int) worst_merged_len;
-	}
-	return 0;
-}
-
 /* Recursive. */
 static SEXP REC_absorb_vals_dispatched_by_Mindex(SEXP SVT,
 		const int *dim, int ndim, SEXP Mindex, SEXP vals,
@@ -729,6 +704,28 @@ static SEXP REC_absorb_vals_dispatched_by_Lindex(SEXP SVT,
 		}
 	}
 	return is_empty ? R_NilValue : SVT;
+}
+
+
+/****************************************************************************
+ * C_subassign_SVT_by_[M|L]index()
+ */
+
+static SEXP check_Mindex_dim(SEXP Mindex, R_xlen_t vals_len, int ndim,
+		const char *what1, const char *what2, const char *what3)
+{
+	SEXP Mindex_dim;
+
+	Mindex_dim = GET_DIM(Mindex);
+	if (Mindex_dim == R_NilValue || LENGTH(Mindex_dim) != 2)
+		error("'%s' must be a matrix", what1);
+	if (!IS_INTEGER(Mindex))
+		error("'%s' must be an integer matrix", what1);
+	if (INTEGER(Mindex_dim)[0] != vals_len)
+		error("nrow(%s) != %s", what1, what2);
+	if (INTEGER(Mindex_dim)[1] != ndim)
+		error("ncol(%s) != %s", what1, what3);
+	return Mindex_dim;
 }
 
 /* --- .Call ENTRY POINT --- */
