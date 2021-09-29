@@ -59,6 +59,9 @@
     BiocGenerics:::replaceSlots(x, SVT=new_SVT, check=FALSE)
 }
 
+.subassign_SVT_SparseArray_by_Nindex <- function(x, index, value)
+    stop("subassignment operation not supported yet")
+
 .subassign_SVT_SparseArray <- function(x, i, j, ..., value)
 {
     if (missing(x))

@@ -1,13 +1,3 @@
-.make_test_3D_array <- function()
-{
-    set.seed(123)
-    a0 <- array(0.0, c(7, 10, 3),
-                dimnames=list(NULL, letters[1:10], LETTERS[1:3]))
-    a0[5*(1:26)] <- runif(26, min=-5, max=10)
-    a0[2, c(1:4, 7:9), 1] <- c(NA, NaN, Inf, 3e9, 256, -0.999, -1)
-    a0
-}
-
 ### 'a0' is expected to be of type "double".
 ### We only check types "double", "integer", "logical", and "raw" at the
 ### moment. No "complex", "character", or "list" (even though they are
@@ -62,7 +52,7 @@ test_that("array <==> SVT_SparseArray coercions", {
                                                          "SVT_SparseArray")
 
     ## Add some nonzero values.
-    a0 <- .make_test_3D_array()
+    a0 <- make_3D_test_array()
     .test_coercion_to_SparseArray_with_various_types(a0, "SVT_SparseArray",
                                                          "SVT_SparseArray")
     m0 <- a0[ , , 1]  # 2D
@@ -226,7 +216,7 @@ test_that("lgCMatrix <==> SVT_SparseMatrix coercions", {
 
 .make_test_3D_coo <- function()
 {
-    a0 <- .make_test_3D_array()
+    a0 <- make_3D_test_array()
     coo0 <- as(a0, "COO_SparseArray")
     idx <- sample(length(coo0@nzvals))
     coo0@nzcoo <- coo0@nzcoo[idx, , drop=FALSE]
@@ -302,7 +292,7 @@ test_that("COO_SparseArray <==> SVT_SparseArray coercions", {
     expect_identical(as(svt, "COO_SparseArray"), coo)
 
     ## Length zero.
-    coo0 <- as(.make_test_3D_array()[ , 0, ], "COO_SparseArray")
+    coo0 <- as(make_3D_test_array()[ , 0, ], "COO_SparseArray")
     a <- as.array(coo0)
     svt <- as(coo0, "SVT_SparseArray")
     check_SparseArray_object(svt, "SVT_SparseArray", a)
