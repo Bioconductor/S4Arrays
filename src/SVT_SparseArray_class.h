@@ -46,13 +46,6 @@ SEXP C_from_SVT_SparseArray_to_COO_SparseArray(
 	SEXP x_SVT
 );
 
-SEXP C_build_SVT_from_COO_SparseArray(
-	SEXP x_dim,
-	SEXP x_nzcoo,
-	SEXP x_nzvals,
-	SEXP ans_type
-);
-
 SEXP C_transpose_SVT_SparseMatrix(
 	SEXP x_dim,
 	SEXP x_type,

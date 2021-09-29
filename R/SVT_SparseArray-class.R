@@ -265,10 +265,11 @@ setAs("SVT_SparseMatrix", "COO_SparseMatrix",
         ## object.
         type(x) <- type
     }
-    ans_SVT <- .Call2("C_build_SVT_from_COO_SparseArray",
-                      x@dim, x@nzcoo, x@nzvals, type,
-                      PACKAGE="S4Arrays")
-    new_SVT_SparseArray(x@dim, x@dimnames, type, ans_SVT, check=FALSE)
+    ## We start with an allzero SVT_SparseArray object and subassign
+    ## the nonzero data to it.
+    ans <- new_SVT_SparseArray(x@dim, x@dimnames, type, check=FALSE)
+    ans[x@nzcoo] <- x@nzvals
+    ans
 }
 
 setAs("COO_SparseArray", "SVT_SparseArray",

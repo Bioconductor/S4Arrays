@@ -759,7 +759,7 @@ static SEXP subassign_1D_SVT_by_Lindex(int d, SEXP SVT, SEXP Lindex, SEXP vals)
 	vals_len = XLENGTH(vals);
 	if (vals_len > INT_MAX)
 		error("assigning more than INT_MAX values to "
-		      "a mono-dimensional SVT_SparseArray object "
+		      "a monodimensional SVT_SparseArray object "
 		      "is not supported");
 	if (SVT == R_NilValue) {
 		worst_merged_len = vals_len;

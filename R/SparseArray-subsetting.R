@@ -223,7 +223,7 @@ setMethod("drop", "SVT_SparseArray",
         if (is.matrix(i) && is.numeric(i))
             return(.subset_SVT_SparseArray_by_Mindex(x, i, drop=drop))
         ## Linear single bracket subsetting e.g. x[5:2].
-        ## If 'x' is mono-dimensional and 'drop' is FALSE, we fallback
+        ## If 'x' is monodimensional and 'drop' is FALSE, we fallback
         ## to "multi-dimensional single bracket subsetting" which is an
         ## endomorphism.
         if (x_ndim != 1L || drop)

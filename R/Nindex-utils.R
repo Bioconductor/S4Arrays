@@ -20,7 +20,7 @@
 normalizeSingleBracketSubscript2 <- function(i, x_len, x_names=NULL)
 {
     ## We support subsetting by an array-like subscript but only if the
-    ## subscript is mono-dimensional, in which case we call as.vector() on
+    ## subscript is monodimensional, in which case we call as.vector() on
     ## it. This will possibly trigger its realization e.g. if it's a
     ## DelayedArray object.
     i_dim <- dim(i)
