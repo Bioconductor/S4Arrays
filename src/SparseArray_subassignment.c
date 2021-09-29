@@ -711,25 +711,10 @@ static SEXP REC_absorb_vals_dispatched_by_Lindex(SEXP SVT,
 
 
 /****************************************************************************
- * C_subassign_SVT_by_[M|L]index()
+ * subassign_1D_SVT_by_Lindex()
+ *
+ * The 1D case needs special treatment.
  */
-
-static SEXP check_Mindex_dim(SEXP Mindex, R_xlen_t vals_len, int ndim,
-		const char *what1, const char *what2, const char *what3)
-{
-	SEXP Mindex_dim;
-
-	Mindex_dim = GET_DIM(Mindex);
-	if (Mindex_dim == R_NilValue || LENGTH(Mindex_dim) != 2)
-		error("'%s' must be a matrix", what1);
-	if (!IS_INTEGER(Mindex))
-		error("'%s' must be an integer matrix", what1);
-	if (INTEGER(Mindex_dim)[0] != vals_len)
-		error("nrow(%s) != %s", what1, what2);
-	if (INTEGER(Mindex_dim)[1] != ndim)
-		error("ncol(%s) != %s", what1, what3);
-	return Mindex_dim;
-}
 
 /* 'Lindex' and 'vals' are assumed to have the same length.
    This length is assumed to be >= 1 and <= INT_MAX.
@@ -795,6 +780,28 @@ static SEXP subassign_1D_SVT_by_Lindex(int d, SEXP SVT, SEXP Lindex, SEXP vals)
 	ans = _remove_zeros_from_leaf_vector(ans, sort_bufs.offs);
 	UNPROTECT(SVT != R_NilValue ? 2 : 1);
 	return ans;
+}
+
+
+/****************************************************************************
+ * C_subassign_SVT_by_[M|L]index()
+ */
+
+static SEXP check_Mindex_dim(SEXP Mindex, R_xlen_t vals_len, int ndim,
+		const char *what1, const char *what2, const char *what3)
+{
+	SEXP Mindex_dim;
+
+	Mindex_dim = GET_DIM(Mindex);
+	if (Mindex_dim == R_NilValue || LENGTH(Mindex_dim) != 2)
+		error("'%s' must be a matrix", what1);
+	if (!IS_INTEGER(Mindex))
+		error("'%s' must be an integer matrix", what1);
+	if (INTEGER(Mindex_dim)[0] != vals_len)
+		error("nrow(%s) != %s", what1, what2);
+	if (INTEGER(Mindex_dim)[1] != ndim)
+		error("ncol(%s) != %s", what1, what3);
+	return Mindex_dim;
 }
 
 /* --- .Call ENTRY POINT --- */
