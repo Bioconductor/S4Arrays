@@ -101,6 +101,9 @@ SEXP C_rowsum_dgCMatrix(SEXP x, SEXP group, SEXP ngroup, SEXP na_rm)
  * colMins(), colMaxs(), colRanges()
  */
 
+typedef double (*Extremum_FUNType)(const double *x, int x_len, int narm,
+				   int start_on_zero);
+
 static double min_double(const double *x, int x_len, int narm,
 			 int start_on_zero)
 {
@@ -201,10 +204,8 @@ static void minmax_double(const double *x, int x_len, int narm,
 	return;
 }
 
-typedef double (*ExtremumFunType)(const double *x, int x_len, int narm,
-				  int start_on_zero);
-
-static SEXP C_colExtrema_dgCMatrix(ExtremumFunType fun, SEXP x, SEXP na_rm)
+static SEXP C_colExtrema_dgCMatrix(Extremum_FUNType extremum_FUN,
+		SEXP x, SEXP na_rm)
 {
 	SEXP x_Dim, x_x, x_p, ans;
 	int x_nrow, x_ncol, narm, j, offset, count;
@@ -220,8 +221,8 @@ static SEXP C_colExtrema_dgCMatrix(ExtremumFunType fun, SEXP x, SEXP na_rm)
 	for (j = 0; j < x_ncol; j++) {
 		offset = INTEGER(x_p)[j];
 		count = INTEGER(x_p)[j + 1] - offset;
-		REAL(ans)[j] = fun(REAL(x_x) + offset, count, narm,
-				   count < x_nrow);
+		REAL(ans)[j] = extremum_FUN(REAL(x_x) + offset, count, narm,
+					    count < x_nrow);
 	}
 	UNPROTECT(1);
 	return ans;

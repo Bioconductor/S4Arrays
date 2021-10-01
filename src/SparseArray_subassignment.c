@@ -7,13 +7,11 @@
 
 #include "Rvector_utils.h"
 #include "leaf_vector_utils.h"
+#include "array_selection.h"
 
 #include <limits.h>  /* for INT_MAX */
 //#include <time.h>
 
-
-#define	COORD_IS_INVALID(coord, maxcoord) \
-	((coord) == NA_INTEGER || (coord) < 1 || (coord) > (maxcoord))
 
 static inline R_xlen_t get_Lidx(SEXP Lindex, long long atid_lloff)
 {
@@ -114,7 +112,7 @@ static SEXP new_extended_leaf_vector(SEXP lv, NewIDS_FUNType new_IDS_FUN)
 
 /* As a side effect the function also puts a new IDS on 'bottom_leaf' if
    it doesn't have one yet. More precisely:
-   - If 'bottom_leaf' is NULL, it gets replaced with an IDS.
+   - If 'bottom_leaf' is R_NilValue, it gets replaced with an IDS.
    - If 'bottom_leaf' is a "leaf vector", it gets replaced with an "extended
      leaf vector". */
 static inline int get_IDS(SEXP bottom_leaf_parent, int i, SEXP bottom_leaf,
@@ -133,7 +131,7 @@ static inline int get_IDS(SEXP bottom_leaf_parent, int i, SEXP bottom_leaf,
 		*IDS = bottom_leaf;
 		return 0;
 	}
-	if (!isVectorList(bottom_leaf))
+	if (!isVectorList(bottom_leaf))  // IS_LIST() is broken
 		error("S4Arrays internal error in get_IDS():\n"
 		      "    unexpected error");
 	/* 'bottom_leaf' is a "leaf vector" or an "extended leaf vector". */
@@ -231,6 +229,30 @@ static inline SEXP make_SVT_node(SEXP SVT, int d, SEXP SVT0)
 }
 
 /* Must be called with 'ndim' >= 2. */
+static inline int descend_to_bottom_by_coords0(SEXP SVT, SEXP SVT0,
+		const int *dim, int ndim, const int *coords0,
+		SEXP *bottom_leaf_parent, int *idx, SEXP *bottom_leaf)
+{
+	SEXP subSVT0, subSVT;
+	int along, i;
+
+	subSVT0 = R_NilValue;
+	along = ndim - 1;
+	do {
+		i = coords0[along - 1];
+		subSVT = VECTOR_ELT(SVT, i);
+		if (along == 1)
+			break;
+		along--;
+		MOVE_DOWN(SVT, SVT0, i, subSVT, subSVT0, dim[along]);
+	} while (1);
+	*bottom_leaf_parent = SVT;
+	*idx = i;
+	*bottom_leaf = subSVT;
+	return 0;
+}
+
+/* Must be called with 'ndim' >= 2. */
 static inline int descend_to_bottom_by_Mindex_row(SEXP SVT, SEXP SVT0,
 		const int *dim, int ndim,
 		const int *M, R_xlen_t vals_len,
@@ -247,7 +269,7 @@ static inline int descend_to_bottom_by_Mindex_row(SEXP SVT, SEXP SVT0,
 		d = dim[along];
 		m_p -= vals_len;
 		m = *m_p;
-		if (COORD_IS_INVALID(m, d))
+		if (INVALID_COORD(m, d))
 			error("'Mindex' contains invalid coordinates");
 		i = m - 1;
 		subSVT = VECTOR_ELT(SVT, i);
@@ -399,14 +421,14 @@ static SortBufs alloc_sort_bufs(int max_IDS_len, int max_postmerge_lv_len)
 }
 
 static void import_selected_Mindex_coord1_to_offs_buf(const int *coord1,
-		const int *atid_offs, int n, int maxcoord1,
+		const int *atid_offs, int n, int d1,
 		int *offs_buf)
 {
 	int k, m;
 
 	for (k = 0; k < n; k++, atid_offs++, offs_buf++) {
 		m = coord1[*atid_offs];
-		if (COORD_IS_INVALID(m, maxcoord1))
+		if (INVALID_COORD(m, d1))
 			error("'Mindex' contains invalid coordinates");
 		*offs_buf = m - 1;
 	}
@@ -500,7 +522,7 @@ static SEXP make_leaf_vector_from_selected_lloffsets(int lv_len,
    later. This means that the function always returns a "leaf vector"
    of length >= 1 and <= length(IDS) (length(IDS) should never be 0). */
 static SEXP make_leaf_vector_from_IDS_Mindex_vals(SEXP IDS,
-		SEXP Mindex, SEXP vals, int d, SortBufs *sort_bufs)
+		SEXP Mindex, SEXP vals, int d1, SortBufs *sort_bufs)
 {
 	IntAE *atid_offs_buf;
 	int IDS_len, ans_len;
@@ -508,7 +530,7 @@ static SEXP make_leaf_vector_from_IDS_Mindex_vals(SEXP IDS,
 	atid_offs_buf = (IntAE *) R_ExternalPtrAddr(IDS);
 	IDS_len = atid_offs_buf->_nelt;  /* guaranteed to be <= INT_MAX */
 	import_selected_Mindex_coord1_to_offs_buf(INTEGER(Mindex),
-			atid_offs_buf->elts, IDS_len, d, sort_bufs->offs);
+			atid_offs_buf->elts, IDS_len, d1, sort_bufs->offs);
 	compute_offs_order(sort_bufs, IDS_len);
 	ans_len = remove_offs_dups(sort_bufs->order, IDS_len, sort_bufs->offs);
 	return make_leaf_vector_from_selected_offsets(ans_len,
@@ -520,7 +542,7 @@ static SEXP make_leaf_vector_from_IDS_Mindex_vals(SEXP IDS,
    later. This means that the function always returns a "leaf vector"
    of length >= 1 and <= length(IDS) (length(IDS) should never be 0). */
 static SEXP make_leaf_vector_from_IDS_Lindex_vals(SEXP IDS,
-		SEXP Lindex, SEXP vals, int d, SortBufs *sort_bufs)
+		SEXP Lindex, SEXP vals, int d1, SortBufs *sort_bufs)
 {
 	LLongAE *atid_lloffs_buf;
 	int IDS_len, ans_len;
@@ -528,7 +550,7 @@ static SEXP make_leaf_vector_from_IDS_Lindex_vals(SEXP IDS,
 	atid_lloffs_buf = (LLongAE *) R_ExternalPtrAddr(IDS);
 	IDS_len = atid_lloffs_buf->_nelt;  /* guaranteed to be <= INT_MAX */
 	import_selected_Lindex_elts_to_offs_buf(Lindex,
-			atid_lloffs_buf->elts, IDS_len, d, sort_bufs->offs);
+			atid_lloffs_buf->elts, IDS_len, d1, sort_bufs->offs);
 	compute_offs_order(sort_bufs, IDS_len);
 	ans_len = remove_offs_dups(sort_bufs->order, IDS_len, sort_bufs->offs);
 	return make_leaf_vector_from_selected_lloffsets(ans_len,
@@ -538,7 +560,7 @@ static SEXP make_leaf_vector_from_IDS_Lindex_vals(SEXP IDS,
 
 /* Returns R_NilValue or a "leaf vector". */
 static SEXP make_and_merge_leaf_vector_from_IDS_Mindex_vals(SEXP xlv,
-		SEXP Mindex, SEXP vals, int d, SortBufs *sort_bufs)
+		SEXP Mindex, SEXP vals, int d1, SortBufs *sort_bufs)
 {
 	SEXP xlv_offs, xlv_vals, xlv_IDS, lv1, lv2, ans;
 
@@ -549,7 +571,7 @@ static SEXP make_and_merge_leaf_vector_from_IDS_Mindex_vals(SEXP xlv,
 	lv1 = PROTECT(_new_leaf_vector(xlv_offs, xlv_vals));
 	lv2 = PROTECT(
 		make_leaf_vector_from_IDS_Mindex_vals(xlv_IDS,
-					Mindex, vals, d, sort_bufs)
+					Mindex, vals, d1, sort_bufs)
 	);
 
 	/* The zero values must be removed **after** the merging. */
@@ -563,7 +585,7 @@ static SEXP make_and_merge_leaf_vector_from_IDS_Mindex_vals(SEXP xlv,
 }
 
 static SEXP make_and_merge_leaf_vector_from_IDS_Lindex_vals(SEXP xlv,
-		SEXP Lindex, SEXP vals, int d, SortBufs *sort_bufs)
+		SEXP Lindex, SEXP vals, int d1, SortBufs *sort_bufs)
 {
 	SEXP xlv_offs, xlv_vals, xlv_IDS, lv1, lv2, ans;
 
@@ -574,7 +596,7 @@ static SEXP make_and_merge_leaf_vector_from_IDS_Lindex_vals(SEXP xlv,
 	lv1 = PROTECT(_new_leaf_vector(xlv_offs, xlv_vals));
 	lv2 = PROTECT(
 		make_leaf_vector_from_IDS_Lindex_vals(xlv_IDS,
-					Lindex, vals, d, sort_bufs)
+					Lindex, vals, d1, sort_bufs)
 	);
 
 	/* The zero values must be removed **after** the merging. */
@@ -628,7 +650,7 @@ static SEXP REC_absorb_vals_dispatched_by_Mindex(SEXP SVT,
 	}
 
 	/* 'SVT' is a regular node (list). */
-	SVT_len = LENGTH(SVT);  /* should be equal to 'd = dim[ndim - 1]' */
+	SVT_len = LENGTH(SVT);  /* should be equal to 'dim[ndim - 1]' */
 	is_empty = 1;
 	for (i = 0; i < SVT_len; i++) {
 		subSVT = VECTOR_ELT(SVT, i);
@@ -690,7 +712,7 @@ static SEXP REC_absorb_vals_dispatched_by_Lindex(SEXP SVT,
 	}
 
 	/* 'SVT' is a regular node (list). */
-	SVT_len = LENGTH(SVT);  /* should be equal to 'd = dim[ndim - 1]' */
+	SVT_len = LENGTH(SVT);  /* should be equal to 'dim[ndim - 1]' */
 	is_empty = 1;
 	for (i = 0; i < SVT_len; i++) {
 		subSVT = VECTOR_ELT(SVT, i);
@@ -719,7 +741,7 @@ static SEXP REC_absorb_vals_dispatched_by_Lindex(SEXP SVT,
 /* 'Lindex' and 'vals' are assumed to have the same length.
    This length is assumed to be >= 1 and <= INT_MAX.
    Returns a "leaf vector" of length >= 1 and <= length(vals). */
-static SEXP make_leaf_vector_from_Lindex_vals(SEXP Lindex, SEXP vals, int d,
+static SEXP make_leaf_vector_from_Lindex_vals(SEXP Lindex, SEXP vals, int d1,
 		SortBufs *sort_bufs)
 {
 	int vals_len, ans_len;
@@ -730,7 +752,7 @@ static SEXP make_leaf_vector_from_Lindex_vals(SEXP Lindex, SEXP vals, int d,
 	vals_len = LENGTH(vals);  /* we know 'length(vals)' is <= INT_MAX */
 	for (atid_off = 0; atid_off < vals_len; atid_off++) {
 		Lidx = get_Lidx(Lindex, atid_off);
-		if (Lidx > d)
+		if (Lidx > d1)
 			error("subassignment subscript contains "
 			      "invalid indices");
 		sort_bufs->offs[atid_off] = Lidx - 1;
@@ -749,7 +771,7 @@ static SEXP make_leaf_vector_from_Lindex_vals(SEXP Lindex, SEXP vals, int d,
 
 /* 'SVT' is either R_NilValue or a "leaf vector".
    'Lindex' and 'vals' are assumed to have the same nonzero length. */
-static SEXP subassign_1D_SVT_by_Lindex(int d, SEXP SVT, SEXP Lindex, SEXP vals)
+static SEXP subassign_1D_SVT_by_Lindex(int d1, SEXP SVT, SEXP Lindex, SEXP vals)
 {
 	R_xlen_t vals_len;
 	size_t worst_merged_len;
@@ -771,7 +793,7 @@ static SEXP subassign_1D_SVT_by_Lindex(int d, SEXP SVT, SEXP Lindex, SEXP vals)
 	}
 	sort_bufs = alloc_sort_bufs((int) vals_len, (int) worst_merged_len);
 	ans = PROTECT(
-		make_leaf_vector_from_Lindex_vals(Lindex, vals, d, &sort_bufs)
+		make_leaf_vector_from_Lindex_vals(Lindex, vals, d1, &sort_bufs)
 	);
 	if (SVT != R_NilValue)
 		ans = PROTECT(_merge_leaf_vectors(SVT, ans));
@@ -809,7 +831,7 @@ SEXP C_subassign_SVT_by_Mindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 		SEXP Mindex, SEXP vals)
 {
 	SEXPTYPE Rtype;
-	int x_ndim, d, max_postmerge_lv_len, ret;
+	int x_ndim, d1, max_postmerge_lv_len, ret;
 	R_xlen_t vals_len;
 	SEXP ans;
 	size_t max_IDS_len;
@@ -841,8 +863,8 @@ SEXP C_subassign_SVT_by_Mindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 
 	/* 1st pass */
 	//clock_t t0 = clock();
-	d = INTEGER(x_dim)[x_ndim - 1];
-	ans = PROTECT(make_SVT_node(x_SVT, d, R_NilValue));
+	d1 = INTEGER(x_dim)[x_ndim - 1];
+	ans = PROTECT(make_SVT_node(x_SVT, d1, R_NilValue));
 	max_IDS_len = 0;
 	max_postmerge_lv_len = 0;
 	ret = dispatch_vals_by_Mindex(ans, x_SVT,
@@ -890,7 +912,7 @@ SEXP C_subassign_SVT_by_Lindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 		SEXP Lindex, SEXP vals)
 {
 	SEXPTYPE Rtype;
-	int x_ndim, along, d, max_postmerge_lv_len, ret;
+	int x_ndim, along, d1, max_postmerge_lv_len, ret;
 	R_xlen_t vals_len, *dimcumprod, p;
 	SEXP ans;
 	size_t max_IDS_len;
@@ -932,8 +954,8 @@ SEXP C_subassign_SVT_by_Lindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 
 	/* 1st pass */
 	//clock_t t0 = clock();
-	d = INTEGER(x_dim)[x_ndim - 1];
-	ans = PROTECT(make_SVT_node(x_SVT, d, R_NilValue));
+	d1 = INTEGER(x_dim)[x_ndim - 1];
+	ans = PROTECT(make_SVT_node(x_SVT, d1, R_NilValue));
 	max_IDS_len = 0;
 	max_postmerge_lv_len = 0;
 	ret = dispatch_vals_by_Lindex(ans, x_SVT,
@@ -981,13 +1003,262 @@ SEXP C_subassign_SVT_by_Lindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
  * C_subassign_SVT_with_short_Rvector()
  */
 
+typedef struct Nindex_iterator_t {
+	int ndim;
+	const int *dim;
+	SEXP index;
+	int margin;
+	int *selection_dim;       /* of length 'ndim - margin' */
+	int *selection_midx_buf;  /* of length 'ndim - margin' */
+	long long selection_len;
+	long long counter;
+	int *coords0_buf;         /* of length 'ndim - margin' */
+} NindexIterator;
+
+static long long init_NindexIterator(NindexIterator *Nindex_iter,
+		const int *dim, int ndim, SEXP index, int margin)
+{
+	long long selection_len;
+	int along, sd;
+	SEXP index_elt;
+
+	if (!isVectorList(index) || LENGTH(index) != ndim)
+		error("incorrect number of subscripts");
+	Nindex_iter->ndim = ndim;
+	Nindex_iter->dim = dim;
+	Nindex_iter->index = index;
+	Nindex_iter->margin = margin;
+	Nindex_iter->selection_dim =
+		(int *) R_alloc(ndim - margin, sizeof(int));
+	Nindex_iter->selection_midx_buf =
+		(int *) R_alloc(ndim - margin, sizeof(int));
+	selection_len = 1;
+	for (along = 0; along < ndim; along++) {
+		index_elt = VECTOR_ELT(index, along);
+		if (index_elt == R_NilValue) {
+			sd = dim[along];
+		} else if (IS_INTEGER(index_elt)) {
+			sd = LENGTH(index_elt);
+		} else {
+			error("subscripts must be integer vectors");
+		}
+		selection_len *= sd;
+		if (along < margin)
+			continue;
+		Nindex_iter->selection_dim[along - margin] = sd;
+		Nindex_iter->selection_midx_buf[along - margin] = 0;
+	}
+	Nindex_iter->selection_len = selection_len;
+	Nindex_iter->counter = -1;
+	Nindex_iter->coords0_buf =
+		(int *) R_alloc(ndim - margin, sizeof(int));
+	return selection_len;
+}
+
+static inline int next_midx(int ndim, const int *max_idx_plus_one,
+			    int *midx_buf)
+{
+	int along, i;
+
+	for (along = 0; along < ndim; along++) {
+		i = midx_buf[along] + 1;
+		if (i < max_idx_plus_one[along]) {
+			midx_buf[along] = i;
+			break;
+		}
+		midx_buf[along] = 0;
+        }
+        return along;
+}
+
+/* Returns:
+       1 = if the array coords before the move was not the last one in the
+	   array selection and the move to the next one was successful;
+       0 = if the array coords before the move was the last one in the
+	   array selection and so the move to the next one was not possible;
+     < 0 = if error
+   Typical use:
+       while (ret = next_coords0(&Nindex_iter)) {
+           if (ret < 0) {
+               an error occured
+           }
+           handle current array coords
+       }
+ */
+static inline int next_coords0(NindexIterator *Nindex_iter)
+{
+	int moved_along, along, *coords0_p, coord;
+	const int *midx_p;
+	SEXP index_elt;
+
+	if (Nindex_iter->selection_len == 0)
+		return 0;
+	if (Nindex_iter->counter == -1) {
+		moved_along = Nindex_iter->ndim;
+	} else {
+		/* Update 'Nindex_iter->selection_midx_buf'. */
+		moved_along = Nindex_iter->margin +
+			next_midx(Nindex_iter->ndim - Nindex_iter->margin,
+				  Nindex_iter->selection_dim,
+				  Nindex_iter->selection_midx_buf);
+		if (moved_along == Nindex_iter->ndim)
+			return 0;
+	}
+	Nindex_iter->counter++;
+	//printf("Nindex_iter->counter=%lld\n", Nindex_iter->counter);
+	//printf("moved_along=%d\n", moved_along);
+
+	/* Update 'Nindex_iter->coords0_buf'. */
+	midx_p = Nindex_iter->selection_midx_buf;
+	coords0_p = Nindex_iter->coords0_buf;
+	for (along = Nindex_iter->margin; along < Nindex_iter->ndim; along++) {
+		if (along > moved_along)
+                        break;
+		index_elt = VECTOR_ELT(Nindex_iter->index, along);
+		if (index_elt == R_NilValue) {
+			*coords0_p = *midx_p;
+		} else {
+			coord = INTEGER(index_elt)[*midx_p];
+			if (INVALID_COORD(coord, Nindex_iter->dim[along]))
+				error("subscript contains "
+				      "out-of-bound indices or NAs");
+			*coords0_p = coord - 1;
+		}
+		midx_p++;
+		coords0_p++;
+	}
+	printf("coords0: ");
+	coords0_p = Nindex_iter->coords0_buf;
+	for (along = Nindex_iter->margin; along < Nindex_iter->ndim; along++) {
+		printf(" %3d", *coords0_p);
+		coords0_p++;
+	}
+	printf("\n");
+	return 1;
+}
+
+static int subassign_SVT_with_short_Rvector(SEXP SVT, SEXP SVT0,
+		NindexIterator *Nindex_iter, SEXP Rvector)
+{
+	int ret, i;
+	SEXP bottom_leaf_parent, bottom_leaf;
+
+	while ((ret = next_coords0(Nindex_iter))) {
+		if (ret < 0) {
+			error("an error occured");
+		}
+		ret = descend_to_bottom_by_coords0(SVT, SVT0,
+				Nindex_iter->dim, Nindex_iter->ndim,
+				Nindex_iter->coords0_buf,
+				&bottom_leaf_parent, &i, &bottom_leaf);
+		if (ret < 0)
+			return -1;
+	}
+	return 0;
+}
+
+/* 'index' must be R_NilValue or an integer vector. */
+static SEXP subassign_1D_SVT_with_short_Rvector(SEXP SVT,
+		int d1, SEXP index, SEXP Rvector)
+{
+	return SVT;
+}
+
+/* Recursive. 'ndim' must be >= 2. */
+static SEXP REC_subassign_SVT_with_short_Rvector(SEXP SVT, SEXP SVT0,
+		const int *dim, int ndim, SEXP index, SEXP Rvector)
+{
+	SEXP subSVT0, index_elt, subSVT;
+	int d, idx_len, is_empty, i2, i1, coord;
+
+	subSVT0 = R_NilValue;
+	d = dim[ndim - 1];
+	index_elt = VECTOR_ELT(index, ndim - 1);
+	if (index_elt == R_NilValue) {
+		idx_len = d;
+	} else {
+		idx_len = LENGTH(index_elt);
+	}
+	printf("ndim = %d: idx_len = %d\n", ndim, idx_len);
+	is_empty = 1;
+	for (i2 = 0; i2 < idx_len; i2++) {
+		if (index_elt == R_NilValue) {
+			i1 = i2;
+		} else {
+			coord = INTEGER(index_elt)[i2];
+			if (INVALID_COORD(coord, d))
+				error("subscript contains "
+				      "out-of-bound indices or NAs");
+			i1 = coord - 1;
+		}
+		printf("ndim = %d: i1 = %d i2 = %d\n", ndim, i1, i2);
+		subSVT = VECTOR_ELT(SVT, i1);
+		if (ndim == 2) {
+			subSVT = PROTECT(
+				subassign_1D_SVT_with_short_Rvector(subSVT,
+					dim[0], VECTOR_ELT(index, 0), Rvector)
+			);
+		} else {
+			if (SVT0 != R_NilValue)
+				subSVT0 = VECTOR_ELT(SVT0, i1);
+			subSVT = PROTECT(
+				make_SVT_node(subSVT, dim[ndim - 2], subSVT0)
+			);
+			subSVT = PROTECT(
+				REC_subassign_SVT_with_short_Rvector(
+					subSVT, subSVT0, dim, ndim - 1,
+					index, Rvector)
+			);
+		}
+		SET_VECTOR_ELT(SVT, i1, subSVT);
+		if (subSVT != R_NilValue)
+			is_empty = 0;
+		UNPROTECT(ndim == 2 ? 1 : 2);
+	}
+	return is_empty ? R_NilValue : SVT;
+}
+
 /* --- .Call ENTRY POINT --- */
 SEXP C_subassign_SVT_with_short_Rvector(
 		SEXP x_dim, SEXP x_type, SEXP x_SVT, SEXP index,
 		SEXP Rvector)
 {
-	error("not ready yet");
-	return R_NilValue;
+	SEXPTYPE Rtype;
+	int x_ndim, d1, ret;
+	NindexIterator Nindex_iter;
+	R_xlen_t selection_len;
+	SEXP ans;
+
+	Rtype = _get_Rtype_from_Rstring(x_type);
+	if (Rtype == 0)
+		error("S4Arrays internal error in "
+		      "C_subassign_SVT_with_short_Rvector():\n"
+		      "    SVT_SparseArray object has invalid type");
+	if (TYPEOF(Rvector) != Rtype)
+		error("S4Arrays internal error in "
+		      "C_subassign_SVT_with_short_Rvector():\n"
+		      "    SVT_SparseArray object and 'Rvector' "
+		      "must have the same type");
+
+	x_ndim = LENGTH(x_dim);
+	selection_len = init_NindexIterator(&Nindex_iter,
+					    INTEGER(x_dim), x_ndim, index, 1);
+	if (selection_len == 0)
+		return x_SVT;  /* no-op */
+
+	if (x_ndim == 1) {
+		error("1D case not ready yet");
+		return R_NilValue;
+	}
+
+	d1 = INTEGER(x_dim)[x_ndim - 1];
+	ans = PROTECT(make_SVT_node(x_SVT, d1, R_NilValue));
+	//ret = subassign_SVT_with_short_Rvector(ans, x_SVT,
+	//				       &Nindex_iter, Rvector);
+	ans = REC_subassign_SVT_with_short_Rvector(ans, x_SVT,
+			INTEGER(x_dim), x_ndim, index, Rvector);
+	UNPROTECT(1);
+	return ans;
 }
 
 

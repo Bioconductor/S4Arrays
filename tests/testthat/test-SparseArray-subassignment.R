@@ -36,9 +36,12 @@ test_that("subassign an SVT_SparseArray object by an Mindex or Lindex", {
 
     ## Add some nonzero values.
     a0 <- make_3D_test_array()
-    Mindex <- rbind(cbind(Mindex2, 1L), Mindex3)
+    Mindex23 <- rbind(cbind(Mindex2, 1L), Mindex3)
     vals2 <- c(vals, vals)
-    .test_SparseArray_subassignment_by_Mindex_and_Lindex(a0, Mindex, vals2,
+    Mindex0 <- S4Arrays:::which_is_nonzero(a0, arr.ind=TRUE)
+    .test_SparseArray_subassignment_by_Mindex_and_Lindex(a0, Mindex23, vals2,
+                                                         "SVT_SparseArray")
+    .test_SparseArray_subassignment_by_Mindex_and_Lindex(a0, Mindex0, 0,
                                                          "SVT_SparseArray")
     m0 <- a0[ , , 1]  # 2D
     .test_SparseArray_subassignment_by_Mindex_and_Lindex(m0, Mindex2, vals,
@@ -50,13 +53,28 @@ test_that("subassign an SVT_SparseArray object by an Mindex or Lindex", {
     ## Integer array.
     a0 <- make_3D_test_array()
     suppressWarnings(storage.mode(a0) <- "integer")
-    .test_SparseArray_subassignment_by_Mindex_and_Lindex(a0, Mindex, vals2,
+    .test_SparseArray_subassignment_by_Mindex_and_Lindex(a0, Mindex23, vals2,
+                                                         "SVT_SparseArray")
+    .test_SparseArray_subassignment_by_Mindex_and_Lindex(a0, Mindex0, 0L,
                                                          "SVT_SparseArray")
 
     ## Array type changed by subassignment.
     a0 <- make_3D_test_array()
     vals2 <- complex(real=vals2, imaginary=-0.75)
-    .test_SparseArray_subassignment_by_Mindex_and_Lindex(a0, Mindex, vals2,
+    .test_SparseArray_subassignment_by_Mindex_and_Lindex(a0, Mindex23, vals2,
+                                                         "SVT_SparseArray")
+    .test_SparseArray_subassignment_by_Mindex_and_Lindex(a0, Mindex0, -9.99,
+                                                         "SVT_SparseArray")
+
+    ## Assign random values to random array locations.
+    set.seed(123)
+    Mindex <- Lindex2Mindex(sample(length(a0)), dim(a0))
+    vals <- sample(0:5, length(a0), replace=TRUE)
+    .test_SparseArray_subassignment_by_Mindex_and_Lindex(a0, Mindex, vals,
+                                                         "SVT_SparseArray")
+    Mindex <- Lindex2Mindex(sample(length(a0), 5000, replace=TRUE), dim(a0))
+    vals <- sample(-99:99, 5000, replace=TRUE)
+    .test_SparseArray_subassignment_by_Mindex_and_Lindex(a0, Mindex, vals,
                                                          "SVT_SparseArray")
 })
 

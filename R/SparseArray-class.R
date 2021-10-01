@@ -104,7 +104,7 @@ coercion_can_introduce_zeros <- function(from_type, to_type)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Generics is_sparse(), is_sparse<-(), and sparsity()
+### Generics is_sparse(), is_sparse<-(), nzcount(), and sparsity()
 ###
 
 ### is_sparse() detects **structural** sparsity which is a global qualitative
@@ -126,7 +126,14 @@ setMethod("is_sparse", "ANY", function(x) FALSE)
 
 setMethod("is_sparse", "SparseArray", function(x) TRUE)
 
-setGeneric("sparsity", function(x) standardGeneric("sparsity"))
+setGeneric("nzcount", function(x) standardGeneric("nzcount"))
+
+### Not 100% reliable because [d|l]gCMatrix objects are allowed to have
+### zeros in their "x" slot! See src/SVT_SparseArray_class.c for an example.
+setMethod("nzcount", "CsparseMatrix", function(x) length(x@i))
+setMethod("nzcount", "RsparseMatrix", function(x) length(x@j))
+
+sparsity <- function(x) { 1 - nzcount(x) / length(x) }
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

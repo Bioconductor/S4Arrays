@@ -91,16 +91,14 @@ setMethod("type", "SVT_SparseArray", function(x) x@type)
 
 ### Note that like for the length of atomic vectors in base R, the returned
 ### length will be a double if it's > .Machine$integer.max
-.get_SVT_SparseArray_nzdata_length <- function(x)
+.get_SVT_SparseArray_nzcount <- function(x)
 {
     stopifnot(is(x, "SVT_SparseArray"))
-    .Call2("C_get_SVT_SparseArray_nzdata_length",
+    .Call2("C_get_SVT_SparseArray_nzcount",
            x@dim, x@SVT, PACKAGE="S4Arrays")
 }
 
-#setMethod("nzdataLength", "SVT_SparseArray",
-#    .get_SVT_SparseArray_nzdata_length
-#)
+setMethod("nzcount", "SVT_SparseArray", .get_SVT_SparseArray_nzcount)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

@@ -16,10 +16,10 @@
 \alias{nzvals}
 \alias{nzvals,COO_SparseArray-method}
 
-\alias{type,COO_SparseArray}
-\alias{type<-,COO_SparseArray}
+\alias{type,COO_SparseArray-method}
+\alias{type<-,COO_SparseArray-method}
 
-\alias{sparsity,COO_SparseArray-method}
+\alias{nzcount,COO_SparseArray-method}
 
 \alias{dense2sparse}
 \alias{sparse2dense}
@@ -79,9 +79,10 @@ sparse2dense(coo)
   \item{nzcoo}{
     A matrix containing the array coordinates of the nonzero values.
 
-    This must be an integer matrix like one returned by
-    \code{base::\link[base]{arrayInd}}, that is, with \code{length(dim)}
-    columns and where each row is an n-uplet representing an \emph{array index}.
+    This must be an integer matrix of array coordinates like one returned
+    by \code{base::\link[base]{arrayInd}} or \code{\link{Lindex2Mindex}},
+    that is, a matrix with \code{length(dim)} columns and where each row
+    is an n-uplet representing the coordinates of an array element.
   }
   \item{nzvals}{
     A vector (atomic or list) of length \code{nrow(nzcoo)} containing
@@ -134,7 +135,11 @@ sparse2dense(coo)
           defined in the \pkg{Matrix} package, for the de facto standard
           of sparse matrix representations in R.
 
-    \item \code{\link[base]{arrayInd}} in the \pkg{base} package.
+    \item \code{base::\link[base]{arrayInd}} in the \pkg{base} package.
+
+    \item \code{\link{Lindex2Mindex}} for an improved (faster) version
+          of \code{base::arrayInd} provided in this package (the
+          \pkg{S4Arrays} package).
 
     \item Ordinary \link[base]{array} objects in base R.
   }

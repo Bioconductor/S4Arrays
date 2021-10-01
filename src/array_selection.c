@@ -287,7 +287,7 @@ static int M2L(const int *dim, int ndim, int dim_nrow,
 				return -1;
 			}
 			m = M[M_off];
-			if (m == NA_INTEGER || m < 1 || m > d) {
+			if (INVALID_COORD(m, d)) {
 				PRINT_TO_ERRMSG_BUF("Mindex[%d, %d] is NA "
 						    "or < 1 or > dim[%d]",
 						    i + 1, along + 1,
@@ -376,9 +376,15 @@ SEXP C_Mindex2Lindex(SEXP Mindex, SEXP dim, SEXP use_names, SEXP as_integer)
 	ret = get_matrix_nrow_ncol(Mindex, &Mindex_nrow, &Mindex_ncol);
 	if (ret < 0)
 		error("'Mindex' must be an integer matrix (or vector)");
-	if (Mindex_ncol != dim_ncol)
-		error("'Mindex' must have one %s per dimension",
-		      GET_DIM(Mindex) != R_NilValue ? "column" : "element");
+	if (Mindex_ncol != dim_ncol) {
+		if (GET_DIM(Mindex) != R_NilValue)
+			error("'Mindex' must be a matrix with one "
+			      "column per dimension in the array\n"
+			      "  to subset/subassign");
+		error("when supplied as a vector, 'Mindex' must have "
+		      "one element per dimension\n  in the array to "
+		      "subset/subassign");
+	}
 	if (dim_nrow != 1 && dim_nrow != Mindex_nrow)
 		error("'dim' must have a single row or "
 		      "the same number of rows as 'Mindex'");

@@ -71,7 +71,7 @@ static inline int copy_Rvector_elts(
 
 
 /****************************************************************************
- * C_get_SVT_SparseArray_nzdata_length()
+ * C_get_SVT_SparseArray_nzcount()
  */
 
 /* Recursive. */
@@ -100,7 +100,7 @@ static R_xlen_t REC_sum_leaf_vector_lengths(SEXP SVT, int ndim)
 }
 
 /* --- .Call ENTRY POINT --- */
-SEXP C_get_SVT_SparseArray_nzdata_length(SEXP x_dim, SEXP x_SVT)
+SEXP C_get_SVT_SparseArray_nzcount(SEXP x_dim, SEXP x_SVT)
 {
 	R_xlen_t nzdata_len;
 
@@ -483,6 +483,11 @@ SEXP C_from_SVT_SparseMatrix_to_CsparseMatrix(SEXP x_dim,
        # [5,]  . 25
        dgcm@x
        # [1] 11 12 13 21 22  0  0 25
+
+   This is still considered a valid dgCMatrix object:
+
+       validObject(dgcm)
+       [1] TRUE
 
    Interestingly this doesn't happen when using a linear index in the
    subassignment:

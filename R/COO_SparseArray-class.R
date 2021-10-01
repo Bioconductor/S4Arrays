@@ -25,9 +25,9 @@ setClass("COO_SparseArray",
     contains="SparseArray",
     representation(
         nzcoo="matrix",  # M-index containing the coordinates of the
-                         # nonzero data.
+                         # nonzero values.
         nzvals="vector"  # A vector (atomic or list) of length
-                         # 'nrow(nzcoo)' containing the nonzero data.
+                         # 'nrow(nzcoo)' containing the nonzero values.
     ),
     prototype(
         nzcoo=matrix(integer(0), ncol=1L),
@@ -146,12 +146,10 @@ setReplaceMethod("type", "COO_SparseArray", .set_COO_SparseArray_type)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### sparsity()
+### nzcount()
 ###
 
-setMethod("sparsity", "COO_SparseArray",
-    function(x) { 1 - length(nzvals(x)) / length(x) }
-)
+setMethod("nzcount", "COO_SparseArray", function(x) length(nzvals(x)))
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

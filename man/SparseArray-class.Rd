@@ -15,6 +15,9 @@
 \alias{is_sparse<-}
 \alias{is_sparse,ANY-method}
 \alias{is_sparse,SparseArray-method}
+\alias{nzcount}
+\alias{nzcount,CsparseMatrix-method}
+\alias{nzcount,RsparseMatrix-method}
 \alias{sparsity}
 
 \alias{show,SparseArray-method}
@@ -47,15 +50,16 @@
   Most of the \emph{standard array API} defined in base R should work
   on SparseArray derivatives, including \code{dim()}, \code{length()},
   \code{dimnames()}, \code{`dimnames<-`()}, \code{[}, \code{drop()},
-  \code{t()}, \code{rbind()}, \code{cbind()}, etc...
+  \code{`[<-`} (subassignment), \code{t()}, \code{rbind()}, \code{cbind()},
+  etc...
 
   SparseArray derivatives also support \code{type()}, \code{`type<-`()},
-  \code{is_sparse()}, \code{sparsity()}, \code{arbind()} and \code{acbind()},
-  six generic functions defined in this package (the \pkg{S4Arrays} package).
+  \code{is_sparse()}, \code{nzcount()}, \code{sparsity()}, \code{arbind()}
+  and \code{acbind()}.
 
-  \code{sparsity(x)} returns the ratio of number of zero-valued elements
-  over total number of elements (\code{length(x)}) in array-like object
-  \code{x}.
+  \code{sparsity(x)} returns the ratio between number of zero-valued elements
+  and total number of elements (\code{length(x)}) in array-like object
+  \code{x}, that is, \code{1 - nzcount(x)/length(x)}.
 }
 
 \seealso{

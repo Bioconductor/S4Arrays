@@ -182,6 +182,9 @@ export(
     DummyArrayViewport, ArrayViewport, makeNindexFromArrayViewport,
     DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid,
 
+    ## SparseArray-class.R:
+    sparsity,
+
     ## COO_SparseArray-class.R:
     COO_SparseArray, dense2sparse, sparse2dense,
 
@@ -217,9 +220,7 @@ export(
     refdim, maxlength, downsample,
 
     ## SparseArray-class.R:
-    is_sparse,
-    "is_sparse<-",
-    sparsity,
+    is_sparse, "is_sparse<-", nzcount,
 
     ## COO_SparseArray-class.R:
     nzcoo, nzvals,
@@ -237,7 +238,7 @@ exportMethods(
     refdim, maxlength, downsample,
     is_sparse,
     #"is_sparse<-",  # no methods defined in S4Arrays!
-    sparsity,
+    nzcount,
     nzcoo, nzvals,
     extract_sparse_array
 )
