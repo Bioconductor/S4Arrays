@@ -51,7 +51,8 @@ SEXP _make_leaf_vector_from_Rsubvec(
 	SEXP Rvector,
 	R_xlen_t subvec_offset,
 	int subvec_len,
-	int *offs_buf
+	int *offs_buf,
+	int avoid_copy_if_all_nonzeros
 );
 
 int _expand_leaf_vector(

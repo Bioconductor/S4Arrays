@@ -160,6 +160,12 @@ int _collect_offsets_of_nonzero_Rsubvec_elts(
 	int *offs_buf
 );
 
+void _reset_selected_Rvector_elts(
+	SEXP Rvector,
+	const int *selection,
+	int n
+);
+
 void _copy_selected_ints(
 	const int *in,
 	const int *selection,

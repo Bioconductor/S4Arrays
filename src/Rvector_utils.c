@@ -173,7 +173,8 @@ static int collect_offsets_of_nonnull_list_elts(
    length 'subvec_len'.
    Note that even though 'Rvector' can be a long vector, the subvector
    defined by 'subvec_offset/subvec_len' cannot i.e. 'subvec_len' must be
-   supplied as an int. */
+   supplied as an int.
+   Returns the number of collected offsets. */
 int _collect_offsets_of_nonzero_Rsubvec_elts(
 		SEXP Rvector, R_xlen_t subvec_offset, int subvec_len,
 		int *offs_buf)
@@ -211,6 +212,98 @@ int _collect_offsets_of_nonzero_Rsubvec_elts(
 	      "_collect_offsets_of_nonzero_Rsubvec_elts():\n"
 	      "    type \"%s\" is not supported", type2char(Rtype));
 	return -1;  /* will never reach this */
+}
+
+
+/****************************************************************************
+ * _reset_selected_Rvector_elts()
+ */
+
+static void reset_selected_int_elts(int *x,
+		const int *selection, int n)
+{
+	for (int i = 0; i < n; i++, selection++)
+		x[*selection] = 0;
+	return;
+}
+
+static void reset_selected_double_elts(double *x,
+		const int *selection, int n)
+{
+	for (int i = 0; i < n; i++, selection++)
+		x[*selection] = 0.0;
+	return;
+}
+
+static void reset_selected_Rcomplex_elts(Rcomplex *x,
+		const int *selection, int n)
+{
+	Rcomplex *x_elt;
+
+	for (int i = 0; i < n; i++, selection++) {
+		x_elt = x + *selection;
+		x_elt->r = x_elt->i = 0.0;
+	}
+	return;
+}
+
+static void reset_selected_Rbyte_elts(Rbyte *x,
+		const int *selection, int n)
+{
+	for (int i = 0; i < n; i++, selection++)
+		x[*selection] = 0.0;
+	return;
+}
+
+static void reset_selected_character_elts(SEXP x,
+		const int *selection, int n)
+{
+	SEXP x0;
+
+	x0 = PROTECT(mkChar(""));
+	for (int i = 0; i < n; i++, selection++)
+		SET_STRING_ELT(x, *selection, x0);
+	UNPROTECT(1);
+	return;
+}
+
+static void reset_selected_list_elts(SEXP x,
+		const int *selection, int n)
+{
+	for (int i = 0; i < n; i++, selection++)
+		SET_VECTOR_ELT(x, *selection, R_NilValue);
+	return;
+}
+
+void _reset_selected_Rvector_elts(SEXP Rvector, const int *selection, int n)
+{
+	SEXPTYPE Rtype;
+
+	Rtype = TYPEOF(Rvector);
+	switch (Rtype) {
+	    case LGLSXP: case INTSXP:
+		return reset_selected_int_elts(INTEGER(Rvector),
+				selection, n);
+	    case REALSXP:
+		return reset_selected_double_elts(REAL(Rvector),
+				selection, n);
+	    case CPLXSXP:
+		return reset_selected_Rcomplex_elts(COMPLEX(Rvector),
+				selection, n);
+	    case RAWSXP:
+		return reset_selected_Rbyte_elts(RAW(Rvector),
+				selection, n);
+	    case STRSXP:
+		return reset_selected_character_elts(Rvector,
+				selection, n);
+	    case VECSXP:
+		return reset_selected_list_elts(Rvector,
+				selection, n);
+	}
+	error("S4Arrays internal error in "
+	      "_reset_selected_Rvector_elts():\n"
+	      "    type \"%s\" is not supported", type2char(Rtype));
+	return;
 }
 
 

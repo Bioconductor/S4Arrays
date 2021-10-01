@@ -73,7 +73,7 @@ SEXP _alloc_and_split_leaf_vector(int lv_len, SEXPTYPE Rtype,
    Returns R_NilValue or a "leaf vector". */
 SEXP _make_leaf_vector_from_Rsubvec(
 		SEXP Rvector, R_xlen_t subvec_offset, int subvec_len,
-		int *offs_buf)
+		int *offs_buf, int avoid_copy_if_all_nonzeros)
 {
 	int ans_len;
 	SEXP ans_offs, ans_vals, ans;
@@ -87,7 +87,7 @@ SEXP _make_leaf_vector_from_Rsubvec(
 	ans_offs = PROTECT(NEW_INTEGER(ans_len));
 	memcpy(INTEGER(ans_offs), offs_buf, sizeof(int) * ans_len);
 
-	if (ans_len == subvec_len &&
+	if (avoid_copy_if_all_nonzeros && ans_len == subvec_len &&
 	    subvec_offset == 0 && XLENGTH(Rvector) == subvec_len)
 	{
 		/* The full 'Rvector' contains no zeros and can be reused
@@ -140,7 +140,7 @@ SEXP _remove_zeros_from_leaf_vector(SEXP lv, int *offs_buf)
 	int lv_len, ans_len;
 
 	lv_len = _split_leaf_vector(lv, &lv_offs, &lv_vals);
-	ans = _make_leaf_vector_from_Rsubvec(lv_vals, 0, lv_len, offs_buf);
+	ans = _make_leaf_vector_from_Rsubvec(lv_vals, 0, lv_len, offs_buf, 1);
 	if (ans == R_NilValue)
 		return ans;
 

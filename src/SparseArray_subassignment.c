@@ -996,91 +996,154 @@ SEXP C_subassign_SVT_by_Lindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
  * C_subassign_SVT_with_short_Rvector()
  */
 
-/* 'short_Rvector' must have a length >= 1 and <= d.
-   Can actually return R_NilValue instead of a "leaf vector". */
-static SEXP make_leaf_vector_from_short_Rvector(SEXP short_Rvector, int d,
-		SEXP left_Rvector_buf, int *offs_buf,
-		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
-{
-	int short_len, i;
+typedef struct left_bufs_t {
+	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
+	SEXP Rvector;
+	int *offs;
+	SEXP precomputed_bottom_leaf;
+	int full_replacement;
+} LeftBufs;
 
-	printf("make_leaf_vector_from_short_Rvector: %d\n", d);
+/* 'short_Rvector' must have a length >= 1.
+   'd1' must be a multiple of 'short_Rvector' length.
+   Returns R_NilValue or a "leaf vector". */
+static SEXP precompute_bottom_leaf_from_short_Rvector(
+		int d1, SEXP index1, SEXP short_Rvector,
+		LeftBufs *left_bufs)
+{
+	SEXP left_Rvector;
+	int short_len, i1, d2, i2, coord;
+
+	left_bufs->full_replacement = 1;
+	left_Rvector = left_bufs->Rvector;
 	short_len = LENGTH(short_Rvector);
-	if (short_len == d) {
-		left_Rvector_buf = short_Rvector;
+	if (index1 == R_NilValue) {
+		if (short_len == d1) {
+			left_Rvector = short_Rvector;
+		} else {
+			/* Copy a recycled version of 'short_Rvector'
+			   to 'left_bufs->Rvector'. 'left_bufs->Rvector' is
+			   of length 'd1'. */
+			for (i1 = 0; i1 < d1; i1++) {
+				left_bufs->copy_Rvector_elt_FUN(short_Rvector,
+						i1 % short_len,
+						left_Rvector, i1);
+			}
+		}
 	} else {
-		for (i = 0; i < d; i++) {
-			/* Virtual recycling of 'short_Rvector'. */
-			copy_Rvector_elt_FUN(short_Rvector,
-					     i % short_len,
-					     left_Rvector_buf, i);
+		for (i1 = 0; i1 < d1; i1++)
+			left_bufs->offs[i1] = 0;
+		/* Recycle and subassign 'short_Rvector' into 'left_Rvector'. */
+		d2 = LENGTH(index1);
+		for (i2 = 0; i2 < d2; i2++) {
+			coord = INTEGER(index1)[i2];
+			if (INVALID_COORD(coord, d1))
+				error("subscript contains "
+				      "out-of-bound indices or NAs");
+			i1 = coord - 1;
+			left_bufs->copy_Rvector_elt_FUN(short_Rvector,
+						i2 % short_len,
+						left_Rvector, i1);
+			left_bufs->offs[i1] = 1;
+		}
+		for (i1 = 0; i1 < d1; i1++) {
+			if (left_bufs->offs[i1] == 0) {
+				left_bufs->full_replacement = 0;
+				break;
+			}
 		}
 	}
-	return _make_leaf_vector_from_Rsubvec(left_Rvector_buf,
-				0, LENGTH(left_Rvector_buf), offs_buf);
+	//printf("full_replacement=%d\n", left_bufs->full_replacement);
+	return _make_leaf_vector_from_Rsubvec(left_Rvector, 0, d1,
+					      left_bufs->offs,
+					      left_bufs->full_replacement);
 }
 
-/* 'SVT' must be either R_NilValue or a "leaf vector".
-   'index' must be either R_NilValue or an integer vector.
-   'short_Rvector' must have a length >= 1.
-   'left_Rvector_buf' must have the same type as 'short_Rvector' (and 'SVT'
-   if it's not R_NilValue), have length 'd1', and should have been
-   initialized with zeros e.g. created with '_new_Rvector( , d1)'.
-   'offs_buf' must be of length d1 (or more).
-   Returns R_NilValue or a "leaf vector". */
-static SEXP subassign_1D_SVT_with_short_Rvector(SEXP SVT, int d1,
-		SEXP index, SEXP short_Rvector,
-		SEXP left_Rvector_buf, int *offs_buf,
-		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
+/* 'short_Rvector' must have a length >= 1.
+   'd1' must be a multiple of 'short_Rvector' length. */
+static LeftBufs init_left_bufs(int d1, SEXP index1, SEXP short_Rvector)
 {
-	SEXP ans;
-	int short_len, i1, ret, d2, i2, coord;
+	LeftBufs left_bufs;
+	SEXPTYPE Rtype;
+	R_xlen_t short_len;
+	SEXP bottom_leaf;
 
-	if (index == R_NilValue) {
-		/* TODO: 'index == R_NilValue' means the 1st subscript (i.e.
-		   leftmost subscript) of the subassignment is missing. In
-		   this case this should be computed only once and reused for
-		   the entire subassignment operation. */
-		return make_leaf_vector_from_short_Rvector(short_Rvector, d1,
-				left_Rvector_buf, offs_buf,
-				copy_Rvector_elt_FUN);
-	}
+	Rtype = TYPEOF(short_Rvector);
+	left_bufs.copy_Rvector_elt_FUN = _select_copy_Rvector_elt_FUN(Rtype);
+	if (left_bufs.copy_Rvector_elt_FUN == NULL)
+		error("S4Arrays internal error in init_left_bufs():\n"
+		      "    short Rvector has invalid type");
+
+	short_len = XLENGTH(short_Rvector);
+	if (short_len == 0 || d1 % short_len != 0)
+		error("S4Arrays internal error in init_left_bufs():\n"
+		      "    invalid short Rvector length");
+
+	left_bufs.offs = (int *) R_alloc(d1, sizeof(int));
+	left_bufs.Rvector = PROTECT(_new_Rvector(Rtype, d1));
+	bottom_leaf = PROTECT(
+		precompute_bottom_leaf_from_short_Rvector(
+					d1, index1, short_Rvector,
+					&left_bufs)
+	);
+	left_bufs.precomputed_bottom_leaf = bottom_leaf;
+	UNPROTECT(2);
+	return left_bufs;
+}
+
+/* 'SVT' must be a bottom leaf (i.e. R_NilValue or a "leaf vector").
+   'index1' must be either R_NilValue or an integer vector.
+   'short_Rvector' must have a length >= 1.
+   Returns R_NilValue or a "leaf vector". */
+static SEXP subassign_bottom_leaf_with_short_Rvector(SEXP SVT, int d1,
+		SEXP index1, SEXP short_Rvector, LeftBufs *left_bufs)
+{
+	SEXP left_Rvector, ans, ans_offs;
+	int ret, short_len, d2, i2, coord, i1;
+
+	if (left_bufs->full_replacement || SVT == R_NilValue)
+		return left_bufs->precomputed_bottom_leaf;
+
+	left_Rvector = left_bufs->Rvector;
+	ret = _expand_leaf_vector(SVT, left_Rvector, 0);
+	if (ret < 0)
+		error("S4Arrays internal error in "
+		      "subassign_bottom_leaf_with_short_Rvector:\n"
+		      "    _expand_leaf_vector() returned "
+		      "an error");
+
 	short_len = LENGTH(short_Rvector);
-	if (SVT != R_NilValue) {
-		ret = _expand_leaf_vector(SVT, left_Rvector_buf, 0);
-		if (ret < 0)
-			error("S4Arrays internal error in "
-			      "subassign_1D_SVT_with_short_Rvector:\n"
-			      "    _expand_leaf_vector() returned "
-			      "an error");
-	}
-	d2 = LENGTH(index);
+	d2 = LENGTH(index1);
 	for (i2 = 0; i2 < d2; i2++) {
-		coord = INTEGER(index)[i2];
+		coord = INTEGER(index1)[i2];
 		if (INVALID_COORD(coord, d1))
 			error("subscript contains "
 			      "out-of-bound indices or NAs");
 		i1 = coord - 1;
 		/* Virtual recycling of 'short_Rvector'. */
-		copy_Rvector_elt_FUN(short_Rvector, i2 % short_len,
-				     left_Rvector_buf, i1);
+		left_bufs->copy_Rvector_elt_FUN(
+				short_Rvector, i2 % short_len,
+				left_Rvector, i1);
 	}
 	ans = PROTECT(
-		_make_leaf_vector_from_Rsubvec(left_Rvector_buf,
-				0, LENGTH(left_Rvector_buf), offs_buf)
+		_make_leaf_vector_from_Rsubvec(left_Rvector,
+				0, d1, left_bufs->offs, 0)
 	);
-	if (index != R_NilValue && SVT != R_NilValue) {
-		// reset 'left_Rvector_buf'!!
+	if (ans != R_NilValue) {
+		/* Remove nonzeros introduced in 'left_bufs->Rvector'. */
+		ans_offs = VECTOR_ELT(ans, 0);
+		_reset_selected_Rvector_elts(left_Rvector,
+					     INTEGER(ans_offs),
+					     LENGTH(ans_offs));
 	}
 	UNPROTECT(1);
 	return ans;
 }
 
 /* Recursive. 'ndim' must be >= 2. */
-static SEXP REC_subassign_SVT_with_leaf_vector(SEXP SVT, SEXP SVT0,
+static SEXP REC_subassign_SVT_with_short_Rvector(SEXP SVT, SEXP SVT0,
 		const int *dim, int ndim, SEXP index,
-		SEXP short_Rvector, SEXP left_Rvector_buf, int *offs_buf,
-		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
+		SEXP short_Rvector, LeftBufs *left_bufs)
 {
 	SEXP subSVT0, index_elt, subSVT;
 	int d1, d2, i2, i1, coord, is_empty;
@@ -1108,11 +1171,10 @@ static SEXP REC_subassign_SVT_with_leaf_vector(SEXP SVT, SEXP SVT0,
 		subSVT = VECTOR_ELT(SVT, i1);
 		if (ndim == 2) {
 			subSVT = PROTECT(
-				subassign_1D_SVT_with_short_Rvector(
+				subassign_bottom_leaf_with_short_Rvector(
 					subSVT, dim[0],
 					VECTOR_ELT(index, 0), short_Rvector,
-					left_Rvector_buf, offs_buf,
-					copy_Rvector_elt_FUN)
+					left_bufs)
 			);
 		} else {
 			if (SVT0 != R_NilValue)
@@ -1121,12 +1183,10 @@ static SEXP REC_subassign_SVT_with_leaf_vector(SEXP SVT, SEXP SVT0,
 				make_SVT_node(subSVT, dim[ndim - 2], subSVT0)
 			);
 			subSVT = PROTECT(
-				REC_subassign_SVT_with_leaf_vector(
+				REC_subassign_SVT_with_short_Rvector(
 					subSVT, subSVT0,
 					dim, ndim - 1, index,
-					short_Rvector,
-					left_Rvector_buf, offs_buf,
-					copy_Rvector_elt_FUN)
+					short_Rvector, left_bufs)
 			);
 		}
 		SET_VECTOR_ELT(SVT, i1, subSVT);
@@ -1148,14 +1208,13 @@ SEXP C_subassign_SVT_with_short_Rvector(
 		SEXP Rvector)
 {
 	SEXPTYPE Rtype;
-	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
 	const int *dim;
-	int ndim, along, d1, *offs_buf;
-	SEXP index0, left_Rvector_buf, ans;
+	int ndim, along, d1;
+	SEXP index1, ans;
+	LeftBufs left_bufs;
 
 	Rtype = _get_Rtype_from_Rstring(x_type);
-	copy_Rvector_elt_FUN = _select_copy_Rvector_elt_FUN(Rtype);
-	if (copy_Rvector_elt_FUN == NULL)
+	if (Rtype == 0)
 		error("S4Arrays internal error in "
 		      "C_subassign_SVT_with_short_Rvector():\n"
 		      "    SVT_SparseArray object has invalid type");
@@ -1171,27 +1230,26 @@ SEXP C_subassign_SVT_with_short_Rvector(
 		if (dim[along] == 0)
 			return x_SVT;  /* no-op */
 
-	d1 = dim[ndim - 1];
-	index0 = VECTOR_ELT(index, 0);
-	left_Rvector_buf = PROTECT(_new_Rvector(Rtype, d1));
-	offs_buf = (int *) R_alloc(d1, sizeof(int));
+	d1 = dim[0];
+	index1 = VECTOR_ELT(index, 0);
+
+	left_bufs = init_left_bufs(d1, index1, Rvector);
+	PROTECT(left_bufs.Rvector);
+	PROTECT(left_bufs.precomputed_bottom_leaf);
 
 	if (ndim == 1) {
-		ans = subassign_1D_SVT_with_short_Rvector(
+		ans = subassign_bottom_leaf_with_short_Rvector(
 					x_SVT, d1,
-					index0, Rvector,
-					left_Rvector_buf, offs_buf,
-					copy_Rvector_elt_FUN);
-		UNPROTECT(1);
+					index1, Rvector, &left_bufs);
+		UNPROTECT(2);
 		return ans;
 	}
 
-	ans = PROTECT(make_SVT_node(x_SVT, d1, x_SVT));
-	ans = REC_subassign_SVT_with_leaf_vector(ans, x_SVT,
+	ans = PROTECT(make_SVT_node(x_SVT, dim[ndim - 1], x_SVT));
+	ans = REC_subassign_SVT_with_short_Rvector(ans, x_SVT,
 					dim, ndim, index,
-					Rvector, left_Rvector_buf, offs_buf,
-					copy_Rvector_elt_FUN);
-	UNPROTECT(2);
+					Rvector, &left_bufs);
+	UNPROTECT(3);
 	return ans;
 }
 
@@ -1225,7 +1283,7 @@ SEXP C_subassign_SVT_with_SVT(
  * The code below was an early attempt at solving the
  * C_subassign_SVT_with_short_Rvector() problem with a non-recursive
  * implementation. When I realized it was not going to work, I switched
- * to the REC_subassign_SVT_with_leaf_vector() solution (which is
+ * to the REC_subassign_SVT_with_short_Rvector() solution (which is
  * recursive). I'm keeping the code below for now because the NindexIterator
  * thing works great (even though SVT_SparseArray subassignment is not a
  * good use case for it) and I might need it at some point for other things.

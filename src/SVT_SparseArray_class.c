@@ -279,7 +279,7 @@ static SEXP REC_build_SVT_from_Rsubarray(
 			      "    dim[0] != subarr_len");
 		ans = _make_leaf_vector_from_Rsubvec(
 					Rarray, subarr_offset, dim[0],
-					offs_buf);
+					offs_buf, 1);
 		if (ans_Rtype == TYPEOF(Rarray) || ans == R_NilValue)
 			return ans;
 		PROTECT(ans);
@@ -495,7 +495,7 @@ static SEXP build_leaf_vector_from_CsparseMatrix_col(SEXP x_i, SEXP x_x,
 
 	/* Will skip zeros from 'x_x' if any. */
 	ans = _make_leaf_vector_from_Rsubvec(x_x, (R_xlen_t) offset, nzcount,
-					     offs_buf);
+					     offs_buf, 1);
 	if (ans == R_NilValue)
 		return ans;
 	PROTECT(ans);
