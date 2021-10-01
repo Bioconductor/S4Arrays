@@ -54,6 +54,12 @@ SEXP _make_leaf_vector_from_Rsubvec(
 	int *offs_buf
 );
 
+int _expand_leaf_vector(
+	SEXP lv,
+	SEXP out_Rvector,
+	R_xlen_t out_offset
+);
+
 SEXP _remove_zeros_from_leaf_vector(
 	SEXP lv,
 	int *offs_buf

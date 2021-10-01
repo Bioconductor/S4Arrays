@@ -195,6 +195,41 @@ void _copy_selected_Rsubvec_elts(
 	SEXP out_Rvector
 );
 
+void _copy_ints_to_offsets(
+	const int *in,
+	const int *selection,
+	int n,
+	int *out
+);
+
+void _copy_doubles_to_offsets(
+	const double *in,
+	const int *selection,
+	int n,
+	double *out
+);
+
+void _copy_Rcomplexes_to_offsets(
+	const Rcomplex *in,
+	const int *selection,
+	int n,
+	Rcomplex *out
+);
+
+void _copy_Rbytes_to_offsets(
+	const Rbyte *in,
+	const int *selection,
+	int n,
+	Rbyte *out
+);
+
+void _copy_Rvector_elts_to_offsets(
+	SEXP in_Rvector,
+	const int *selection,
+	SEXP out_Rvector,
+	R_xlen_t out_offset
+);
+
 void _copy_Rvector_elts_from_selected_offsets(
 	SEXP in_Rvector,
 	const int *offsets,

@@ -66,10 +66,11 @@ SEXP _alloc_and_split_leaf_vector(int lv_len, SEXPTYPE Rtype,
 
 /****************************************************************************
  * _make_leaf_vector_from_Rsubvec()
- *
- * Returns R_NilValue or a "leaf vector".
  */
 
+
+/* 'offs_buf' must be of length 'subvec_len' (or more).
+   Returns R_NilValue or a "leaf vector". */
 SEXP _make_leaf_vector_from_Rsubvec(
 		SEXP Rvector, R_xlen_t subvec_offset, int subvec_len,
 		int *offs_buf)
@@ -102,6 +103,27 @@ SEXP _make_leaf_vector_from_Rsubvec(
 	ans = _new_leaf_vector(ans_offs, ans_vals);
 	UNPROTECT(2);
 	return ans;
+}
+
+
+/****************************************************************************
+ * _expand_leaf_vector()
+ */
+
+/* Assumes that 'out_Rvector' is long enough, has the right type, and
+   is already filled with zeros e.g. it was created with
+   _new_Rvector(TYPEOF(lv), d). */
+int _expand_leaf_vector(SEXP lv, SEXP out_Rvector, R_xlen_t out_offset)
+{
+	SEXP lv_offs, lv_vals;
+	int ret;
+
+	ret = _split_leaf_vector(lv, &lv_offs, &lv_vals);
+	if (ret < 0)
+		return -1;
+	_copy_Rvector_elts_to_offsets(lv_vals, INTEGER(lv_offs),
+				      out_Rvector, out_offset);
+	return 0;
 }
 
 

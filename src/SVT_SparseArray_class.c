@@ -200,28 +200,17 @@ SEXP C_set_SVT_SparseArray_type(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 /* Recursive. */
 static int REC_dump_SVT_to_Rsubarray(SEXP SVT,
 		const int *dim, int ndim,
-		SEXP Rarray, R_xlen_t subarr_offset, R_xlen_t subarr_len,
-		CopyRVectorElt_FUNType copy_Rvector_elt_FUN)
+		SEXP Rarray, R_xlen_t subarr_offset, R_xlen_t subarr_len)
 {
-	int lv_len, k, SVT_len, i, ret;
-	SEXP lv_offs, lv_vals, subSVT;
-	const int *p;
-	R_xlen_t offset;
+	int SVT_len, i, ret;
+	SEXP subSVT;
 
 	if (SVT == R_NilValue)
 		return 0;
 
 	if (ndim == 1) {
 		/* 'SVT' is a "leaf vector". */
-		lv_len = _split_leaf_vector(SVT, &lv_offs, &lv_vals);
-		if (lv_len < 0)
-			return -1;
-		for (k = 0, p = INTEGER(lv_offs); k < lv_len; k++, p++) {
-			offset = subarr_offset + *p;
-			copy_Rvector_elt_FUN(lv_vals, (R_xlen_t) k,
-					     Rarray, offset);
-		}
-		return 0;
+		return _expand_leaf_vector(SVT, Rarray, subarr_offset);
 	}
 
 	/* 'SVT' is a regular node (list). */
@@ -234,8 +223,7 @@ static int REC_dump_SVT_to_Rsubarray(SEXP SVT,
 		subSVT = VECTOR_ELT(SVT, i);
 		ret = REC_dump_SVT_to_Rsubarray(subSVT,
 				dim, ndim - 1,
-				Rarray, subarr_offset, subarr_len,
-				copy_Rvector_elt_FUN);
+				Rarray, subarr_offset, subarr_len);
 		if (ret < 0)
 			return -1;
 		subarr_offset += subarr_len;
@@ -248,13 +236,11 @@ SEXP C_from_SVT_SparseArray_to_Rarray(SEXP x_dim, SEXP x_dimnames,
 		SEXP x_type, SEXP x_SVT)
 {
 	SEXPTYPE Rtype;
-	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
 	SEXP ans;
 	int ret;
 
 	Rtype = _get_Rtype_from_Rstring(x_type);
-	copy_Rvector_elt_FUN = _select_copy_Rvector_elt_FUN(Rtype);
-	if (copy_Rvector_elt_FUN == NULL)
+	if (Rtype == 0)
 		error("S4Arrays internal error in "
 		      "C_from_SVT_SparseArray_to_Rarray():\n"
 		      "    SVT_SparseArray object has invalid type");
@@ -262,8 +248,7 @@ SEXP C_from_SVT_SparseArray_to_Rarray(SEXP x_dim, SEXP x_dimnames,
 	ans = PROTECT(_new_Rarray(Rtype, x_dim, x_dimnames));
 	ret = REC_dump_SVT_to_Rsubarray(x_SVT,
 				INTEGER(x_dim), LENGTH(x_dim),
-				ans, 0, XLENGTH(ans),
-				copy_Rvector_elt_FUN);
+				ans, 0, XLENGTH(ans));
 	UNPROTECT(1);
 	if (ret < 0)
 		error("S4Arrays internal error "
@@ -583,8 +568,7 @@ static SEXP alloc_nzvals(R_xlen_t nzdata_len, SEXP type)
 
 	Rtype = _get_Rtype_from_Rstring(type);
 	if (Rtype == 0)
-		error("S4Arrays internal error in "
-		      "alloc_nzvals():\n"
+		error("S4Arrays internal error in alloc_nzvals():\n"
 		      "    SVT_SparseArray object has invalid type");
 	return allocVector(Rtype, nzdata_len);
 }
