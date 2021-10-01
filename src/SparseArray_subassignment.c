@@ -318,11 +318,11 @@ static inline int descend_to_bottom_by_Lidx(SEXP SVT, SEXP SVT0,
 	if (IDS_len > *(max_IDS_len))					\
 		*(max_IDS_len) = IDS_len;				\
 }
-#define	UPDATE_MAX_POSTMERGE_LV_LEN(max_postmerge_lv_len)		\
+#define	UPDATE_MAX_POSTMERGE_LV_LEN(max_postmerge_lv_len, d1)		\
 {									\
 	size_t worst_merged_len = lv_len + IDS_len;			\
-	if (worst_merged_len > INT_MAX)					\
-		worst_merged_len = INT_MAX;				\
+	if (worst_merged_len > (d1))					\
+		worst_merged_len = (d1);				\
 	if (worst_merged_len > *(max_postmerge_lv_len))			\
 		*(max_postmerge_lv_len) = (int) worst_merged_len;	\
 }
@@ -352,7 +352,7 @@ static int dispatch_vals_by_Mindex(SEXP SVT, SEXP SVT0,
 			return -1;
 		IDS_len = append_atid_off_to_IDS(IDS, atid_off);
 		UPDATE_MAX_IDS_LEN(max_IDS_len);
-		UPDATE_MAX_POSTMERGE_LV_LEN(max_postmerge_lv_len);
+		UPDATE_MAX_POSTMERGE_LV_LEN(max_postmerge_lv_len, dim[0]);
 	}
 	return 0;
 }
@@ -384,7 +384,7 @@ static int dispatch_vals_by_Lindex(SEXP SVT, SEXP SVT0,
 			return -1;
 		IDS_len = append_atid_lloff_to_IDS(IDS, atid_lloff);
 		UPDATE_MAX_IDS_LEN(max_IDS_len);
-		UPDATE_MAX_POSTMERGE_LV_LEN(max_postmerge_lv_len);
+		UPDATE_MAX_POSTMERGE_LV_LEN(max_postmerge_lv_len, dim[0]);
 	}
 	return 0;
 }
@@ -404,19 +404,21 @@ typedef struct sort_bufs_t {
 } SortBufs;
 
 /* All buffers are made of length 'max_IDS_len' except 'sort_bufs.offs'
-   which we make of length 'max_postmerge_lv_len' so that we can use it
-   in the call to _remove_zeros_from_leaf_vector() in the
-   make_and_merge_leaf_vector_from_IDS_*_vals() functions below.
-   Note that 'max_postmerge_lv_len' is guaranteed to be >= 'max_IDS_len'. */
+   which we must make of length 'max(max_IDS_len, max_postmerge_lv_len)'
+   so that we can use it in the call to _remove_zeros_from_leaf_vector()
+   in the make_and_merge_leaf_vector_from_IDS_*_vals() functions below. */
 static SortBufs alloc_sort_bufs(int max_IDS_len, int max_postmerge_lv_len)
 {
 	SortBufs sort_bufs;
+	int offs_len;
 
 	sort_bufs.order = (int *) R_alloc(max_IDS_len, sizeof(int));
 	sort_bufs.rxbuf1 = (unsigned short int *)
 			R_alloc(max_IDS_len, sizeof(unsigned short int));
 	sort_bufs.rxbuf2 = (int *) R_alloc(max_IDS_len, sizeof(int));
-	sort_bufs.offs = (int *) R_alloc(max_postmerge_lv_len, sizeof(int));
+	offs_len = max_postmerge_lv_len > max_IDS_len ? max_postmerge_lv_len
+						      : max_IDS_len;
+	sort_bufs.offs = (int *) R_alloc(offs_len, sizeof(int));
 	return sort_bufs;
 }
 
@@ -578,7 +580,7 @@ static SEXP make_and_merge_leaf_vector_from_IDS_Mindex_vals(SEXP xlv,
 	ans = PROTECT(_merge_leaf_vectors(lv1, lv2));
 
 	/* We've made sure that 'sort_bufs->offs' is big enough (its length
-	   is 'max_postmerge_lv_len'). */
+	   is at least 'max_postmerge_lv_len'). */
 	ans = _remove_zeros_from_leaf_vector(ans, sort_bufs->offs);
 	UNPROTECT(3);
 	return ans;
@@ -603,7 +605,7 @@ static SEXP make_and_merge_leaf_vector_from_IDS_Lindex_vals(SEXP xlv,
 	ans = PROTECT(_merge_leaf_vectors(lv1, lv2));
 
 	/* We've made sure that 'sort_bufs->offs' is big enough (its length
-	   is 'max_postmerge_lv_len'). */
+	   is at least 'max_postmerge_lv_len'). */
 	ans = _remove_zeros_from_leaf_vector(ans, sort_bufs->offs);
 	UNPROTECT(3);
 	return ans;
@@ -769,9 +771,11 @@ static SEXP make_leaf_vector_from_Lindex_vals(SEXP Lindex, SEXP vals, int d1,
 	return ans;
 }
 
-/* 'SVT' is either R_NilValue or a "leaf vector".
-   'Lindex' and 'vals' are assumed to have the same nonzero length. */
-static SEXP subassign_1D_SVT_by_Lindex(int d1, SEXP SVT, SEXP Lindex, SEXP vals)
+/* 'SVT' must be either R_NilValue or a "leaf vector".
+   'Lindex' and 'vals' are assumed to have the same nonzero length.
+   Returns R_NilValue or a "leaf vector". */
+static SEXP subassign_1D_SVT_by_Lindex(SEXP SVT, int d1,
+				       SEXP Lindex, SEXP vals)
 {
 	R_xlen_t vals_len;
 	size_t worst_merged_len;
@@ -788,8 +792,8 @@ static SEXP subassign_1D_SVT_by_Lindex(int d1, SEXP SVT, SEXP Lindex, SEXP vals)
 	} else {
 		int lv_len = LENGTH(VECTOR_ELT(SVT, 0));
 		worst_merged_len = lv_len + vals_len;
-		if (worst_merged_len > INT_MAX)
-			worst_merged_len = INT_MAX;
+		if (worst_merged_len > d1)
+			worst_merged_len = d1;
 	}
 	sort_bufs = alloc_sort_bufs((int) vals_len, (int) worst_merged_len);
 	ans = PROTECT(
@@ -798,7 +802,7 @@ static SEXP subassign_1D_SVT_by_Lindex(int d1, SEXP SVT, SEXP Lindex, SEXP vals)
 	if (SVT != R_NilValue)
 		ans = PROTECT(_merge_leaf_vectors(SVT, ans));
 	/* We've made sure that 'sort_bufs.offs' is big enough (its length
-	   is 'worst_merged_len'). */
+	   is at least 'worst_merged_len'). */
 	ans = _remove_zeros_from_leaf_vector(ans, sort_bufs.offs);
 	UNPROTECT(SVT != R_NilValue ? 2 : 1);
 	return ans;
@@ -856,15 +860,15 @@ SEXP C_subassign_SVT_by_Mindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 		return x_SVT;  /* no-op */
 
 	if (x_ndim == 1)
-		return subassign_1D_SVT_by_Lindex(INTEGER(x_dim)[0],
-						  x_SVT, Mindex, vals);
+		return subassign_1D_SVT_by_Lindex(x_SVT, INTEGER(x_dim)[0],
+						  Mindex, vals);
 
 	// FIXME: Bad things will happen if some of the dimensions are 0!
 
 	/* 1st pass */
 	//clock_t t0 = clock();
 	d1 = INTEGER(x_dim)[x_ndim - 1];
-	ans = PROTECT(make_SVT_node(x_SVT, d1, R_NilValue));
+	ans = PROTECT(make_SVT_node(x_SVT, d1, x_SVT));
 	max_IDS_len = 0;
 	max_postmerge_lv_len = 0;
 	ret = dispatch_vals_by_Mindex(ans, x_SVT,
@@ -884,13 +888,6 @@ SEXP C_subassign_SVT_by_Mindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 		UNPROTECT(1);
 		error("assigning more than INT_MAX values to "
 		      "the same column is not supported");
-	}
-	/* Sanity check (should never fail). */
-	if (max_postmerge_lv_len < max_IDS_len) {
-		UNPROTECT(1);
-		error("S4Arrays internal error in "
-		      "C_subassign_SVT_by_Mindex():\n"
-		      "    max_postmerge_lv_len < max_IDS_len");
 	}
 	//double dt = (1.0 * clock() - t0) * 1000.0 / CLOCKS_PER_SEC;
 	//printf("1st pass: %2.3f ms\n", dt);
@@ -939,8 +936,8 @@ SEXP C_subassign_SVT_by_Lindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 		return x_SVT;  /* no-op */
 
 	if (x_ndim == 1)
-		return subassign_1D_SVT_by_Lindex(INTEGER(x_dim)[0],
-						  x_SVT, Lindex, vals);
+		return subassign_1D_SVT_by_Lindex(x_SVT, INTEGER(x_dim)[0],
+						  Lindex, vals);
 
 	dimcumprod = (R_xlen_t *) R_alloc(x_ndim, sizeof(R_xlen_t));
 	p = 1;
@@ -955,7 +952,7 @@ SEXP C_subassign_SVT_by_Lindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	/* 1st pass */
 	//clock_t t0 = clock();
 	d1 = INTEGER(x_dim)[x_ndim - 1];
-	ans = PROTECT(make_SVT_node(x_SVT, d1, R_NilValue));
+	ans = PROTECT(make_SVT_node(x_SVT, d1, x_SVT));
 	max_IDS_len = 0;
 	max_postmerge_lv_len = 0;
 	ret = dispatch_vals_by_Lindex(ans, x_SVT,
@@ -975,13 +972,6 @@ SEXP C_subassign_SVT_by_Lindex(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 		UNPROTECT(1);
 		error("assigning more than INT_MAX values to "
 		      "the same column is not supported");
-	}
-	/* Sanity check (should never fail). */
-	if (max_postmerge_lv_len < max_IDS_len) {
-		UNPROTECT(1);
-		error("S4Arrays internal error in "
-		      "C_subassign_SVT_by_Lindex():\n"
-		      "    max_postmerge_lv_len < max_IDS_len");
 	}
 	//double dt = (1.0 * clock() - t0) * 1000.0 / CLOCKS_PER_SEC;
 	//printf("1st pass: %2.3f ms\n", dt);
@@ -1137,8 +1127,8 @@ static inline int next_coords0(NindexIterator *Nindex_iter)
 	return 1;
 }
 
-static int subassign_SVT_with_short_Rvector(SEXP SVT, SEXP SVT0,
-		NindexIterator *Nindex_iter, SEXP Rvector)
+static int subassign_SVT_with_leaf_vector(SEXP SVT, SEXP SVT0,
+		NindexIterator *Nindex_iter, SEXP right_lv)
 {
 	int ret, i;
 	SEXP bottom_leaf_parent, bottom_leaf;
@@ -1157,16 +1147,25 @@ static int subassign_SVT_with_short_Rvector(SEXP SVT, SEXP SVT0,
 	return 0;
 }
 
-/* 'index' must be R_NilValue or an integer vector. */
-static SEXP subassign_1D_SVT_with_short_Rvector(SEXP SVT,
-		int d1, SEXP index, SEXP Rvector)
+static SEXP make_leaf_vector_from_short_Rvector(SEXP Rvector, int d1,
+		int *offs_buf)
+{
+	//_make_leaf_vector_from_Rsubvec(Rvector, 0, dim[0], offs_buf);
+	return R_NilValue;
+}
+
+/* 'SVT' must be either R_NilValue or a "leaf vector".
+   'index1' must be either R_NilValue or an integer vector.
+   Returns R_NilValue or a "leaf vector". */
+static SEXP subassign_1D_SVT_with_leaf_vector(SEXP SVT, int d1,
+		SEXP index1, SEXP right_lv)
 {
 	return SVT;
 }
 
 /* Recursive. 'ndim' must be >= 2. */
-static SEXP REC_subassign_SVT_with_short_Rvector(SEXP SVT, SEXP SVT0,
-		const int *dim, int ndim, SEXP index, SEXP Rvector)
+static SEXP REC_subassign_SVT_with_leaf_vector(SEXP SVT, SEXP SVT0,
+		const int *dim, int ndim, SEXP index, SEXP right_lv)
 {
 	SEXP subSVT0, index_elt, subSVT;
 	int d, idx_len, is_empty, i2, i1, coord;
@@ -1195,8 +1194,9 @@ static SEXP REC_subassign_SVT_with_short_Rvector(SEXP SVT, SEXP SVT0,
 		subSVT = VECTOR_ELT(SVT, i1);
 		if (ndim == 2) {
 			subSVT = PROTECT(
-				subassign_1D_SVT_with_short_Rvector(subSVT,
-					dim[0], VECTOR_ELT(index, 0), Rvector)
+				subassign_1D_SVT_with_leaf_vector(
+						subSVT, dim[0],
+						VECTOR_ELT(index, 0), right_lv)
 			);
 		} else {
 			if (SVT0 != R_NilValue)
@@ -1205,9 +1205,9 @@ static SEXP REC_subassign_SVT_with_short_Rvector(SEXP SVT, SEXP SVT0,
 				make_SVT_node(subSVT, dim[ndim - 2], subSVT0)
 			);
 			subSVT = PROTECT(
-				REC_subassign_SVT_with_short_Rvector(
+				REC_subassign_SVT_with_leaf_vector(
 					subSVT, subSVT0, dim, ndim - 1,
-					index, Rvector)
+					index, right_lv)
 			);
 		}
 		SET_VECTOR_ELT(SVT, i1, subSVT);
@@ -1224,10 +1224,10 @@ SEXP C_subassign_SVT_with_short_Rvector(
 		SEXP Rvector)
 {
 	SEXPTYPE Rtype;
-	int x_ndim, d1, ret;
+	int x_ndim, d1, *offs_buf;
 	NindexIterator Nindex_iter;
 	R_xlen_t selection_len;
-	SEXP ans;
+	SEXP right_lv, ans;
 
 	Rtype = _get_Rtype_from_Rstring(x_type);
 	if (Rtype == 0)
@@ -1246,18 +1246,26 @@ SEXP C_subassign_SVT_with_short_Rvector(
 	if (selection_len == 0)
 		return x_SVT;  /* no-op */
 
+	d1 = INTEGER(x_dim)[x_ndim - 1];
+	offs_buf = (int *) R_alloc(d1, sizeof(int));
+	right_lv = PROTECT(
+		make_leaf_vector_from_short_Rvector(Rvector, d1, offs_buf)
+	);
+
 	if (x_ndim == 1) {
-		error("1D case not ready yet");
-		return R_NilValue;
+		ans = subassign_1D_SVT_with_leaf_vector(
+					x_SVT, d1,
+					VECTOR_ELT(index, 0), right_lv);
+		UNPROTECT(1);
+		return ans;
 	}
 
-	d1 = INTEGER(x_dim)[x_ndim - 1];
-	ans = PROTECT(make_SVT_node(x_SVT, d1, R_NilValue));
-	//ret = subassign_SVT_with_short_Rvector(ans, x_SVT,
-	//				       &Nindex_iter, Rvector);
-	ans = REC_subassign_SVT_with_short_Rvector(ans, x_SVT,
-			INTEGER(x_dim), x_ndim, index, Rvector);
-	UNPROTECT(1);
+	ans = PROTECT(make_SVT_node(x_SVT, d1, x_SVT));
+	//ret = subassign_SVT_with_leaf_vector(ans, x_SVT,
+	//				       &Nindex_iter, right_lv);
+	ans = REC_subassign_SVT_with_leaf_vector(ans, x_SVT,
+			INTEGER(x_dim), x_ndim, index, right_lv);
+	UNPROTECT(2);
 	return ans;
 }
 
