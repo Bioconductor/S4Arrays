@@ -419,12 +419,22 @@
 array_as_one_line_summary <- function(x)
 {
     x_dim <- dim(x)
-    sprintf("<%s>%s %s of class %s and type \"%s\"",
+    sprintf("<%s>%s %s object of type \"%s\"",
             paste0(x_dim, collapse=" x "),
             if (is_sparse(x)) " sparse" else "",
-            if (length(x_dim) == 2L) "matrix" else "array",
-            class(x),
+            class(x)[[1L]],
             type(x))
+}
+
+print_some_array_elements <- function(x)
+{
+    if (type(x) == "integer") {
+        n1 <- n2 <- 4L
+    } else {
+        n1 <- 3L
+        n2 <- 2L
+    }
+    .print_array_data(x, n1, n2)
 }
 
 ### Work on any array-like object that complies with the "seed contract" i.e.
@@ -432,19 +442,16 @@ array_as_one_line_summary <- function(x)
 ### NOT exported.
 show_compact_array <- function(object)
 {
+    #grey <- make_style("grey")
+    #cat(grey(array_as_one_line_summary(object)))
     cat(array_as_one_line_summary(object))
     if (any(dim(object) == 0L)) {
         cat("\n")
         return()
     }
-    cat(":\n")
-    if (type(object) == "integer") {
-        n1 <- n2 <- 4L
-    } else {
-        n1 <- 3L
-        n2 <- 2L
-    }
-    .print_array_data(object, n1, n2)
+    #cat(grey(":"), "\n", sep="")
+    cat(":\n", sep="")
+    print_some_array_elements(object)
 }
 
 

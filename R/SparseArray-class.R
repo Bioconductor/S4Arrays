@@ -137,12 +137,29 @@ sparsity <- function(x) { 1 - nzcount(x) / length(x) }
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Show
+### show()
 ###
 
-### show_compact_array() relies on extract_array() so show() will work
-### out-of-the-box on any SparseArray derivative that supports aperm().
+SparseArray_as_one_line_summary <- function(x)
+{
+    sprintf("<%s %s> of type \"%s\" (nzcount=%s)",
+            paste0(dim(x), collapse=" x "), class(x),
+            type(x), format(nzcount(x)))
+}
+
 setMethod("show", "SparseArray",
-    function(object) show_compact_array(object)
+    function(object)
+    {
+        #grey <- make_style("grey")
+        #cat(grey(SparseArray_as_one_line_summary(object)))
+        cat(SparseArray_as_one_line_summary(object))
+        if (any(dim(object) == 0L)) {
+            cat("\n")
+            return()
+        }
+        #cat(grey(":"), "\n", sep="")
+        cat(":\n", sep="")
+        print_some_array_elements(object)
+    }
 )
 

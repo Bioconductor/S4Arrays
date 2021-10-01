@@ -16,7 +16,7 @@ Author: Hervé Pagès <hpages.on.github@gmail.com>
 Maintainer: Hervé Pagès <hpages.on.github@gmail.com>
 Depends: R (>= 4.1.0), methods, Matrix, BiocGenerics, MatrixGenerics,
 	S4Vectors, IRanges
-Imports: stats, XVector
+Imports: stats, crayon, XVector
 LinkingTo: S4Vectors, IRanges, XVector
 Suggests: BiocParallel, DelayedArray, scuttle, testthat,
 	knitr, rmarkdown, BiocStyle

@@ -4,6 +4,7 @@ import(methods)
 importFrom(stats, setNames)
 importClassFrom(Matrix, dgCMatrix, dgRMatrix, lgCMatrix, lgRMatrix)
 importFrom(Matrix, sparseMatrix, crossprod, tcrossprod)
+importFrom(crayon, make_style)
 
 import(BiocGenerics)
 import(MatrixGenerics)
