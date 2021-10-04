@@ -65,17 +65,26 @@
 
 
 .subassign_SVT_with_short_Rvector <- function(x, index, Rvector)
+{
+    stopifnot(is.vector(Rvector))
     .Call2("C_subassign_SVT_with_short_Rvector",
            x@dim, x@type, x@SVT, index, Rvector, PACKAGE="S4Arrays")
+}
 
 .subassign_SVT_with_Rarray <- function(x, index, Rarray)
+{
+    stopifnot(is.array(Rarray))
     .Call2("C_subassign_SVT_with_Rarray", x@dim, x@type, x@SVT,
            index, Rarray, PACKAGE="S4Arrays")
+}
 
 .subassign_SVT_with_SVT <- function(x, index, v)
+{
+    stopifnot(is(v, "SVT_SparseArray"))
     .Call2("C_subassign_SVT_with_SVT",
            x@dim, x@type, x@SVT, index, v@dim, v@type, v@SVT,
            PACKAGE="S4Arrays")
+}
 
 ### Like for 'extract_array()', the supplied 'index' must be a list with
 ### one list element per dimension in 'x'. Each list element must be an

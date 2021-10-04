@@ -78,3 +78,101 @@ test_that("subassign an SVT_SparseArray object by an Mindex or Lindex", {
                                                          "SVT_SparseArray")
 })
 
+.test_SparseArray_subassignment_by_Nindex <-
+    function(a0, index, vals, expected_class)
+{
+    object0 <- as(a0, expected_class)
+
+    a <- `[<-`(a0, index, value=vals)
+    object <- `[<-`(object0, index, value=vals)
+    check_SparseArray_object(object, expected_class, a)
+}
+
+test_that(paste("subassign an SVT_SparseArray object by an Nindex",
+                "and with a short vector"), {
+    set.seed(123)
+    a0 <- array(0L, c(180, 400, 50))
+    a0[sample(length(a0), 1e6)] <- sample(10L, 1e6, replace=TRUE)
+    svt0 <- as(a0, "SVT_SparseArray")
+
+    ## Wipe out all nonzeros:
+    a <- `[<-`(a0, , , , value=0L)
+    svt <- `[<-`(svt0, , , , value=0L)
+    check_SparseArray_object(svt, "SVT_SparseArray", a)
+    expect_null(svt@SVT)
+
+    ## Wipe out all nonzeros in a column:
+    a <- `[<-`(a0, , 8, 1, value=0L)
+    svt <- `[<-`(svt0, , 8, 1, value=0L)
+    check_SparseArray_object(svt, "SVT_SparseArray", a)
+    expect_null(svt@SVT[[1L]][[8L]])
+    i0 <- S4Arrays:::which_is_nonzero(a0[ , 8, 1])
+    svt2 <- `[<-`(svt0, i0, 8, 1, value=0L)
+    expect_identical(svt2, svt)
+
+    ## Wipe out all nonzeros in a row:
+    a <- `[<-`(a0, 17, , 1, value=0L)
+    svt <- `[<-`(svt0, 17, , 1, value=0L)
+    check_SparseArray_object(svt, "SVT_SparseArray", a)
+    j0 <- S4Arrays:::which_is_nonzero(a0[17, , 1])
+    svt2 <- `[<-`(svt0, 17, j0, 1, value=0L)
+    expect_identical(svt2, svt)
+
+    ## Inject zeros at random positions in a column:
+    i <- sample(180L, 20L)
+    a <- `[<-`(a0, i, 8, 1, value=0L)
+    svt <- `[<-`(svt0, i, 8, 1, value=0L)
+    check_SparseArray_object(svt, "SVT_SparseArray", a)
+
+    ## Inject zeros at random positions in a row:
+    j <- sample(400L, 50L)
+    a <- `[<-`(a0, 17, j, 1, value=0L)
+    svt <- `[<-`(svt0, 17, j, 1, value=0L)
+    check_SparseArray_object(svt, "SVT_SparseArray", a)
+
+    ## Inject zeros in a random set of rows:
+    a <- `[<-`(a0, i, , 1, value=0L)
+    svt <- `[<-`(svt0, i, , 1, value=0L)
+    check_SparseArray_object(svt, "SVT_SparseArray", a)
+
+    ## Inject zeros in a random set of columns:
+    a <- `[<-`(a0, , j, 1, value=0L)
+    svt <- `[<-`(svt0, , j, 1, value=0L)
+    check_SparseArray_object(svt, "SVT_SparseArray", a)
+
+    ## Inject zeros at random positions:
+    a <- `[<-`(a0, i, j, 1, value=0L)
+    svt <- `[<-`(svt0, i, j, 1, value=0L)
+    check_SparseArray_object(svt, "SVT_SparseArray", a)
+    a <- `[<-`(a0, i, j, , value=0L)
+    svt <- `[<-`(svt0, i, j, , value=0L)
+    check_SparseArray_object(svt, "SVT_SparseArray", a)
+
+    ## Inject fixed nonzero at random positions in a column:
+    a <- `[<-`(a0, i, 8, 1, value=-555L)
+    svt <- `[<-`(svt0, i, 8, 1, value=-555L)
+    check_SparseArray_object(svt, "SVT_SparseArray", a)
+
+    ## Inject fixed nonzero at random positions in a row:
+    a <- `[<-`(a0, 17, j, 1, value=-555L)
+    svt <- `[<-`(svt0, 17, j, 1, value=-555L)
+    check_SparseArray_object(svt, "SVT_SparseArray", a)
+
+    ## Inject fixed nonzero val at random positions:
+    a <- `[<-`(a0, i, j, 1, value=-555L)
+    svt <- `[<-`(svt0, i, j, 1, value=-555L)
+    check_SparseArray_object(svt, "SVT_SparseArray", a)
+    a <- `[<-`(a0, i, j, , value=-555L)
+    svt <- `[<-`(svt0, i, j, , value=-555L)
+    check_SparseArray_object(svt, "SVT_SparseArray", a)
+
+    ## Inject short vector with recycling:
+    value <- c(-(101:104), 0L)
+    a <- `[<-`(a0, i, j, 1, value=value)
+    svt <- `[<-`(svt0, i, j, 1, value=value)
+    check_SparseArray_object(svt, "SVT_SparseArray", a)
+    a <- `[<-`(a0, i, , , value=value)
+    svt <- `[<-`(svt0, i, , , value=value)
+    check_SparseArray_object(svt, "SVT_SparseArray", a)
+})
+
