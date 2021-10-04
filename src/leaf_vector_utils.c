@@ -79,8 +79,8 @@ SEXP _make_leaf_vector_from_Rsubvec(
 	SEXP ans_offs, ans_vals, ans;
 
 	ans_len = _collect_offsets_of_nonzero_Rsubvec_elts(
-			Rvector, subvec_offset, subvec_len,
-			offs_buf);
+				Rvector, subvec_offset, subvec_len,
+				offs_buf);
 	if (ans_len == 0)
 		return R_NilValue;
 
@@ -136,25 +136,25 @@ int _expand_leaf_vector(SEXP lv, SEXP out_Rvector, R_xlen_t out_offset)
 
 SEXP _remove_zeros_from_leaf_vector(SEXP lv, int *offs_buf)
 {
-	SEXP lv_offs, lv_vals, ans, ans_offs;
+	SEXP lv_offs, lv_vals, ans_offs, ans_vals, ans;
 	int lv_len, ans_len;
 
 	lv_len = _split_leaf_vector(lv, &lv_offs, &lv_vals);
-	ans = _make_leaf_vector_from_Rsubvec(lv_vals, 0, lv_len, offs_buf, 1);
-	if (ans == R_NilValue)
-		return ans;
+	ans_len = _collect_offsets_of_nonzero_Rsubvec_elts(
+				lv_vals, 0, lv_len,
+				offs_buf);
+	if (ans_len == 0)       /* all values in 'lv' are zeros */
+		return R_NilValue;
+	if (ans_len == lv_len)  /* all values in 'lv' are nonzeros */
+		return lv;  /* no-op */
 
-	PROTECT(ans);
-	ans_offs = VECTOR_ELT(ans, 0);
-	ans_len = LENGTH(ans_offs);
-	if (ans_len == lv_len) {
-		/* 'lv' contains no zeros. */
-		UNPROTECT(1);
-		return lv;
-	}
-	_copy_selected_ints(INTEGER(lv_offs), INTEGER(ans_offs), ans_len,
+	ans_offs = PROTECT(NEW_INTEGER(ans_len));
+	_copy_selected_ints(INTEGER(lv_offs), offs_buf, ans_len,
 			    INTEGER(ans_offs));
-	UNPROTECT(1);
+	ans_vals = PROTECT(allocVector(TYPEOF(lv_vals), ans_len));
+	_copy_selected_Rsubvec_elts(lv_vals, 0, offs_buf, ans_vals);
+	ans = _new_leaf_vector(ans_offs, ans_vals);
+	UNPROTECT(2);
 	return ans;
 }
 
