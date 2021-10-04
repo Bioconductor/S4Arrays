@@ -68,7 +68,6 @@ SEXP _alloc_and_split_leaf_vector(int lv_len, SEXPTYPE Rtype,
  * _make_leaf_vector_from_Rsubvec()
  */
 
-
 /* 'offs_buf' must be of length 'subvec_len' (or more).
    Returns R_NilValue or a "leaf vector". */
 SEXP _make_leaf_vector_from_Rsubvec(
@@ -192,41 +191,56 @@ SEXP _coerce_leaf_vector(SEXP lv, SEXPTYPE new_Rtype, int *warn, int *offs_buf)
 
 
 /****************************************************************************
- * _merge_leaf_vectors()
+ * _subassign_leaf_vector_with_Rvector()
  *
+ * 'lv' must be a "leaf vector".
+ * 'index' must be an integer vector containing valid zero-based indices
+ * (a.k.a. offsets) into 'lv'. They are expected to be already sorted in
+ * strictly ascending order.
+ * 'Rvector' must be a vector (atomic or list) of the same length as 'index'.
  * Returns a "leaf vector" whose length is guaranteed to not exceed
- * min(length(lv1) + length(lv2), INT_MAX).
+ * min(length(lv) + length(index), INT_MAX). Note that the zeros in 'Rvector'
+ * will be injected in the returned "leaf vector". This function does NOT
+ * remove them!
  */
 
-SEXP _merge_leaf_vectors(SEXP lv1, SEXP lv2)
+SEXP _subassign_leaf_vector_with_Rvector(SEXP lv, SEXP index, SEXP Rvector)
 {
-	SEXP lv1_offs, lv1_vals, lv2_offs, lv2_vals, ans, ans_offs, ans_vals;
-	int lv1_len, lv2_len, ans_len, k1, k2, k, n;
+	int lv_len, index_len, ans_len, k1, k2, k, n;
+	SEXP lv_offs, lv_vals, ans, ans_offs, ans_vals;
 	SEXPTYPE Rtype;
 	CopyRVectorElt_FUNType copy_Rvector_elt_FUN;
 	CopyRVectorElts_FUNType copy_Rvector_elts_FUN;
 	const int *offs1_p, *offs2_p;
 	int *ans_offs_p;
 
-	lv1_len = _split_leaf_vector(lv1, &lv1_offs, &lv1_vals);
-	lv2_len = _split_leaf_vector(lv2, &lv2_offs, &lv2_vals);
-	Rtype = TYPEOF(lv1_vals);
-	if (TYPEOF(lv2_vals) != Rtype)
-		error("S4Arrays internal error in _merge_leaf_vectors():\n"
-		      "    leaf vectors to merge have different types");
+	lv_len = _split_leaf_vector(lv, &lv_offs, &lv_vals);
+	Rtype = TYPEOF(lv_vals);
+
 	copy_Rvector_elt_FUN = _select_copy_Rvector_elt_FUN(Rtype);
-	if (copy_Rvector_elt_FUN == NULL)
-		error("S4Arrays internal error in _merge_leaf_vectors():\n"
-		      "    type \"%s\" is not supported", type2char(Rtype));
 	copy_Rvector_elts_FUN = _select_copy_Rvector_elts_FUN(Rtype);
-	if (copy_Rvector_elts_FUN == NULL)
-		error("S4Arrays internal error in _merge_leaf_vectors():\n"
+	if (copy_Rvector_elt_FUN == NULL || copy_Rvector_elts_FUN == NULL)
+		error("S4Arrays internal error in "
+		      "_subassign_leaf_vector_with_Rvector():\n"
 		      "    type \"%s\" is not supported", type2char(Rtype));
 
-	offs1_p = INTEGER(lv1_offs);
-	offs2_p = INTEGER(lv2_offs);
+	if (TYPEOF(Rvector) != Rtype)
+		error("S4Arrays internal error in "
+		      "_subassign_leaf_vector_with_Rvector():\n"
+		      "    'lv' and 'Rvector' have different types");
+
+	index_len = LENGTH(index);
+	if (LENGTH(Rvector) != index_len)
+		error("S4Arrays internal error in "
+		      "_subassign_leaf_vector_with_Rvector():\n"
+		      "    'index' and 'Rvector' have different lengths");
+	if (index_len == 0)
+		return _new_leaf_vector(lv_offs, lv_vals);
+
+	offs1_p = INTEGER(lv_offs);
+	offs2_p = INTEGER(index);
 	ans_len = k1 = k2 = 0;
-	while (k1 < lv1_len && k2 < lv2_len) {
+	while (k1 < lv_len && k2 < index_len) {
 		if (*offs1_p < *offs2_p) {
 			offs1_p++;
 			k1++;
@@ -242,34 +256,34 @@ SEXP _merge_leaf_vectors(SEXP lv1, SEXP lv2)
 		}
 		ans_len++;
 	}
-	if (k1 < lv1_len) {
-		ans_len += lv1_len - k1;
-	} else if (k2 < lv2_len) {
-		ans_len += lv2_len - k2;
+	if (k1 < lv_len) {
+		ans_len += lv_len - k1;
+	} else if (k2 < index_len) {
+		ans_len += index_len - k2;
 	}
-        ans = PROTECT(_alloc_and_split_leaf_vector(ans_len, Rtype,
+	ans = PROTECT(_alloc_and_split_leaf_vector(ans_len, Rtype,
 						   &ans_offs, &ans_vals));
-	offs1_p = INTEGER(lv1_offs);
-	offs2_p = INTEGER(lv2_offs);
+	offs1_p = INTEGER(lv_offs);
+	offs2_p = INTEGER(index);
 	ans_offs_p = INTEGER(ans_offs);
 	k = k1 = k2 = 0;
-	while (k1 < lv1_len && k2 < lv2_len) {
+	while (k1 < lv_len && k2 < index_len) {
 		if (*offs1_p < *offs2_p) {
 			*ans_offs_p = *offs1_p;
-			copy_Rvector_elt_FUN(lv1_vals, (R_xlen_t) k1,
+			copy_Rvector_elt_FUN(lv_vals, (R_xlen_t) k1,
 					     ans_vals, (R_xlen_t) k);
 			offs1_p++;
 			k1++;
 		} else if (*offs1_p > *offs2_p) {
 			*ans_offs_p = *offs2_p;
-			copy_Rvector_elt_FUN(lv2_vals, (R_xlen_t) k2,
+			copy_Rvector_elt_FUN(Rvector, (R_xlen_t) k2,
 					     ans_vals, (R_xlen_t) k);
 			offs2_p++;
 			k2++;
 		} else {
 			/* *offs1_p == *offs2_p */
 			*ans_offs_p = *offs2_p;
-			copy_Rvector_elt_FUN(lv2_vals, (R_xlen_t) k2,
+			copy_Rvector_elt_FUN(Rvector, (R_xlen_t) k2,
 					     ans_vals, (R_xlen_t) k);
 			offs1_p++;
 			offs2_p++;
@@ -279,16 +293,16 @@ SEXP _merge_leaf_vectors(SEXP lv1, SEXP lv2)
 		ans_offs_p++;
 		k++;
 	}
-	if (k1 < lv1_len) {
-		n = lv1_len - k1;
+	if (k1 < lv_len) {
+		n = lv_len - k1;
 		memcpy(ans_offs_p, offs1_p, sizeof(int) * n);
-		copy_Rvector_elts_FUN(lv1_vals, (R_xlen_t) k1,
+		copy_Rvector_elts_FUN(lv_vals, (R_xlen_t) k1,
 				      ans_vals, (R_xlen_t) k,
 				      (R_xlen_t) n);
-	} else if (k2 < lv2_len) {
-		n = lv2_len - k2;
+	} else if (k2 < index_len) {
+		n = index_len - k2;
 		memcpy(ans_offs_p, offs2_p, sizeof(int) * n);
-		copy_Rvector_elts_FUN(lv2_vals, (R_xlen_t) k2,
+		copy_Rvector_elts_FUN(Rvector, (R_xlen_t) k2,
 				      ans_vals, (R_xlen_t) k,
 				      (R_xlen_t) n);
 	}

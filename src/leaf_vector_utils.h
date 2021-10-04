@@ -73,9 +73,10 @@ SEXP _coerce_leaf_vector(
 	int *offs_buf
 );
 
-SEXP _merge_leaf_vectors(
-	SEXP lv1,
-	SEXP lv2
+SEXP _subassign_leaf_vector_with_Rvector(
+	SEXP lv,
+	SEXP index,
+	SEXP Rvector
 );
 
 #endif  /* _LEAF_VECTOR_UTILS_H_ */
