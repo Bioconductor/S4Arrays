@@ -57,9 +57,10 @@
   \code{is_sparse()}, \code{nzcount()}, \code{sparsity()}, \code{arbind()}
   and \code{acbind()}.
 
-  \code{sparsity(x)} returns the ratio between number of zero-valued elements
-  and total number of elements (\code{length(x)}) in array-like object
-  \code{x}, that is, \code{1 - nzcount(x)/length(x)}.
+  \code{sparsity(x)} returns the ratio between the number of zero-valued
+  elements in array-like object \code{x} and its total number of elements
+  (\code{length(x)} or \code{prod(dim(x))}).
+  More precisely, \code{sparsity(x)} is \code{1 - nzcount(x)/length(x)}.
 }
 
 \seealso{

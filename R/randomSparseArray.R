@@ -8,7 +8,7 @@
 ###
 
 ### Returns an SVT_SparseArray object of type "double".
-randomSparseArray <- function(dim=1L, density=0.05)
+randomSparseArray <- function(dim, density=0.05)
 {
     if (!is.numeric(dim))
         stop(wmsg("'dim' must be an integer vector"))
@@ -18,7 +18,7 @@ randomSparseArray <- function(dim=1L, density=0.05)
         stop(wmsg("'density' must be a number >= 0 and <= 1"))
 
     ## Start with an empty sparse array.
-    ans <- new_SVT_SparseArray(dim, type="integer")
+    ans <- new_SVT_SparseArray(dim, type="double")
 
     ## Add the nonzero values to it.
     ans_len <- length(ans)
@@ -41,7 +41,7 @@ randomSparseMatrix <- function(nrow=1L, ncol=1L, density=0.05)
 {
     if (!isSingleNumber(nrow) || !isSingleNumber(ncol))
         stop(wmsg("'nrow' and 'ncol' must be single integers"))
-    randomSparseArray(c(nrow, ncol), density)
+    randomSparseArray(c(nrow, ncol), density=density)
 }
 
 
@@ -81,14 +81,25 @@ randomSparseMatrix <- function(nrow=1L, ncol=1L, density=0.05)
 }
 
 ### Returns an SVT_SparseArray object of type "integer".
-poissonSparseArray <- function(dim=1L, lambda=0.05)
+### Density of the returned object is expected to be about '1 - exp(-lambda)'.
+### Default for 'lambda' is set to -log(0.95) which should produce an object
+### with an expected density of 0.05.
+poissonSparseArray <- function(dim, lambda=-log(0.95), density=NA)
 {
     if (!is.numeric(dim))
         stop(wmsg("'dim' must be an integer vector"))
     if (!is.integer(dim))
         dim <- as.integer(dim)
-    if (!isSingleNumber(lambda) || lambda < 0 || lambda > 1)
-        stop(wmsg("'lambda' must be a number >= 0 and <= 1"))
+    if (!missing(lambda) && !identical(density, NA))
+        stop(wmsg("only one of 'lambda' and 'density' can be specified"))
+    if (!missing(lambda)) {
+        if (!isSingleNumber(lambda) || lambda < 0)
+            stop(wmsg("'lambda' must be a non-negative number"))
+    } else {
+        if (!isSingleNumber(density) || density < 0 || density >= 1)
+            stop(wmsg("'density' must be a number >= 0 and < 1"))
+        lambda <- -log(1 - density)
+    }
 
     ## Start with an empty sparse array.
     ans <- new_SVT_SparseArray(dim, type="integer")
@@ -101,10 +112,14 @@ poissonSparseArray <- function(dim=1L, lambda=0.05)
     ans
 }
 
-poissonSparseMatrix <- function(nrow=1L, ncol=1L, lambda=0.05)
+poissonSparseMatrix <- function(nrow=1L, ncol=1L, lambda=-log(0.95), density=NA)
 {
     if (!isSingleNumber(nrow) || !isSingleNumber(ncol))
         stop(wmsg("'nrow' and 'ncol' must be single integers"))
-    poissonSparseArray(c(nrow, ncol), lambda)
+    if (missing(lambda)) {
+        poissonSparseArray(c(nrow, ncol), density=density)
+    } else {
+        poissonSparseArray(c(nrow, ncol), lambda=lambda, density=density)
+    }
 }
 
