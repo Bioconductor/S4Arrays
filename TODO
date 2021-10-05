@@ -1,6 +1,4 @@
-- Implement subassignment to an SVT_SparseArray object.
-
-- Provide makeRandomSparseArray().
+- Implement C_subassign_SVT_with_Rarray() and C_subassign_SVT_with_SVT().
 
 - Implement crossprod(), tcrossprod(), and %in%, for SVT_SparseMatrix objects.
 

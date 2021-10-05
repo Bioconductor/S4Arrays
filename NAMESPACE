@@ -192,8 +192,9 @@ export(
     ## SVT_SparseArray-class.R:
     SVT_SparseArray, SparseArray,
 
-    ## makeRandomSparseArray.R:
-    makeRandomSparseArray, makeRandomSparseMatrix,
+    ## randomSparseArray.R:
+    randomSparseArray, randomSparseMatrix,
+    poissonSparseArray, poissonSparseMatrix,
 
     ## readSparseCSV.R:
     readSparseCSV, readSparseTable
