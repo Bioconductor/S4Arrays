@@ -16,8 +16,8 @@
   object instead of a dgCMatrix object.
 
   \code{poissonSparseArray()} populates a \link{SparseArray} object with
-  Poisson data i.e. it's equivalent to
-  \preformatted{    a <- array(rpois(lambda, prod(dim)), dim)
+  Poisson data i.e. it's equivalent to:
+  \preformatted{    a <- array(rpois(prod(dim), lambda), dim)
     as(a, "SparseArray")}
   but much more memory efficient because dense array \code{a} is never
   generated.
