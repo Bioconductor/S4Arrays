@@ -77,8 +77,8 @@ poissonSparseMatrix(nrow, ncol, lambda=-log(0.95), density=NA)
 
 \note{
   Unlike with \code{Matrix::\link[Matrix]{rsparsematrix}()} there's no
-  limit on the number of nonzero elements contained in the returned
-  \link{SparseArray} object.
+  limit on the number of nonzero elements that can be contained in the
+  returned \link{SparseArray} object.
 
   For example \code{Matrix::rsparsematrix(3e5, 2e4, density=0.5)} will fail
   with an error but \code{randomSparseMatrix(3e5, 2e4, density=0.5)} should
