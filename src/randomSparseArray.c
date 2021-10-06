@@ -3,8 +3,11 @@
  ****************************************************************************/
 #include "randomSparseArray.h"
 
+#include "leaf_vector_utils.h"
+
 #include <R_ext/Random.h>
 #include <math.h>  /* for exp() */
+#include <string.h>  /* for memcpy() */
 
 
 /****************************************************************************
@@ -121,7 +124,7 @@ SEXP C_simple_rpois(SEXP n, SEXP lambda)
 	if (!IS_NUMERIC(lambda) || LENGTH(lambda) != 1)
 		error("'lambda' must be a single numeric value");
 	lambda0 = REAL(lambda)[0];
-	if (lambda0 < 0)
+	if (lambda0 < 0.0)
 		error("'lambda' cannot be negative");
 
 	ans = PROTECT(NEW_INTEGER(n0));
@@ -137,9 +140,92 @@ SEXP C_simple_rpois(SEXP n, SEXP lambda)
 /****************************************************************************
  * C_poissonSparseArray()
  */
+
+/* Returns R_NilValue or a "leaf vector". */
+static SEXP build_poisson_leaf_vector(int d1, double lambda,
+				      int *offs_buf, int *vals_buf)
+{
+	int ans_len, i, val;
+	SEXP ans_offs, ans_vals, ans;
+
+	ans_len = 0;
+	for (i = 0; i < d1; i++) {
+		val = simple_rpois(lambda);
+		if (val != 0) {
+			offs_buf[ans_len] = i;
+			vals_buf[ans_len] = val;
+			ans_len++;
+		}
+	}
+
+	if (ans_len == 0)
+		return R_NilValue;
+
+	ans_offs = PROTECT(NEW_INTEGER(ans_len));
+	memcpy(INTEGER(ans_offs), offs_buf, sizeof(int) * ans_len);
+	ans_vals = PROTECT(NEW_INTEGER(ans_len));
+	memcpy(INTEGER(ans_vals), vals_buf, sizeof(int) * ans_len);
+	ans = _new_leaf_vector(ans_offs, ans_vals);
+	UNPROTECT(2);
+	return ans;
+}
+
+/* Recursive. */
+static SEXP REC_build_poisson_SVT(const int *dim, int ndim, double lambda,
+				  int *offs_buf, int *vals_buf)
+{
+	int SVT_len, is_empty, i;
+	SEXP ans, ans_elt;
+
+	if (ndim == 1)
+		return build_poisson_leaf_vector(dim[0], lambda,
+						 offs_buf, vals_buf);
+
+	SVT_len = dim[ndim - 1];  /* cannot be 0 */
+	ans = PROTECT(NEW_LIST(SVT_len));
+	is_empty = 1;
+	for (i = 0; i < SVT_len; i++) {
+		ans_elt = REC_build_poisson_SVT(dim, ndim - 1, lambda,
+						offs_buf, vals_buf);
+		if (ans_elt != R_NilValue) {
+			PROTECT(ans_elt);
+			SET_VECTOR_ELT(ans, i, ans_elt);
+			UNPROTECT(1);
+			is_empty = 0;
+		}
+	}
+	UNPROTECT(1);
+	return is_empty ? R_NilValue : ans;
+}
+
 /* --- .Call ENTRY POINT --- */
 SEXP C_poissonSparseArray(SEXP dim, SEXP lambda)
 {
-	return R_NilValue;
+	double lambda0;
+	const int *dim_p;
+	int ndim, along, *offs_buf, *vals_buf;
+	SEXP ans;
+
+	if (!IS_NUMERIC(lambda) || LENGTH(lambda) != 1)
+		error("'lambda' must be a single numeric value");
+	lambda0 = REAL(lambda)[0];
+	if (lambda0 < 0.0 || lambda0 > 4.0)
+		error("'lambda' must be >= 0 and <= 4");
+
+	dim_p = INTEGER(dim);
+	ndim = LENGTH(dim);
+	for (along = 0; along < ndim; along++)
+		if (dim_p[along] == 0)
+			return R_NilValue;
+
+	offs_buf = (int *) R_alloc(dim_p[0], sizeof(int));
+	vals_buf = (int *) R_alloc(dim_p[0], sizeof(int));
+	GetRNGstate();
+	ans = PROTECT(
+		REC_build_poisson_SVT(dim_p, ndim, lambda0, offs_buf, vals_buf)
+	);
+	PutRNGstate();
+	UNPROTECT(1);
+	return ans;
 }
 

@@ -52,7 +52,30 @@ randomSparseMatrix <- function(nrow=1L, ncol=1L, density=0.05)
 ### Like stats::rpois() but slightly faster and implementation is much
 ### simpler. Only for 0 <= 'lambda' <= 4.
 simple_rpois <- function(n, lambda)
-    .Call("C_simple_rpois", n, lambda, PACKAGE="S4Arrays")
+    .Call2("C_simple_rpois", n, lambda, PACKAGE="S4Arrays")
+
+### Returns an SVT_SparseArray object of type "integer".
+### Density of the returned object is expected to be about '1 - exp(-lambda)'.
+### Default for 'lambda' is set to -log(0.95) which should produce an object
+### with an expected density of 0.05.
+poissonSparseArray <- function(dim, lambda=-log(0.95), density=NA)
+{
+    dim <- normarg_dim(dim)
+
+    if (!missing(lambda) && !identical(density, NA))
+        stop(wmsg("only one of 'lambda' and 'density' can be specified"))
+    if (!missing(lambda)) {
+        if (!isSingleNumber(lambda) || lambda < 0)
+            stop(wmsg("'lambda' must be a non-negative number"))
+    } else {
+        if (!isSingleNumber(density) || density < 0 || density >= 1)
+            stop(wmsg("'density' must be a number >= 0 and < 1"))
+        lambda <- -log(1 - density)
+    }
+
+    ans_SVT <- .Call2("C_poissonSparseArray", dim, lambda, PACKAGE="S4Arrays")
+    new_SVT_SparseArray(dim, type="integer", SVT=ans_SVT, check=FALSE)
+}
 
 ### Replacement for rpois() when 'n' is big and 'lambda' is small.
 ### For example:
@@ -85,16 +108,20 @@ simple_rpois <- function(n, lambda)
     list(nzidx, nzvals)
 }
 
-### Returns an SVT_SparseArray object of type "integer".
-### Density of the returned object is expected to be about '1 - exp(-lambda)'.
-### Default for 'lambda' is set to -log(0.95) which should produce an object
-### with an expected density of 0.05.
-poissonSparseArray <- function(dim, lambda=-log(0.95), density=NA)
+### NOT exported.
+### Solution based on .sparse_rpois(). Equivalent to poissonSparseArray()
+### but slower and uses more memory e.g.
+###
+###     poissonSparseArray2(c(1e5, 2e4), density=0.02)
+###
+### is about 3x slower uses about 2.5x more memory than
+###
+###     poissonSparseArray(c(1e5, 2e4), density=0.02)
+###
+poissonSparseArray2 <- function(dim, lambda=-log(0.95), density=NA)
 {
-    if (!is.numeric(dim))
-        stop(wmsg("'dim' must be an integer vector"))
-    if (!is.integer(dim))
-        dim <- as.integer(dim)
+    dim <- normarg_dim(dim)
+
     if (!missing(lambda) && !identical(density, NA))
         stop(wmsg("only one of 'lambda' and 'density' can be specified"))
     if (!missing(lambda)) {
