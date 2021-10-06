@@ -3,6 +3,11 @@
 
 #include <Rdefines.h>
 
+SEXP C_simple_rpois(
+	SEXP n,
+	SEXP lambda
+);
+
 SEXP C_poissonSparseArray(
 	SEXP dim,
 	SEXP lambda

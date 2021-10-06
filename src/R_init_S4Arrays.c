@@ -63,6 +63,7 @@ static const R_CallMethodDef callMethods[] = {
 	CALLMETHOD_DEF(C_SVT_SparseMatrix_crossprod, 5),
 
 /* randomSparseArray.c */
+	CALLMETHOD_DEF(C_simple_rpois, 2),
 	CALLMETHOD_DEF(C_poissonSparseArray, 2),
 
 /* readSparseCSV.c */

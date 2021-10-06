@@ -49,6 +49,11 @@ randomSparseMatrix <- function(nrow=1L, ncol=1L, density=0.05)
 ### poissonSparseArray()
 ###
 
+### Like stats::rpois() but slightly faster and implementation is much
+### simpler. Only for 0 <= 'lambda' <= 4.
+simple_rpois <- function(n, lambda)
+    .Call("C_simple_rpois", n, lambda, PACKAGE="S4Arrays")
+
 ### Replacement for rpois() when 'n' is big and 'lambda' is small.
 ### For example:
 ###     .sparse_rpois(3e9, 0.005)  # takes about 1 min. and uses < 1G of RAM
