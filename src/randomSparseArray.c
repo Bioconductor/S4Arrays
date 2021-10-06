@@ -11,7 +11,7 @@
  * C_simple_rpois()
  */
 
-#define	DPOIS_MAX_LENGTH 32  /* enough to support 0 <= lambda <= 4 */
+#define	CUMSUM_DPOIS_MAX_LENGTH 32  /* enough to support 0 <= lambda <= 4 */
 
 static int compute_cumsum_dpois(double *cumsum_dpois, double lambda)
 {
@@ -23,7 +23,7 @@ static int compute_cumsum_dpois(double *cumsum_dpois, double lambda)
 		return 0;
 	cumsum_dpois[0] = (double) csdp;
 	//printf("cumsum_dpois[%d]=%2.12f\n", 0, cumsum_dpois[0]);
-	for (n = 1; n < DPOIS_MAX_LENGTH; n++) {
+	for (n = 1; n < CUMSUM_DPOIS_MAX_LENGTH; n++) {
 		dp *= lambda / n;
 		csdp += dp;
 		if ((double) csdp == cumsum_dpois[n - 1])
@@ -72,7 +72,7 @@ static inline int bsearch_cumsum_dpois(double u,
 static int simple_rpois(double lambda)
 {
 	static double last_lambda = -1;
-	static double cumsum_dpois[DPOIS_MAX_LENGTH];
+	static double cumsum_dpois[CUMSUM_DPOIS_MAX_LENGTH];
 	static int cumsum_dpois_len;
 
 	double u;
@@ -142,5 +142,4 @@ SEXP C_poissonSparseArray(SEXP dim, SEXP lambda)
 {
 	return R_NilValue;
 }
-
 
