@@ -951,6 +951,7 @@ static SEXP transpose_SVT(SEXP SVT, SEXPTYPE Rtype, int nrow, int ncol,
 	return ans;
 }
 
+/* --- .Call ENTRY POINT --- */
 SEXP C_transpose_SVT_SparseMatrix(SEXP x_dim, SEXP x_type, SEXP x_SVT)
 {
 	SEXPTYPE Rtype;

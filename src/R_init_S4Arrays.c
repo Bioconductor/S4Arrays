@@ -9,6 +9,7 @@
 #include "SparseArray_subsetting.h"
 #include "SparseArray_combine.h"
 #include "SparseMatrix_mult.h"
+#include "randomSparseArray.h"
 #include "readSparseCSV.h"
 
 #define CALLMETHOD_DEF(fun, numArgs) {#fun, (DL_FUNC) &fun, numArgs}
@@ -60,6 +61,9 @@ static const R_CallMethodDef callMethods[] = {
 
 /* SparseMatrix_mult.c */
 	CALLMETHOD_DEF(C_SVT_SparseMatrix_crossprod, 5),
+
+/* randomSparseArray.c */
+	CALLMETHOD_DEF(C_poissonSparseArray, 2),
 
 /* readSparseCSV.c */
 	CALLMETHOD_DEF(C_readSparseCSV, 2),
