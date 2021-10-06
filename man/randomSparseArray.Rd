@@ -10,17 +10,6 @@
 \description{
   \code{randomSparseArray()} and \code{poissonSparseArray()} can be used
   to generate a random \link{SparseArray} object efficiently.
-
-  \code{randomSparseArray()} mimics the \code{\link[Matrix]{rsparsematrix}()}
-  function from the \pkg{Matrix} package but returns a \link{SparseArray}
-  object instead of a dgCMatrix object.
-
-  \code{poissonSparseArray()} populates a \link{SparseArray} object with
-  Poisson data i.e. it's equivalent to:
-  \preformatted{    a <- array(rpois(prod(dim), lambda), dim)
-    as(a, "SparseArray")}
-  but much more memory efficient because dense array \code{a} is never
-  generated.
 }
 
 \usage{
@@ -63,6 +52,19 @@ poissonSparseMatrix(nrow, ncol, lambda=-log(0.95), density=NA)
   \item{nrow, ncol}{
     Number of rows and columns of the \link{SparseMatrix} object to generate.
   }
+}
+
+\details{
+  \code{randomSparseArray()} mimics the \code{\link[Matrix]{rsparsematrix}()}
+  function from the \pkg{Matrix} package but returns a \link{SparseArray}
+  object instead of a dgCMatrix object.
+
+  \code{poissonSparseArray()} populates a \link{SparseArray} object with
+  Poisson data i.e. it's equivalent to:
+  \preformatted{    a <- array(rpois(prod(dim), lambda), dim)
+    as(a, "SparseArray")}
+  but is faster and more memory efficient because intermediate dense array
+  \code{a} is never generated.
 }
 
 \value{
@@ -119,8 +121,15 @@ svt2
 type(svt2)  # "integer"
 1 - sparsity(svt2)  # very close to the requested density
 
-svt3 <- poissonSparseArray(c(600, 1700, 80), density=0.02)
-svt3
-1 - sparsity(svt3)  # very close to the requested density
+set.seed(123)
+svt3 <- poissonSparseArray(c(600, 1700, 80), lambda=0.01)
+set.seed(123)
+a3 <- array(rpois(length(svt3), lambda=0.01), dim(svt3))
+stopifnot(identical(svt3, SparseArray(a3)))
+
+## The memory footprint of 'svt3' is 10x smaller than that of 'a3':
+object.size(svt3)
+object.size(a3)
+as.double(object.size(a3) / object.size(svt3))
 }
 \keyword{utilities}
