@@ -10,11 +10,20 @@
  * C_SVT_SparseArray_Summary()
  */
 
+/* Recursive. */
+static int REC_summarize_SVT(SEXP SVT, const int *dim, int ndim,
+		SummarizeInts_FUNType summarize_ints_FUN,
+		SummarizeDoubles_FUNType summarize_doubles_FUN,
+		void *init, int na_rm, int status)
+{
+	return status;
+}
+
 SEXP C_SVT_SparseArray_Summary(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 		SEXP op, SEXP na_rm)
 {
 	SEXPTYPE Rtype;
-	int opcode, narm0;
+	int opcode, narm0, status;
 	SummarizeInts_FUNType summarize_ints_FUN;
 	SummarizeDoubles_FUNType summarize_doubles_FUN;
 	double init[2];  /* 'init' will store 1 or 2 ints or doubles */
@@ -25,7 +34,7 @@ SEXP C_SVT_SparseArray_Summary(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 		      "C_SVT_SparseArray_Summary():\n"
 		      "    SVT_SparseArray object has invalid type");
 
-	opcode = _get_opcode(op);
+	opcode = _get_opcode(op, Rtype);
 
 	if (!(IS_LOGICAL(na_rm) && LENGTH(na_rm) == 1))
 		error("'na.rm' must be TRUE or FALSE");
@@ -34,7 +43,12 @@ SEXP C_SVT_SparseArray_Summary(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	_select_Summary_FUN(opcode, Rtype,
 		&summarize_ints_FUN, &summarize_doubles_FUN, init);
 
-	return R_NilValue;
+	status = REC_summarize_SVT(x_SVT, INTEGER(x_dim), LENGTH(x_dim),
+			summarize_ints_FUN,
+			summarize_doubles_FUN,
+			init, narm0, 0);
+
+	return _init2SEXP(opcode, Rtype, init, status);
 }
 
 

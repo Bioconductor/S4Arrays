@@ -663,7 +663,7 @@ void _copy_Rvector_elts_from_selected_lloffsets(SEXP in_Rvector,
  * _get_opcode()
  */
 
-int _get_opcode(SEXP op)
+int _get_opcode(SEXP op, SEXPTYPE Rtype)
 {
 	const char *s;
 
@@ -673,6 +673,9 @@ int _get_opcode(SEXP op)
 	if (op == NA_STRING)
 		error("'op' cannot be NA");
 	s = CHAR(op);
+	if (Rtype != LGLSXP && Rtype != INTSXP && Rtype != REALSXP)
+		error("%s() does not support SparseArray objects "
+		      "of type \"%s\"", s, type2char(Rtype));
 	if (strcmp(s, "min") == 0)
 		return MIN_OPCODE;
 	if (strcmp(s, "max") == 0)
@@ -683,6 +686,9 @@ int _get_opcode(SEXP op)
 		return SUM_OPCODE;
 	if (strcmp(s, "prod") == 0)
 		return PROD_OPCODE;
+	if (Rtype == REALSXP)
+		error("%s() does not support SparseArray objects "
+		      "of type \"%s\"", s, type2char(Rtype));
 	if (strcmp(s, "any") == 0)
 		return ANY_OPCODE;
 	if (strcmp(s, "all") == 0)
@@ -703,203 +709,291 @@ int _get_opcode(SEXP op)
  *    0 = 'init' has not been set yet
  *    1 = 'init' has been set
  *    2 = 'init' has been set and we don't need to continue (break condition)
+ *
+ * IMPORTANT NOTE: Most of them ignore the supplied 'status', only
+ * min/max/range_ints() don't. This is because 'init' should have been set
+ * by _select_Summary_FUN() before the callback function gets called (see
+ * below in this file). So it doesn't matter whether the supplied 'status'
+ * is 0 or 1, and it doesn't matter if the callback function returns a new
+ * status of 0 or 1.
+ * Note that the _init2SEXP() function below in this file will ignore the
+ * final status anyways, except when 'opcode' is MIN/MAX/RANGE_OPCODE
+ * and 'Rtype' is INTSXP.
+ * So for the callback functions that ignore the supplied 'status', the only
+ * thing that matters is whether the returned 'status' is 2 or not, so the
+ * caller knows whether to bail out or not (break condition).
  */
 
-static inline int int_min(void *init, int x, int na_rm, int status)
+#define DOUBLE_IS_NA(x) (R_IsNA(x) || R_IsNaN(x))
+
+/* Does NOT ignore 'status'. */
+static inline int min_ints(void *init, const int *x, int n,
+		int na_rm, int status)
 {
 	int *int_init;
 
 	int_init = (int *) init;
-	if (x == NA_INTEGER) {
-		if (na_rm)
-			return status;
-		*int_init = x;
-		return 2;
+	for (int i = 0; i < n; i++, x++) {
+		if (*x == NA_INTEGER) {
+			if (!na_rm) {
+				int_init[0] = *x;
+				return 2;
+			}
+			continue;
+		}
+		if (status == 0 || *x < int_init[0]) {
+			int_init[0] = *x;
+			status = 1;
+		}
 	}
-	if (status == 0 || x < *int_init)
-		*int_init = x;
-	return 1;
+	return status;
 }
-static inline int double_min(void *init, double x, int na_rm, int status)
+
+/* Ignores 'status'. */
+static inline int min_doubles(void *init, const double *x, int n,
+		int na_rm, int status)
 {
 	double *double_init;
 
 	double_init = (double *) init;
-	if (R_IsNA(x) || R_IsNaN(x)) {
-		if (na_rm)
-			return status;
-		*double_init = x;
-		return R_IsNA(x) ? 2 : 1;
+	for (int i = 0; i < n; i++, x++) {
+		if (DOUBLE_IS_NA(*x)) {
+			if (!na_rm) {
+				double_init[0] = *x;
+				if (R_IsNA(*x))
+					return 2;
+			}
+			continue;
+		}
+		if (!R_IsNaN(double_init[0]) && *x < double_init[0])
+			double_init[0] = *x;
 	}
-	if (!R_IsNaN(*double_init) && x < *double_init)
-		*double_init = x;
-	return 1;
+	return status;
 }
 
-static inline int int_max(void *init, int x, int na_rm, int status)
+/* Does NOT ignore 'status'. */
+static inline int max_ints(void *init, const int *x, int n,
+		int na_rm, int status)
 {
 	int *int_init;
 
 	int_init = (int *) init;
-	if (x == NA_INTEGER) {
-		if (na_rm)
-			return status;
-		*int_init = x;
-		return 2;
+	for (int i = 0; i < n; i++, x++) {
+		if (*x == NA_INTEGER) {
+			if (!na_rm) {
+				int_init[0] = *x;
+				return 2;
+			}
+			continue;
+		}
+		if (status == 0 || *x > int_init[0]) {
+			int_init[0] = *x;
+			status = 1;
+		}
 	}
-	if (status == 0 || x > *int_init)
-		*int_init = x;
-	return 1;
+	return status;
 }
-static inline int double_max(void *init, double x, int na_rm, int status)
+
+/* Ignores 'status'. */
+static inline int max_doubles(void *init, const double *x, int n,
+		int na_rm, int status)
 {
 	double *double_init;
 
 	double_init = (double *) init;
-	if (R_IsNA(x) || R_IsNaN(x)) {
-		if (na_rm)
-			return status;
-		*double_init = x;
-		return R_IsNA(x) ? 2 : 1;
+	for (int i = 0; i < n; i++, x++) {
+		if (DOUBLE_IS_NA(*x)) {
+			if (!na_rm) {
+				double_init[0] = *x;
+				if (R_IsNA(*x))
+					return 2;
+			}
+			continue;
+		}
+		if (!R_IsNaN(double_init[0]) && *x > double_init[0])
+			double_init[0] = *x;
 	}
-	if (!R_IsNaN(*double_init) && x > *double_init)
-		*double_init = x;
-	return 1;
+	return status;
 }
 
-static inline int int_range(void *init, int x, int na_rm, int status)
+/* Does NOT ignore 'status'. */
+static inline int range_ints(void *init, const int *x, int n,
+		int na_rm, int status)
 {
 	int *int_init;
 
 	int_init = (int *) init;
-	if (x == NA_INTEGER) {
-		if (na_rm)
-			return status;
-		int_init[0] = int_init[1] = x;
-		return 2;
+	for (int i = 0; i < n; i++, x++) {
+		if (*x == NA_INTEGER) {
+			if (!na_rm) {
+				int_init[0] = int_init[1] = *x;
+				return 2;
+			}
+			continue;
+		}
+		if (status == 0) {
+			int_init[0] = int_init[1] = *x;
+			status = 1;
+		} else {
+			if (*x < int_init[0])
+				int_init[0] = *x;
+			if (*x > int_init[1])
+				int_init[1] = *x;
+		}
 	}
-	if (status == 0) {
-		int_init[0] = int_init[1] = x;
-		return 1;
-	}
-	if (x < int_init[0])
-		int_init[0] = x;
-	if (x > int_init[1])
-		int_init[1] = x;
-	return 1;
+	return status;
 }
-static inline int double_range(void *init, double x, int na_rm, int status)
+
+/* Ignores 'status'. */
+static inline int range_doubles(void *init, const double *x, int n,
+		int na_rm, int status)
 {
 	double *double_init;
 
 	double_init = (double *) init;
-	if (R_IsNA(x) || R_IsNaN(x)) {
-		if (na_rm)
-			return status;
-		double_init[0] = double_init[1] = x;
-		return R_IsNA(x) ? 2 : 1;
+	for (int i = 0; i < n; i++, x++) {
+		if (DOUBLE_IS_NA(*x)) {
+			if (!na_rm) {
+				double_init[0] = double_init[1] = *x;
+				if (R_IsNA(*x))
+					return 2;
+			}
+			continue;
+		}
+		if (!R_IsNaN(double_init[0])) {
+			if (*x < double_init[0])
+				double_init[0] = *x;
+			if (*x > double_init[1])
+				double_init[1] = *x;
+		}
 	}
-	if (!R_IsNaN(double_init[0])) {
-		if (x < double_init[0])
-			double_init[0] = x;
-		if (x > double_init[1])
-			double_init[1] = x;
-	}
-	return 1;
+	return status;
 }
 
-static inline int int_sum(void *init, int x, int na_rm, int status)
+/* Ignores 'status'. */
+static inline int sum_ints(void *init, const int *x, int n,
+		int na_rm, int status)
 {
 	double *double_init;
 
 	double_init = (double *) init;
-	if (x == NA_INTEGER) {
-		if (na_rm)
-			return status;
-		*double_init = NA_REAL;
-		return 2;
+	for (int i = 0; i < n; i++, x++) {
+		if (*x == NA_INTEGER) {
+			if (!na_rm) {
+				double_init[0] = NA_REAL;
+				return 2;
+			}
+			continue;
+		}
+		double_init[0] += (double) *x;
 	}
-	*double_init += x;
-	return 1;
+	return status;
 }
-static inline int double_sum(void *init, double x, int na_rm, int status)
+
+/* Ignores 'status'. */
+static inline int sum_doubles(void *init, const double *x, int n,
+		int na_rm, int status)
 {
 	double *double_init;
 
 	double_init = (double *) init;
-	if (R_IsNA(x) || R_IsNaN(x)) {
-		if (na_rm)
-			return status;
-		*double_init = x;
-		return R_IsNA(x) ? 2 : 1;
+	for (int i = 0; i < n; i++, x++) {
+		if (DOUBLE_IS_NA(*x)) {
+			if (!na_rm) {
+				double_init[0] = *x;
+				if (R_IsNA(*x))
+					return 2;
+			}
+			continue;
+		}
+		if (!R_IsNaN(double_init[0]))
+			double_init[0] += *x;
 	}
-	if (!R_IsNaN(*double_init))
-		*double_init += x;
-	return 1;
+	return status;
 }
 
-static inline int int_prod(void *init, int x, int na_rm, int status)
+/* Ignores 'status'. */
+static inline int prod_ints(void *init, const int *x, int n,
+		int na_rm, int status)
 {
 	double *double_init;
 
 	double_init = (double *) init;
-	if (x == NA_INTEGER) {
-		if (na_rm)
-			return status;
-		*double_init = NA_REAL;
-		return 2;
+	for (int i = 0; i < n; i++, x++) {
+		if (*x == NA_INTEGER) {
+			if (!na_rm) {
+				double_init[0] = NA_REAL;
+				return 2;
+			}
+			continue;
+		}
+		double_init[0] *= (double) *x;
 	}
-	*double_init *= x;
-	return 1;
+	return status;
 }
-static inline int double_prod(void *init, double x, int na_rm, int status)
+
+/* Ignores 'status'. */
+static inline int prod_doubles(void *init, const double *x, int n,
+		int na_rm, int status)
 {
 	double *double_init;
 
 	double_init = (double *) init;
-	if (R_IsNA(x) || R_IsNaN(x)) {
-		if (na_rm)
-			return status;
-		*double_init = x;
-		return R_IsNA(x) ? 2 : 1;
+	for (int i = 0; i < n; i++, x++) {
+		if (DOUBLE_IS_NA(*x)) {
+			if (!na_rm) {
+				double_init[0] = *x;
+				if (R_IsNA(*x))
+					return 2;
+			}
+			continue;
+		}
+		if (!R_IsNaN(double_init[0]))
+			double_init[0] *= *x;
 	}
-	if (!R_IsNaN(*double_init))
-		*double_init *= x;
-	return 1;
+	return status;
 }
 
-static inline int int_any(void *init, int x, int na_rm, int status)
+/* Ignores 'status'. */
+static inline int any_ints(void *init, const int *x, int n,
+		int na_rm, int status)
 {
 	int *int_init;
 
 	int_init = (int *) init;
-	if (x == NA_INTEGER) {
-		if (na_rm)
-			return status;
-		*int_init = x;
-		return 1;
+	for (int i = 0; i < n; i++, x++) {
+		if (*x == NA_INTEGER) {
+			if (!na_rm)
+				int_init[0] = *x;
+			continue;
+		}
+		if (*x != 0) {
+			int_init[0] = *x;
+			return 2;
+		}
 	}
-	if (x == 0)
-		return 1;
-	*int_init = x;
-	return 2;
+	return status;
 }
 
-static inline int int_all(void *init, int x, int na_rm, int status)
+/* Ignores 'status'. */
+static inline int all_ints(void *init, const int *x, int n,
+		int na_rm, int status)
 {
 	int *int_init;
 
 	int_init = (int *) init;
-	if (x == NA_INTEGER) {
-		if (na_rm)
-			return status;
-		*int_init = x;
-		return 1;
+	for (int i = 0; i < n; i++, x++) {
+		if (*x == NA_INTEGER) {
+			if (!na_rm)
+				int_init[0] = *x;
+			continue;
+		}
+		if (*x == 0) {
+			int_init[0] = *x;
+			return 2;
+		}
 	}
-	if (x != 0)
-		return 1;
-	*int_init = x;
-	return 2;
+	return status;
 }
 
 /* One of '*summarize_ints_FUN' or '*summarize_doubles_FUN' will be set
@@ -915,29 +1009,29 @@ void _select_Summary_FUN(int opcode, SEXPTYPE Rtype,
 	*summarize_ints_FUN = NULL;
 	*summarize_doubles_FUN = NULL;
 	if (opcode == ANY_OPCODE) {
-		*summarize_ints_FUN = int_any;
+		*summarize_ints_FUN = any_ints;
 		int_init[0] = 0;
 		return;
 	}
 	if (opcode == ALL_OPCODE) {
-		*summarize_ints_FUN = int_all;
+		*summarize_ints_FUN = all_ints;
 		int_init[0] = 1;
 		return;
 	}
 	if (opcode == SUM_OPCODE) {
 		if (Rtype == REALSXP) {
-			*summarize_doubles_FUN = double_sum;
+			*summarize_doubles_FUN = sum_doubles;
 		} else {
-			*summarize_ints_FUN = int_sum;
+			*summarize_ints_FUN = sum_ints;
 		}
 		double_init[0] = 0.0;
 		return;
 	}
 	if (opcode == PROD_OPCODE) {
 		if (Rtype == REALSXP) {
-			*summarize_doubles_FUN = double_prod;
+			*summarize_doubles_FUN = prod_doubles;
 		} else {
-			*summarize_ints_FUN = int_prod;
+			*summarize_ints_FUN = prod_ints;
 		}
 		double_init[0] = 1.0;
 		return;
@@ -945,15 +1039,15 @@ void _select_Summary_FUN(int opcode, SEXPTYPE Rtype,
 	if (Rtype == REALSXP) {
 		switch (opcode) {
 		    case MIN_OPCODE:
-			*summarize_doubles_FUN = double_min;
+			*summarize_doubles_FUN = min_doubles;
 			double_init[0] = R_PosInf;
 			break;
 		    case MAX_OPCODE:
-			*summarize_doubles_FUN = double_max;
+			*summarize_doubles_FUN = max_doubles;
 			double_init[0] = R_NegInf;
 			break;
 		    case RANGE_OPCODE:
-			*summarize_doubles_FUN = double_range;
+			*summarize_doubles_FUN = range_doubles;
 			double_init[0] = R_PosInf;
 			double_init[1] = R_NegInf;
 			break;
@@ -962,11 +1056,59 @@ void _select_Summary_FUN(int opcode, SEXPTYPE Rtype,
 	}
 	/* NO initial value! */
 	switch (opcode) {
-	    case MIN_OPCODE:   *summarize_ints_FUN = int_min;   break;
-	    case MAX_OPCODE:   *summarize_ints_FUN = int_max;   break;
-	    case RANGE_OPCODE: *summarize_ints_FUN = int_range; break;
+	    case MIN_OPCODE:   *summarize_ints_FUN = min_ints;   break;
+	    case MAX_OPCODE:   *summarize_ints_FUN = max_ints;   break;
+	    case RANGE_OPCODE: *summarize_ints_FUN = range_ints; break;
 	}
 	return;
+}
+
+SEXP _init2SEXP(int opcode, SEXPTYPE Rtype, void *init, int status)
+{
+	int *int_init = (int *) init;
+	double *double_init = (double *) init;
+	SEXP ans;
+
+	if (opcode == ANY_OPCODE || opcode == ALL_OPCODE)
+		return ScalarLogical(int_init[0]);
+	if (opcode == MIN_OPCODE || opcode == MAX_OPCODE) {
+		if (Rtype == REALSXP)
+			return ScalarReal(double_init[0]);
+		if (status == 0) {
+			return ScalarReal(opcode == MIN_OPCODE ? R_PosInf
+							       : R_NegInf);
+		} else {
+			return ScalarInteger(int_init[0]);
+		}
+	}
+	if (opcode == RANGE_OPCODE) {
+		if (Rtype == REALSXP) {
+			ans = PROTECT(NEW_NUMERIC(2));
+			REAL(ans)[0] = double_init[0];
+			REAL(ans)[1] = double_init[1];
+		} else {
+			if (status == 0) {
+				ans = PROTECT(NEW_NUMERIC(2));
+				REAL(ans)[0] = R_PosInf;
+				REAL(ans)[1] = R_NegInf;
+			} else {
+				ans = PROTECT(NEW_INTEGER(2));
+				INTEGER(ans)[0] = int_init[0];
+				INTEGER(ans)[1] = int_init[1];
+			}
+		}
+		UNPROTECT(1);
+		return ans;
+	}
+	/* 'opcode' is either SUM_OPCODE or PROD_OPCODE. */
+	if (Rtype == REALSXP)
+		return ScalarReal(double_init[0]);
+	/* Direct comparison with NA_REAL is safe. No need to use R_IsNA(). */
+	if (double_init[0] == NA_REAL)
+		return ScalarInteger(NA_INTEGER);
+	if (double_init[0] <= INT_MAX && double_init[0] >= -INT_MAX)
+		return ScalarInteger((int) double_init[0]);
+	return ScalarReal(double_init[0]);
 }
 
 
@@ -991,7 +1133,6 @@ static int any_NA_int_elt(const int *x, int n)
 	return 0;
 }
 
-#define DOUBLE_IS_NA(x) (R_IsNA(x) || R_IsNaN(x))
 static int count_NA_double_elts(const double *x, int n)
 {
 	int count;

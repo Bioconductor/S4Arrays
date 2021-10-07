@@ -2,6 +2,7 @@
 #define _LEAF_VECTOR_UTILS_H_
 
 #include <Rdefines.h>
+#include "Rvector_utils.h"
 
 /* A "leaf vector" is a vector of offset/value pairs sorted by strictly
    ascending offset. It is represented by a list of 2 parallel vectors:
@@ -77,6 +78,16 @@ SEXP _subassign_leaf_vector_with_Rvector(
 	SEXP lv,
 	SEXP index,
 	SEXP Rvector
+);
+
+int _summarize_leaf_vector(
+	SEXP lv,
+	int d,
+	SummarizeInts_FUNType summarize_ints_FUN,
+	SummarizeDoubles_FUNType summarize_doubles_FUN,
+	void *init,
+	int na_rm,
+	int status
 );
 
 #endif  /* _LEAF_VECTOR_UTILS_H_ */

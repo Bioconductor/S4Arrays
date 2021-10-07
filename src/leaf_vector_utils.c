@@ -310,3 +310,30 @@ SEXP _subassign_leaf_vector_with_Rvector(SEXP lv, SEXP index, SEXP Rvector)
 	return ans;
 }
 
+
+/****************************************************************************
+ * _summarize_leaf_vector()
+ */
+
+int _summarize_leaf_vector(SEXP lv, int d,
+		SummarizeInts_FUNType summarize_ints_FUN,
+		SummarizeDoubles_FUNType summarize_doubles_FUN,
+		void *init, int na_rm, int status)
+{
+	SEXP lv_vals;
+	SEXPTYPE Rtype;
+	int lv_len;
+
+	lv_vals = VECTOR_ELT(lv, 1);
+	Rtype = TYPEOF(lv_vals);
+	lv_len = LENGTH(lv);
+	if (Rtype == INTSXP) {
+		status = summarize_ints_FUN(init, INTEGER(lv_vals), lv_len,
+					    na_rm, status);
+	} else {
+		status = summarize_doubles_FUN(init, REAL(lv_vals), lv_len,
+					    na_rm, status);
+	}
+	return status;
+}
+

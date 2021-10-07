@@ -258,13 +258,13 @@ void _copy_Rvector_elts_from_selected_lloffsets(
 #define ANY_OPCODE      6
 #define ALL_OPCODE      7
 
-int _get_opcode(SEXP op);
+int _get_opcode(SEXP op, SEXPTYPE Rtype);
 
 typedef int (*SummarizeInts_FUNType)(
-	void *init, int x, int na_rm, int status);
+	void *init, const int *x, int n, int na_rm, int status);
 
 typedef int (*SummarizeDoubles_FUNType)(
-	void *init, double x, int na_rm, int status);
+	void *init, const double *x, int n, int na_rm, int status);
 
 void _select_Summary_FUN(
 	int opcode,
@@ -272,6 +272,13 @@ void _select_Summary_FUN(
 	SummarizeInts_FUNType *summarize_ints_FUN,
 	SummarizeDoubles_FUNType *summarize_doubles_FUN,
 	void *init
+);
+
+SEXP _init2SEXP(
+	int opcode,
+	SEXPTYPE Rtype,
+	void *init,
+	int status
 );
 
 int _count_Rvector_NAs(SEXP Rvector);
