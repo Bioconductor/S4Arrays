@@ -73,8 +73,7 @@ S3method(as.raw, Array)
 
 S3method(as.vector, Array)
 
-S3method(mean, COO_SparseArray)
-S3method(mean, SVT_SparseArray)
+S3method(mean, SparseArray)
 
 S3method(range, COO_SparseArray)
 S3method(range, SVT_SparseArray)
@@ -118,8 +117,7 @@ export(
 
     as.vector.Array,
 
-    mean.COO_SparseArray,
-    mean.SVT_SparseArray,
+    mean.SparseArray,
 
     range.COO_SparseArray,
     range.SVT_SparseArray,

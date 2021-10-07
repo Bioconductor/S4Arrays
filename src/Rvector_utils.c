@@ -660,10 +660,19 @@ void _copy_Rvector_elts_from_selected_lloffsets(SEXP in_Rvector,
 
 
 /****************************************************************************
- * _Rvector_has_any_NA()
+ * _count_Rvector_NAs() and _Rvector_has_any_NA()
  */
 
-static int any_NA_int(const int *x, int n)
+static int count_NA_int_elts(const int *x, int n)
+{
+	int count;
+
+	for (int i = count = 0; i < n; i++, x++)
+		if (*x == NA_INTEGER)
+			count++;
+	return count;
+}
+static int any_NA_int_elt(const int *x, int n)
 {
 	for (int i = 0; i < n; i++, x++)
 		if (*x == NA_INTEGER)
@@ -672,7 +681,16 @@ static int any_NA_int(const int *x, int n)
 }
 
 #define DOUBLE_IS_NA(x) (R_IsNA(x) || R_IsNaN(x))
-static int any_NA_double(const double *x, int n)
+static int count_NA_double_elts(const double *x, int n)
+{
+	int count;
+
+	for (int i = count = 0; i < n; i++, x++)
+		if (DOUBLE_IS_NA(*x))
+			count++;
+	return count;
+}
+static int any_NA_double_elt(const double *x, int n)
 {
 	for (int i = 0; i < n; i++, x++)
 		if (DOUBLE_IS_NA(*x))
@@ -681,7 +699,16 @@ static int any_NA_double(const double *x, int n)
 }
 
 #define RCOMPLEX_IS_NA(x) (DOUBLE_IS_NA((x)->r) || DOUBLE_IS_NA((x)->i))
-static int any_NA_Rcomplex(const Rcomplex *x, int n)
+static int count_NA_Rcomplex_elts(const Rcomplex *x, int n)
+{
+	int count;
+
+	for (int i = count = 0; i < n; i++, x++)
+		if (RCOMPLEX_IS_NA(x))
+			count++;
+	return count;
+}
+static int any_NA_Rcomplex_elt(const Rcomplex *x, int n)
 {
 	for (int i = 0; i < n; i++, x++)
 		if (RCOMPLEX_IS_NA(x))
@@ -689,7 +716,17 @@ static int any_NA_Rcomplex(const Rcomplex *x, int n)
 	return 0;
 }
 
-static int any_NA_character(SEXP x)
+static int count_NA_character_elts(SEXP x)
+{
+	int n, count;
+
+	n = LENGTH(x);
+	for (int i = count = 0; i < n; i++)
+		if (STRING_ELT(x, i) == NA_STRING)
+			count++;
+	return count;
+}
+static int any_NA_character_elt(SEXP x)
 {
 	int n;
 
@@ -700,38 +737,74 @@ static int any_NA_character(SEXP x)
 	return 0;
 }
 
-static int any_NA_list(SEXP x)
+static inline int is_single_NA(SEXP x)
+{
+	SEXPTYPE Rtype;
+
+	Rtype = TYPEOF(x);
+	switch (Rtype) {
+	    case LGLSXP: case INTSXP:
+		if (LENGTH(x) == 1 && INTEGER(x)[0] == NA_INTEGER)
+			return 1;
+	    break;
+	    case REALSXP:
+		if (LENGTH(x) == 1 && DOUBLE_IS_NA(REAL(x)[0]))
+			return 1;
+	    break;
+	    case CPLXSXP:
+		if (LENGTH(x) == 1 && RCOMPLEX_IS_NA(COMPLEX(x)))
+			return 1;
+	    break;
+	    case STRSXP:
+		if (LENGTH(x) == 1 && STRING_ELT(x, 0) == NA_STRING)
+			return 1;
+	    break;
+	}
+	return 0;
+}
+
+static int count_NA_list_elts(SEXP x)
+{
+	int n, count;
+
+	n = LENGTH(x);
+	for (int i = count = 0; i < n; i++)
+		if (is_single_NA(VECTOR_ELT(x, i)))
+			count++;
+	return count;
+}
+static int any_NA_list_elt(SEXP x)
 {
 	int n;
 
 	n = LENGTH(x);
 	for (int i = 0; i < n; i++) {
-		SEXP x_elt = VECTOR_ELT(x, i);
-		SEXPTYPE Rtype = TYPEOF(x_elt);
-		switch (Rtype) {
-		    case LGLSXP: case INTSXP:
-			if (LENGTH(x_elt) == 1 &&
-			    INTEGER(x_elt)[0] == NA_INTEGER)
-				return 1;
-		    break;
-		    case REALSXP:
-			if (LENGTH(x_elt) == 1 &&
-			    DOUBLE_IS_NA(REAL(x_elt)[0]))
-				return 1;
-		    break;
-		    case CPLXSXP:
-			if (LENGTH(x_elt) == 1 &&
-			    RCOMPLEX_IS_NA(COMPLEX(x_elt)))
-				return 1;
-		    break;
-		    case STRSXP:
-			if (LENGTH(x_elt) == 1 &&
-			    STRING_ELT(x_elt, 0) == NA_STRING)
-				return 1;
-		    break;
-		}
+		if (is_single_NA(VECTOR_ELT(x, i)))
+			return 1;
 	}
 	return 0;
+}
+
+int _count_Rvector_NAs(SEXP Rvector)
+{
+	SEXPTYPE Rtype;
+	int n;
+
+	Rtype = TYPEOF(Rvector);
+	n = LENGTH(Rvector);
+	switch (Rtype) {
+	    case LGLSXP: case INTSXP:
+			  return count_NA_int_elts(INTEGER(Rvector), n);
+	    case REALSXP: return count_NA_double_elts(REAL(Rvector), n);
+	    case CPLXSXP: return count_NA_Rcomplex_elts(COMPLEX(Rvector), n);
+	    case RAWSXP:  return 0;
+	    case STRSXP:  return count_NA_character_elts(Rvector);
+	    case VECSXP:  return count_NA_list_elts(Rvector);
+	}
+	error("S4Arrays internal error in "
+	      "_count_Rvector_NAs():\n"
+	      "    type \"%s\" is not supported", type2char(Rtype));
+	return -1;  /* will never reach this */
 }
 
 int _Rvector_has_any_NA(SEXP Rvector)
@@ -742,12 +815,13 @@ int _Rvector_has_any_NA(SEXP Rvector)
 	Rtype = TYPEOF(Rvector);
 	n = LENGTH(Rvector);
 	switch (Rtype) {
-	    case LGLSXP: case INTSXP: return any_NA_int(INTEGER(Rvector), n);
-	    case REALSXP: return any_NA_double(REAL(Rvector), n);
-	    case CPLXSXP: return any_NA_Rcomplex(COMPLEX(Rvector), n);
+	    case LGLSXP: case INTSXP:
+			  return any_NA_int_elt(INTEGER(Rvector), n);
+	    case REALSXP: return any_NA_double_elt(REAL(Rvector), n);
+	    case CPLXSXP: return any_NA_Rcomplex_elt(COMPLEX(Rvector), n);
 	    case RAWSXP:  return 0;
-	    case STRSXP:  return any_NA_character(Rvector);
-	    case VECSXP:  return any_NA_list(Rvector);
+	    case STRSXP:  return any_NA_character_elt(Rvector);
+	    case VECSXP:  return any_NA_list_elt(Rvector);
 	}
 	error("S4Arrays internal error in "
 	      "_Rvector_has_any_NA():\n"

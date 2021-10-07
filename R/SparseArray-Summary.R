@@ -102,27 +102,32 @@ setMethod("range", "SVT_SparseArray",
 ### mean()
 ###
 
-### S3/S4 combo for mean.COO_SparseArray
-.mean_COO_SparseArray <- function(x, na.rm=FALSE)
+### TODO: Maybe introduce a new generic for this e.g. countNAs()?
+.count_SparseArray_NAs <- function(x)
 {
-    s <- sum(x@nzvals, na.rm=na.rm)
+    if (is(x, "COO_SparseArray"))
+        return(sum(is.na(x@nzvals)))
+
+    if (is(x, "SVT_SparseArray"))
+        return(.Call2("C_count_SVT_SparseArray_NAs",
+                      x@dim, x@type, x@SVT, PACKAGE="S4Arrays"))
+
+    stop(wmsg(class(x)[[1L]], " objects are not supported"))
+}
+
+.mean_SparseArray <- function(x, na.rm=FALSE)
+{
+    s <- as.double(sum(x, na.rm=na.rm))
     nval <- length(x)
     if (na.rm)
-        nval <- nval - sum(is.na(x@nzvals))
+        nval <- nval - .count_SparseArray_NAs(x)
     s / nval
 }
-mean.COO_SparseArray <- function(x, na.rm=FALSE, ...)
-    .mean_COO_SparseArray(x, na.rm=na.rm, ...)
-setMethod("mean", "COO_SparseArray", .mean_COO_SparseArray)
 
-### S3/S4 combo for mean.SVT_SparseArray
-.mean_SVT_SparseArray <- function(x, na.rm=FALSE)
-{
-    stop(wmsg("not ready yet!"))
-}
-mean.SVT_SparseArray <- function(x, na.rm=FALSE, ...)
-    .mean_SVT_SparseArray(x, na.rm=na.rm, ...)
-setMethod("mean", "SVT_SparseArray", .mean_SVT_SparseArray)
+### S3/S4 combo for mean.SparseArray
+mean.SparseArray <- function(x, na.rm=FALSE, ...)
+    .mean_SparseArray(x, na.rm=na.rm, ...)
+setMethod("mean", "SparseArray", .mean_SparseArray)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

@@ -250,6 +250,8 @@ void _copy_Rvector_elts_from_selected_lloffsets(
 	SEXP out_Rvector
 );
 
+int _count_Rvector_NAs(SEXP Rvector);
+
 int _Rvector_has_any_NA(SEXP Rvector);
 
 #endif  /* _RVECTOR_UTILS_H_ */
