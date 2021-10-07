@@ -17,6 +17,7 @@
 .COO_SparseArray_Summary <- function(.Generic, x, na.rm=FALSE)
 {
     stopifnot(is(x, "COO_SparseArray"))
+    GENERIC <- match.fun(.Generic)
     ## Whether 'x' contains zeros or not doesn't make a difference for
     ## sum() and any().
     if (.Generic %in% c("sum", "any"))
@@ -44,7 +45,6 @@
 setMethod("Summary", "COO_SparseArray",
     function(x, ..., na.rm=FALSE)
     {
-        GENERIC <- match.fun(.Generic)
         if (length(list(...)) != 0L)
             stop(wmsg(.Generic, "() method for COO_SparseArray objects ",
                       "only accepts a single object"))
@@ -62,7 +62,6 @@ setMethod("Summary", "COO_SparseArray",
 setMethod("Summary", "SVT_SparseArray",
     function(x, ..., na.rm=FALSE)
     {
-        GENERIC <- match.fun(.Generic)
         if (length(list(...)) != 0L)
             stop(wmsg(.Generic, "() method for SVT_SparseArray objects ",
                       "only accepts a single object"))
