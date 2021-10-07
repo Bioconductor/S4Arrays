@@ -321,18 +321,27 @@ int _summarize_leaf_vector(SEXP lv, int d,
 		void *init, int na_rm, int status)
 {
 	SEXP lv_vals;
-	SEXPTYPE Rtype;
 	int lv_len;
+	SEXPTYPE Rtype;
 
 	lv_vals = VECTOR_ELT(lv, 1);
+	lv_len = LENGTH(lv_vals);
 	Rtype = TYPEOF(lv_vals);
-	lv_len = LENGTH(lv);
 	if (Rtype == INTSXP) {
 		status = summarize_ints_FUN(init, INTEGER(lv_vals), lv_len,
 					    na_rm, status);
 	} else {
 		status = summarize_doubles_FUN(init, REAL(lv_vals), lv_len,
 					    na_rm, status);
+	}
+	if (status == 2 || lv_len == d)
+		return status;
+	if (Rtype == INTSXP) {
+		int zero = 0;
+		status = summarize_ints_FUN(init, &zero, 1, na_rm, status);
+	} else {
+		double zero = 0.0;
+		status = summarize_doubles_FUN(init, &zero, 1, na_rm, status);
 	}
 	return status;
 }

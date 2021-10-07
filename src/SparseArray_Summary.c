@@ -4,18 +4,77 @@
 #include "SparseArray_Summary.h"
 
 #include "Rvector_utils.h"
+#include "leaf_vector_utils.h"
 
 
 /****************************************************************************
  * C_SVT_SparseArray_Summary()
  */
 
+
 /* Recursive. */
 static int REC_summarize_SVT(SEXP SVT, const int *dim, int ndim,
 		SummarizeInts_FUNType summarize_ints_FUN,
 		SummarizeDoubles_FUNType summarize_doubles_FUN,
-		void *init, int na_rm, int status)
+		void *init, int na_rm, int status, int *has_null_leaves)
 {
+	int SVT_len, i;
+	SEXP subSVT;
+
+	if (SVT == R_NilValue) {
+		*has_null_leaves = 1;
+		return status;
+	}
+
+	if (ndim == 1) {
+		/* 'SVT' is a "leaf vector". */
+		return _summarize_leaf_vector(SVT, dim[0],
+					summarize_ints_FUN,
+					summarize_doubles_FUN,
+					init, na_rm, status);
+	}
+
+	/* 'SVT' is a regular node (list). */
+	SVT_len = LENGTH(SVT);
+	for (i = 0; i < SVT_len; i++) {
+		subSVT = VECTOR_ELT(SVT, i);
+		status = REC_summarize_SVT(subSVT, dim, ndim - 1,
+					summarize_ints_FUN,
+					summarize_doubles_FUN,
+					init, na_rm, status,
+					has_null_leaves);
+		if (status == 2)
+			break;
+	}
+	return status;
+}
+
+static int summarize_SVT(SEXP SVT, const int *dim, int ndim, SEXPTYPE Rtype,
+		SummarizeInts_FUNType summarize_ints_FUN,
+		SummarizeDoubles_FUNType summarize_doubles_FUN,
+		void *init, int na_rm)
+{
+	int has_null_leaves, status;
+
+	if (SVT == R_NilValue)
+		return 0;
+	
+	has_null_leaves = 0;
+	status = REC_summarize_SVT(SVT, dim, ndim,
+				   summarize_ints_FUN,
+				   summarize_doubles_FUN,
+				   init, na_rm, 0,
+				   &has_null_leaves);
+	if (status == 2 || !has_null_leaves)
+		return status;
+
+	if (Rtype == INTSXP) {
+		int zero = 0;
+		status = summarize_ints_FUN(init, &zero, 1, na_rm, status);
+	} else {
+		double zero = 0.0;
+		status = summarize_doubles_FUN(init, &zero, 1, na_rm, status);
+	}
 	return status;
 }
 
@@ -41,12 +100,14 @@ SEXP C_SVT_SparseArray_Summary(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	narm0 = LOGICAL(na_rm)[0];
 
 	_select_Summary_FUN(opcode, Rtype,
-		&summarize_ints_FUN, &summarize_doubles_FUN, init);
+			&summarize_ints_FUN,
+			&summarize_doubles_FUN,
+			init);
 
-	status = REC_summarize_SVT(x_SVT, INTEGER(x_dim), LENGTH(x_dim),
+	status = summarize_SVT(x_SVT, INTEGER(x_dim), LENGTH(x_dim), Rtype,
 			summarize_ints_FUN,
 			summarize_doubles_FUN,
-			init, narm0, 0);
+			init, narm0);
 
 	return _init2SEXP(opcode, Rtype, init, status);
 }

@@ -1,7 +1,5 @@
 - Implement C_subassign_SVT_with_Rarray() and C_subassign_SVT_with_SVT().
 
-- Implement Summary & mean() methods for SVT_SparseArray objects.
-
 - Implement Compare and Logic methods for SVT_SparseArray objects.
 
 - Implement crossprod(), tcrossprod(), and %in%, for SVT_SparseMatrix objects.

@@ -145,7 +145,7 @@ exportMethods(
     as.logical, as.integer, as.numeric, as.complex, as.character, as.raw,
     t,
     which,
-    max, min, range, sum, prod, any, all,   # "Summary" group generic
+    min, max, range, sum, prod, any, all,   # "Summary" group generic
     mean,
     anyNA,
     nchar,

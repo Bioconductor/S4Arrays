@@ -702,7 +702,7 @@ int _get_opcode(SEXP op, SEXPTYPE Rtype)
 /****************************************************************************
  * Callback functions used for operations from the "Summary" group.
  *
- * "Summary" is a group generic with members: max(), min(), range(), sum(),
+ * "Summary" is a group generic with members: min(), max(), range(), sum(),
  * prod(), any(), all().
  *
  * All these callback functions return the "new status":
