@@ -250,6 +250,30 @@ void _copy_Rvector_elts_from_selected_lloffsets(
 	SEXP out_Rvector
 );
 
+#define MIN_OPCODE      1
+#define MAX_OPCODE      2
+#define RANGE_OPCODE    3
+#define SUM_OPCODE      4
+#define PROD_OPCODE     5
+#define ANY_OPCODE      6
+#define ALL_OPCODE      7
+
+int _get_opcode(SEXP op);
+
+typedef int (*SummarizeInts_FUNType)(
+	void *init, int x, int na_rm, int status);
+
+typedef int (*SummarizeDoubles_FUNType)(
+	void *init, double x, int na_rm, int status);
+
+void _select_Summary_FUN(
+	int opcode,
+	SEXPTYPE Rtype,
+	SummarizeInts_FUNType *summarize_ints_FUN,
+	SummarizeDoubles_FUNType *summarize_doubles_FUN,
+	void *init
+);
+
 int _count_Rvector_NAs(SEXP Rvector);
 
 int _Rvector_has_any_NA(SEXP Rvector);

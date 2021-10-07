@@ -7,6 +7,38 @@
 
 
 /****************************************************************************
+ * C_SVT_SparseArray_Summary()
+ */
+
+SEXP C_SVT_SparseArray_Summary(SEXP x_dim, SEXP x_type, SEXP x_SVT,
+		SEXP op, SEXP na_rm)
+{
+	SEXPTYPE Rtype;
+	int opcode, narm0;
+	SummarizeInts_FUNType summarize_ints_FUN;
+	SummarizeDoubles_FUNType summarize_doubles_FUN;
+	double init[2];  /* 'init' will store 1 or 2 ints or doubles */
+
+	Rtype = _get_Rtype_from_Rstring(x_type);
+        if (Rtype == 0)
+		error("S4Arrays internal error in "
+		      "C_SVT_SparseArray_Summary():\n"
+		      "    SVT_SparseArray object has invalid type");
+
+	opcode = _get_opcode(op);
+
+	if (!(IS_LOGICAL(na_rm) && LENGTH(na_rm) == 1))
+		error("'na.rm' must be TRUE or FALSE");
+	narm0 = LOGICAL(na_rm)[0];
+
+	_select_Summary_FUN(opcode, Rtype,
+		&summarize_ints_FUN, &summarize_doubles_FUN, init);
+
+	return R_NilValue;
+}
+
+
+/****************************************************************************
  * C_count_SVT_SparseArray_NAs()
  */
 

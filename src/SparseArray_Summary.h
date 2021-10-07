@@ -3,6 +3,14 @@
 
 #include <Rdefines.h>
 
+SEXP C_SVT_SparseArray_Summary(
+	SEXP x_dim,
+	SEXP x_type,
+	SEXP x_SVT,
+	SEXP op,
+	SEXP na_rm
+);
+
 SEXP C_count_SVT_SparseArray_NAs(
 	SEXP x_dim,
 	SEXP x_type,

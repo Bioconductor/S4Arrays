@@ -660,6 +660,317 @@ void _copy_Rvector_elts_from_selected_lloffsets(SEXP in_Rvector,
 
 
 /****************************************************************************
+ * _get_opcode()
+ */
+
+int _get_opcode(SEXP op)
+{
+	const char *s;
+
+	if (!IS_CHARACTER(op) || LENGTH(op) != 1)
+		error("'op' must be a single string");
+	op = STRING_ELT(op, 0);
+	if (op == NA_STRING)
+		error("'op' cannot be NA");
+	s = CHAR(op);
+	if (strcmp(s, "min") == 0)
+		return MIN_OPCODE;
+	if (strcmp(s, "max") == 0)
+		return MAX_OPCODE;
+	if (strcmp(s, "range") == 0)
+		return RANGE_OPCODE;
+	if (strcmp(s, "sum") == 0)
+		return SUM_OPCODE;
+	if (strcmp(s, "prod") == 0)
+		return PROD_OPCODE;
+	if (strcmp(s, "any") == 0)
+		return ANY_OPCODE;
+	if (strcmp(s, "all") == 0)
+		return ALL_OPCODE;
+	error("'op' must be one of: \"min\", \"max\", \"range\", "
+	      "\"sum\", \"prod\", \"any\", \"all\"");
+	return 0;
+}
+
+
+/****************************************************************************
+ * Callback functions used for operations from the "Summary" group.
+ *
+ * "Summary" is a group generic with members: max(), min(), range(), sum(),
+ * prod(), any(), all().
+ *
+ * All these callback functions return the "new status":
+ *    0 = 'init' has not been set yet
+ *    1 = 'init' has been set
+ *    2 = 'init' has been set and we don't need to continue (break condition)
+ */
+
+static inline int int_min(void *init, int x, int na_rm, int status)
+{
+	int *int_init;
+
+	int_init = (int *) init;
+	if (x == NA_INTEGER) {
+		if (na_rm)
+			return status;
+		*int_init = x;
+		return 2;
+	}
+	if (status == 0 || x < *int_init)
+		*int_init = x;
+	return 1;
+}
+static inline int double_min(void *init, double x, int na_rm, int status)
+{
+	double *double_init;
+
+	double_init = (double *) init;
+	if (R_IsNA(x) || R_IsNaN(x)) {
+		if (na_rm)
+			return status;
+		*double_init = x;
+		return R_IsNA(x) ? 2 : 1;
+	}
+	if (!R_IsNaN(*double_init) && x < *double_init)
+		*double_init = x;
+	return 1;
+}
+
+static inline int int_max(void *init, int x, int na_rm, int status)
+{
+	int *int_init;
+
+	int_init = (int *) init;
+	if (x == NA_INTEGER) {
+		if (na_rm)
+			return status;
+		*int_init = x;
+		return 2;
+	}
+	if (status == 0 || x > *int_init)
+		*int_init = x;
+	return 1;
+}
+static inline int double_max(void *init, double x, int na_rm, int status)
+{
+	double *double_init;
+
+	double_init = (double *) init;
+	if (R_IsNA(x) || R_IsNaN(x)) {
+		if (na_rm)
+			return status;
+		*double_init = x;
+		return R_IsNA(x) ? 2 : 1;
+	}
+	if (!R_IsNaN(*double_init) && x > *double_init)
+		*double_init = x;
+	return 1;
+}
+
+static inline int int_range(void *init, int x, int na_rm, int status)
+{
+	int *int_init;
+
+	int_init = (int *) init;
+	if (x == NA_INTEGER) {
+		if (na_rm)
+			return status;
+		int_init[0] = int_init[1] = x;
+		return 2;
+	}
+	if (status == 0) {
+		int_init[0] = int_init[1] = x;
+		return 1;
+	}
+	if (x < int_init[0])
+		int_init[0] = x;
+	if (x > int_init[1])
+		int_init[1] = x;
+	return 1;
+}
+static inline int double_range(void *init, double x, int na_rm, int status)
+{
+	double *double_init;
+
+	double_init = (double *) init;
+	if (R_IsNA(x) || R_IsNaN(x)) {
+		if (na_rm)
+			return status;
+		double_init[0] = double_init[1] = x;
+		return R_IsNA(x) ? 2 : 1;
+	}
+	if (!R_IsNaN(double_init[0])) {
+		if (x < double_init[0])
+			double_init[0] = x;
+		if (x > double_init[1])
+			double_init[1] = x;
+	}
+	return 1;
+}
+
+static inline int int_sum(void *init, int x, int na_rm, int status)
+{
+	double *double_init;
+
+	double_init = (double *) init;
+	if (x == NA_INTEGER) {
+		if (na_rm)
+			return status;
+		*double_init = NA_REAL;
+		return 2;
+	}
+	*double_init += x;
+	return 1;
+}
+static inline int double_sum(void *init, double x, int na_rm, int status)
+{
+	double *double_init;
+
+	double_init = (double *) init;
+	if (R_IsNA(x) || R_IsNaN(x)) {
+		if (na_rm)
+			return status;
+		*double_init = x;
+		return R_IsNA(x) ? 2 : 1;
+	}
+	if (!R_IsNaN(*double_init))
+		*double_init += x;
+	return 1;
+}
+
+static inline int int_prod(void *init, int x, int na_rm, int status)
+{
+	double *double_init;
+
+	double_init = (double *) init;
+	if (x == NA_INTEGER) {
+		if (na_rm)
+			return status;
+		*double_init = NA_REAL;
+		return 2;
+	}
+	*double_init *= x;
+	return 1;
+}
+static inline int double_prod(void *init, double x, int na_rm, int status)
+{
+	double *double_init;
+
+	double_init = (double *) init;
+	if (R_IsNA(x) || R_IsNaN(x)) {
+		if (na_rm)
+			return status;
+		*double_init = x;
+		return R_IsNA(x) ? 2 : 1;
+	}
+	if (!R_IsNaN(*double_init))
+		*double_init *= x;
+	return 1;
+}
+
+static inline int int_any(void *init, int x, int na_rm, int status)
+{
+	int *int_init;
+
+	int_init = (int *) init;
+	if (x == NA_INTEGER) {
+		if (na_rm)
+			return status;
+		*int_init = x;
+		return 1;
+	}
+	if (x == 0)
+		return 1;
+	*int_init = x;
+	return 2;
+}
+
+static inline int int_all(void *init, int x, int na_rm, int status)
+{
+	int *int_init;
+
+	int_init = (int *) init;
+	if (x == NA_INTEGER) {
+		if (na_rm)
+			return status;
+		*int_init = x;
+		return 1;
+	}
+	if (x != 0)
+		return 1;
+	*int_init = x;
+	return 2;
+}
+
+/* One of '*summarize_ints_FUN' or '*summarize_doubles_FUN' will be set
+   to NULL and the other one to a non-NULL value. */
+void _select_Summary_FUN(int opcode, SEXPTYPE Rtype,
+		SummarizeInts_FUNType *summarize_ints_FUN,
+		SummarizeDoubles_FUNType *summarize_doubles_FUN,
+		void *init)
+{
+	int *int_init = (int *) init;
+	double *double_init = (double *) init;
+
+	*summarize_ints_FUN = NULL;
+	*summarize_doubles_FUN = NULL;
+	if (opcode == ANY_OPCODE) {
+		*summarize_ints_FUN = int_any;
+		int_init[0] = 0;
+		return;
+	}
+	if (opcode == ALL_OPCODE) {
+		*summarize_ints_FUN = int_all;
+		int_init[0] = 1;
+		return;
+	}
+	if (opcode == SUM_OPCODE) {
+		if (Rtype == REALSXP) {
+			*summarize_doubles_FUN = double_sum;
+		} else {
+			*summarize_ints_FUN = int_sum;
+		}
+		double_init[0] = 0.0;
+		return;
+	}
+	if (opcode == PROD_OPCODE) {
+		if (Rtype == REALSXP) {
+			*summarize_doubles_FUN = double_prod;
+		} else {
+			*summarize_ints_FUN = int_prod;
+		}
+		double_init[0] = 1.0;
+		return;
+	}
+	if (Rtype == REALSXP) {
+		switch (opcode) {
+		    case MIN_OPCODE:
+			*summarize_doubles_FUN = double_min;
+			double_init[0] = R_PosInf;
+			break;
+		    case MAX_OPCODE:
+			*summarize_doubles_FUN = double_max;
+			double_init[0] = R_NegInf;
+			break;
+		    case RANGE_OPCODE:
+			*summarize_doubles_FUN = double_range;
+			double_init[0] = R_PosInf;
+			double_init[1] = R_NegInf;
+			break;
+		}
+		return;
+	}
+	/* NO initial value! */
+	switch (opcode) {
+	    case MIN_OPCODE:   *summarize_ints_FUN = int_min;   break;
+	    case MAX_OPCODE:   *summarize_ints_FUN = int_max;   break;
+	    case RANGE_OPCODE: *summarize_ints_FUN = int_range; break;
+	}
+	return;
+}
+
+
+/****************************************************************************
  * _count_Rvector_NAs() and _Rvector_has_any_NA()
  */
 
