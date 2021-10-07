@@ -1,5 +1,9 @@
 - Implement C_subassign_SVT_with_Rarray() and C_subassign_SVT_with_SVT().
 
+- Implement Summary & mean() methods for SVT_SparseArray objects.
+
+- Implement Compare and Logic methods for SVT_SparseArray objects.
+
 - Implement crossprod(), tcrossprod(), and %in%, for SVT_SparseMatrix objects.
 
 - Add unit tests for the SVT_SparseArray stuff.
@@ -8,9 +12,6 @@
 
 - Implement function for loading a TENxMatrixSeed subset as an
   SVT_SparseMatrix. Test it on the 1.3 Million Brain Cell Dataset.
-
-- Implement Summary, Compare, and Logic group generics for SVT_SparseArray
-  objects.
 
 - Implement matrixStats methods for SVT_SparseMatrix objects.
 

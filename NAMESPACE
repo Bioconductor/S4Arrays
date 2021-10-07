@@ -74,8 +74,10 @@ S3method(as.raw, Array)
 S3method(as.vector, Array)
 
 S3method(mean, COO_SparseArray)
+S3method(mean, SVT_SparseArray)
 
 S3method(range, COO_SparseArray)
+S3method(range, SVT_SparseArray)
 
 S3method(rowsum, dgCMatrix)
 
@@ -117,8 +119,10 @@ export(
     as.vector.Array,
 
     mean.COO_SparseArray,
+    mean.SVT_SparseArray,
 
     range.COO_SparseArray,
+    range.SVT_SparseArray,
 
     rowsum.dgCMatrix,
 
@@ -142,9 +146,10 @@ exportMethods(
     as.array, as.matrix, as.data.frame, as.vector,
     as.logical, as.integer, as.numeric, as.complex, as.character, as.raw,
     t,
-    anyNA, which,
+    which,
     max, min, range, sum, prod, any, all,   # "Summary" group generic
     mean,
+    anyNA,
     nchar,
     crossprod,
 

@@ -75,9 +75,9 @@ static inline int copy_Rvector_elts(
  */
 
 /* Recursive. */
-static R_xlen_t REC_sum_leaf_vector_lengths(SEXP SVT, int ndim)
+static R_xlen_t REC_get_SVT_nzcount(SEXP SVT, int ndim)
 {
-	R_xlen_t ans;
+	R_xlen_t nzcount;
 	int SVT_len, i;
 	SEXP subSVT;
 
@@ -90,24 +90,24 @@ static R_xlen_t REC_sum_leaf_vector_lengths(SEXP SVT, int ndim)
 	}
 
 	/* 'SVT' is a regular node (list). */
-	ans = 0;
+	nzcount = 0;
 	SVT_len = LENGTH(SVT);
 	for (i = 0; i < SVT_len; i++) {
 		subSVT = VECTOR_ELT(SVT, i);
-		ans += REC_sum_leaf_vector_lengths(subSVT, ndim - 1);
+		nzcount += REC_get_SVT_nzcount(subSVT, ndim - 1);
 	}
-	return ans;
+	return nzcount;
 }
 
 /* --- .Call ENTRY POINT --- */
 SEXP C_get_SVT_SparseArray_nzcount(SEXP x_dim, SEXP x_SVT)
 {
-	R_xlen_t nzdata_len;
+	R_xlen_t nzcount;
 
-	nzdata_len = REC_sum_leaf_vector_lengths(x_SVT, LENGTH(x_dim));
-	if (nzdata_len > INT_MAX)
-		return ScalarReal((double) nzdata_len);
-	return ScalarInteger((int) nzdata_len);
+	nzcount = REC_get_SVT_nzcount(x_SVT, LENGTH(x_dim));
+	if (nzcount > INT_MAX)
+		return ScalarReal((double) nzcount);
+	return ScalarInteger((int) nzcount);
 }
 
 
@@ -380,16 +380,16 @@ static int dump_col_to_CsparseMatrix_slots(SEXP SVT, int col_idx,
 static int dump_SVT_to_CsparseMatrix_slots(SEXP x_SVT, int x_ncol,
 		SEXP ans_p, SEXP ans_i, SEXP ans_x)
 {
-	int offset, j, nzdata_len;
+	int offset, j, nzcount;
 
 	INTEGER(ans_p)[0] = 0;
 	offset = 0;
 	for (j = 0; j < x_ncol; j++) {
-		nzdata_len = dump_col_to_CsparseMatrix_slots(x_SVT, j,
+		nzcount = dump_col_to_CsparseMatrix_slots(x_SVT, j,
 						ans_i, ans_x, offset);
-		if (nzdata_len < 0)
+		if (nzcount < 0)
 			return -1;
-		offset += nzdata_len;
+		offset += nzcount;
 		INTEGER(ans_p)[j + 1] = offset;
 	}
 	return 0;
@@ -399,7 +399,7 @@ static int dump_SVT_to_CsparseMatrix_slots(SEXP x_SVT, int x_ncol,
 SEXP C_from_SVT_SparseMatrix_to_CsparseMatrix(SEXP x_dim,
 		SEXP x_type, SEXP x_SVT)
 {
-	R_xlen_t nzdata_len;
+	R_xlen_t nzcount;
 	SEXPTYPE x_Rtype;
 	int x_ncol, ret;
 	SEXP ans_p, ans_i, ans_x, ans;
@@ -408,8 +408,8 @@ SEXP C_from_SVT_SparseMatrix_to_CsparseMatrix(SEXP x_dim,
 		error("object to coerce to [d|l]gCMatrix "
 		      "must have exactly 2 dimensions");
 
-	nzdata_len = REC_sum_leaf_vector_lengths(x_SVT, 2);
-	if (nzdata_len > INT_MAX)
+	nzcount = REC_get_SVT_nzcount(x_SVT, 2);
+	if (nzcount > INT_MAX)
 		error("SVT_SparseMatrix object contains too many nonzero "
 		      "values to be turned into a dgCMatrix or lgCMatrix "
 		      "object");
@@ -422,9 +422,9 @@ SEXP C_from_SVT_SparseMatrix_to_CsparseMatrix(SEXP x_dim,
 
 	x_ncol = INTEGER(x_dim)[1];
 
-	ans_i = PROTECT(NEW_INTEGER(nzdata_len));
-	ans_x = PROTECT(allocVector(x_Rtype, nzdata_len));
-	if (nzdata_len == 0) {
+	ans_i = PROTECT(NEW_INTEGER(nzcount));
+	ans_x = PROTECT(allocVector(x_Rtype, nzcount));
+	if (nzcount == 0) {
 		ans_p = PROTECT(_new_Rvector(INTSXP, (R_xlen_t) x_ncol + 1));
 	} else {
 		ans_p = PROTECT(NEW_INTEGER(x_ncol + 1));
@@ -562,7 +562,7 @@ SEXP C_build_SVT_from_CsparseMatrix(SEXP x, SEXP ans_type)
  * Going from SVT_SparseArray to COO_SparseArray
  */
 
-static SEXP alloc_nzvals(R_xlen_t nzdata_len, SEXP type)
+static SEXP alloc_nzvals(SEXP type, R_xlen_t n)
 {
 	SEXPTYPE Rtype;
 
@@ -570,7 +570,7 @@ static SEXP alloc_nzvals(R_xlen_t nzdata_len, SEXP type)
 	if (Rtype == 0)
 		error("S4Arrays internal error in alloc_nzvals():\n"
 		      "    SVT_SparseArray object has invalid type");
-	return allocVector(Rtype, nzdata_len);
+	return allocVector(Rtype, n);
 }
 
 /* Recursive. */
@@ -633,18 +633,18 @@ static int REC_extract_nzcoo_and_nzvals_from_SVT(SEXP SVT,
 SEXP C_from_SVT_SparseArray_to_COO_SparseArray(SEXP x_dim,
 		SEXP x_type, SEXP x_SVT)
 {
-	R_xlen_t nzdata_len;
+	R_xlen_t nzcount;
 	int nzcoo_nrow, nzcoo_ncol, *rowbuf, nzdata_offset, ret;
 	SEXP nzcoo, nzvals, ans;
 
-	nzdata_len = REC_sum_leaf_vector_lengths(x_SVT, LENGTH(x_dim));
-	if (nzdata_len > INT_MAX)
+	nzcount = REC_get_SVT_nzcount(x_SVT, LENGTH(x_dim));
+	if (nzcount > INT_MAX)
 		error("SVT_SparseArray object contains too many nonzero "
 		      "values to be turned into a COO_SparseArray object");
 
-	nzvals = PROTECT(alloc_nzvals(nzdata_len, x_type));
+	nzvals = PROTECT(alloc_nzvals(x_type, nzcount));
 
-	nzcoo_nrow = (int) nzdata_len;
+	nzcoo_nrow = (int) nzcount;
 	nzcoo_ncol = LENGTH(x_dim);
 	rowbuf = (int *) R_alloc(nzcoo_ncol, sizeof(int));
 	nzcoo = PROTECT(allocMatrix(INTSXP, nzcoo_nrow, nzcoo_ncol));

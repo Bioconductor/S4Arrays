@@ -358,7 +358,7 @@ void _copy_selected_Rsubvec_elts(
 	out_len = LENGTH(out_Rvector);  /* also the length of the selection */
 
 	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
-	switch (TYPEOF(in_Rvector)) {
+	switch (Rtype) {
 	    case LGLSXP: case INTSXP:
 		_copy_selected_ints(INTEGER(in_Rvector) + in_offset,
 				selection, out_len, INTEGER(out_Rvector));
@@ -443,7 +443,7 @@ void _copy_Rvector_elts_to_offsets(
 	in_len = LENGTH(in_Rvector);  /* also the length of the selection */
 
 	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
-	switch (TYPEOF(in_Rvector)) {
+	switch (Rtype) {
 	    case LGLSXP: case INTSXP:
 		_copy_ints_to_offsets(INTEGER(in_Rvector),
 				selection, in_len,
@@ -569,7 +569,7 @@ void _copy_Rvector_elts_from_selected_offsets(SEXP in_Rvector,
 	out_len = LENGTH(out_Rvector);  /* also the length of the selection */
 
 	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
-	switch (TYPEOF(in_Rvector)) {
+	switch (Rtype) {
 	    case LGLSXP: case INTSXP:
 		copy_ints_from_selected_offsets(INTEGER(in_Rvector),
 				offsets, offset_selection, out_len,
@@ -621,7 +621,7 @@ void _copy_Rvector_elts_from_selected_lloffsets(SEXP in_Rvector,
 	out_len = LENGTH(out_Rvector);  /* also the length of the selection */
 
 	/* Optimized for LGLSXP, INTSXP, REALSXP, CPLXSXP, and RAWSXP. */
-	switch (TYPEOF(in_Rvector)) {
+	switch (Rtype) {
 	    case LGLSXP: case INTSXP:
 		copy_ints_from_selected_lloffsets(INTEGER(in_Rvector),
 				lloffsets, lloffset_selection, out_len,
@@ -656,5 +656,102 @@ void _copy_Rvector_elts_from_selected_lloffsets(SEXP in_Rvector,
 			in_Rvector, (R_xlen_t) lloffsets[*lloffset_selection],
 			out_Rvector, k);
 	return;
+}
+
+
+/****************************************************************************
+ * _Rvector_has_any_NA()
+ */
+
+static int any_NA_int(const int *x, int n)
+{
+	for (int i = 0; i < n; i++, x++)
+		if (*x == NA_INTEGER)
+			return 1;
+	return 0;
+}
+
+#define DOUBLE_IS_NA(x) (R_IsNA(x) || R_IsNaN(x))
+static int any_NA_double(const double *x, int n)
+{
+	for (int i = 0; i < n; i++, x++)
+		if (DOUBLE_IS_NA(*x))
+			return 1;
+	return 0;
+}
+
+#define RCOMPLEX_IS_NA(x) (DOUBLE_IS_NA((x)->r) || DOUBLE_IS_NA((x)->i))
+static int any_NA_Rcomplex(const Rcomplex *x, int n)
+{
+	for (int i = 0; i < n; i++, x++)
+		if (RCOMPLEX_IS_NA(x))
+			return 1;
+	return 0;
+}
+
+static int any_NA_character(SEXP x)
+{
+	int n;
+
+	n = LENGTH(x);
+	for (int i = 0; i < n; i++)
+		if (STRING_ELT(x, i) == NA_STRING)
+			return 1;
+	return 0;
+}
+
+static int any_NA_list(SEXP x)
+{
+	int n;
+
+	n = LENGTH(x);
+	for (int i = 0; i < n; i++) {
+		SEXP x_elt = VECTOR_ELT(x, i);
+		SEXPTYPE Rtype = TYPEOF(x_elt);
+		switch (Rtype) {
+		    case LGLSXP: case INTSXP:
+			if (LENGTH(x_elt) == 1 &&
+			    INTEGER(x_elt)[0] == NA_INTEGER)
+				return 1;
+		    break;
+		    case REALSXP:
+			if (LENGTH(x_elt) == 1 &&
+			    DOUBLE_IS_NA(REAL(x_elt)[0]))
+				return 1;
+		    break;
+		    case CPLXSXP:
+			if (LENGTH(x_elt) == 1 &&
+			    RCOMPLEX_IS_NA(COMPLEX(x_elt)))
+				return 1;
+		    break;
+		    case STRSXP:
+			if (LENGTH(x_elt) == 1 &&
+			    STRING_ELT(x_elt, 0) == NA_STRING)
+				return 1;
+		    break;
+		}
+	}
+	return 0;
+}
+
+int _Rvector_has_any_NA(SEXP Rvector)
+{
+	SEXPTYPE Rtype;
+	int n;
+
+	Rtype = TYPEOF(Rvector);
+	n = LENGTH(Rvector);
+	switch (Rtype) {
+	    case LGLSXP: case INTSXP: return any_NA_int(INTEGER(Rvector), n);
+	    case REALSXP: return any_NA_double(REAL(Rvector), n);
+	    case CPLXSXP: return any_NA_Rcomplex(COMPLEX(Rvector), n);
+	    case RAWSXP:  return 0;
+	    case STRSXP:  return any_NA_character(Rvector);
+	    case VECSXP:  return any_NA_list(Rvector);
+	}
+	error("S4Arrays internal error in "
+	      "_Rvector_has_any_NA():\n"
+	      "    type \"%s\" is not supported", type2char(Rtype));
+	return -1;  /* will never reach this */
 }
 
