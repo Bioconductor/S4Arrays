@@ -327,6 +327,12 @@ int _summarize_leaf_vector(SEXP lv, int d,
 				     init, DATAPTR(lv_vals), lv_len, status);
 	if (status == 2 || lv_len == d)
 		return status;
+	if (summarize_op->opcode == SUM_X2_OPCODE) {
+		double *double_init = (double *) init;
+		double center = double_init[1];
+		double_init[0] += center * center * (d - lv_len);
+		return status;
+	}
 	if (summarize_op->Rtype == INTSXP) {
 		int zero = 0;
 		status = _apply_summarize_op(summarize_op,

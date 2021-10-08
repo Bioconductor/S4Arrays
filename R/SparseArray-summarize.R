@@ -52,7 +52,7 @@ setMethod("Summary", "COO_SparseArray",
     }
 )
 
-### 'center' ignored by all ops except "sum_squares".
+### 'center' ignored by all ops except "sum_X2".
 .summarize_SVT_SparseArray <- function(op, x, na.rm=FALSE, center=0.0)
 {
     stopifnot(is(x, "SVT_SparseArray"))
@@ -186,18 +186,28 @@ setMethod("anyNA", "SVT_SparseArray",
 ### var()
 ###
 
-### Will work out-of-the-box on any object 'x' that supports
-### .count_SparseArray_NAs(), mean(), `-`, `^`, and sum().
-### Won't be very efficient though because it passes 2 times on the
-### data in 'x' and 2 times in a modified version of 'x'!
-.var_SparseArray <- function(x, na.rm=FALSE)
+.var_SparseArray <- function(x, na.rm=FALSE, method=0L)
 {
     stopifnot(is(x, "SparseArray"))
+    if (method == 0L)
+        return(.summarize_SVT_SparseArray("var", x, na.rm=na.rm))
     nval <- length(x)
     if (na.rm)
-        nval <- nval - .count_SparseArray_NAs(x)
+        nval <- nval - .count_SparseArray_NAs(x)  # 1st pass on 'x'
     if (nval <= 1L)
         return(NA_real_)
+    if (method == 1L) {
+	## 2nd pass on 'x'.
+        sum_X_X2 <- .summarize_SVT_SparseArray("sum_X_X2", x, na.rm=na.rm)
+        S1 <- as.double(sum_X_X2[[1L]])
+        S2 <- as.double(sum_X_X2[[2L]])
+        return((S2 - S1 * S1 / nval) / (nval - 1L))
+    }
+    ## Will work out-of-the-box on any object 'x' that supports
+    ## .count_SparseArray_NAs(), mean(), `-`, `^`, and sum().
+    ## Won't be very efficient though because it performs 5 passes: 3 passes
+    ## on 'x' (1st pass was by .count_SparseArray_NAs() above) and 2 passes
+    ## on a modified version of 'x'!
     s <- sum((x - mean(x, na.rm=na.rm))^2L, na.rm=na.rm)
     s / (nval - 1L)
 }
@@ -211,7 +221,7 @@ setMethod("var", "SparseArray",
         if (!missing(use))
             stop(wmsg("var() method for SparseArray objects ",
                       "does not support the 'use' argument"))
-        .var_SparseArray(x, na.rm=na.rm)
+        .var_SparseArray(x, na.rm=na.rm, method=1L)
     }
 )
 

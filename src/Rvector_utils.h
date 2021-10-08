@@ -251,16 +251,17 @@ void _copy_Rvector_elts_from_selected_lloffsets(
 );
 
 /* "summarize" operations from Summary group generic */
-#define	MIN_OPCODE         1
-#define	MAX_OPCODE         2
-#define	RANGE_OPCODE       3
-#define	SUM_OPCODE         4
-#define	PROD_OPCODE        5
-#define	ANY_OPCODE         6
-#define	ALL_OPCODE         7
+#define	MIN_OPCODE      1
+#define	MAX_OPCODE      2
+#define	RANGE_OPCODE    3
+#define	SUM_OPCODE      4
+#define	PROD_OPCODE     5
+#define	ANY_OPCODE      6
+#define	ALL_OPCODE      7
 
 /* Other "summarize" operations */
-#define	SUM_SQUARES_OPCODE 8  /* as support for var() */
+#define	SUM_X2_OPCODE   8  /* to support var() */
+#define	SUM_X_X2_OPCODE 9  /* to support var() */
 
 int _get_summarize_opcode(SEXP op, SEXPTYPE Rtype);
 

@@ -686,8 +686,10 @@ int _get_summarize_opcode(SEXP op, SEXPTYPE Rtype)
 		return SUM_OPCODE;
 	if (strcmp(s, "prod") == 0)
 		return PROD_OPCODE;
-	if (strcmp(s, "sum_squares") == 0)
-		return SUM_SQUARES_OPCODE;
+	if (strcmp(s, "sum_X2") == 0)
+		return SUM_X2_OPCODE;
+	if (strcmp(s, "sum_X_X2") == 0)
+		return SUM_X_X2_OPCODE;
 	if (Rtype == REALSXP)
 		error("%s() does not support SparseArray objects "
 		      "of type \"%s\"", s, type2char(Rtype));
@@ -697,7 +699,7 @@ int _get_summarize_opcode(SEXP op, SEXPTYPE Rtype)
 		return ALL_OPCODE;
 	error("'op' must be one of: \"min\", \"max\", \"range\", "
 	      "\"sum\", \"prod\", \"any\", \"all\",\n"
-	      "                       \"sum_squares\"");
+	      "                       \"sum_X2\", \"sum_X_X2\"");
 	return 0;
 }
 
@@ -997,7 +999,7 @@ static inline int all_ints(void *init, const int *x, int n,
 }
 
 /* Ignores 'status'. */
-static inline int sum_int_squares(void *init, const int *x, int n,
+static inline int sum_X2_ints(void *init, const int *x, int n,
 		int na_rm, int status)
 {
 	double *double_init, y;
@@ -1018,7 +1020,7 @@ static inline int sum_int_squares(void *init, const int *x, int n,
 }
 
 /* Ignores 'status'. */
-static inline int sum_double_squares(void *init, const double *x, int n,
+static inline int sum_X2_doubles(void *init, const double *x, int n,
 		int na_rm, int status)
 {
 	double *double_init, y;
@@ -1036,6 +1038,53 @@ static inline int sum_double_squares(void *init, const double *x, int n,
 		if (!R_IsNaN(double_init[0])) {
 			y = (double) *x - double_init[1];
 			double_init[0] += y * y;
+		}
+	}
+	return status;
+}
+
+/* Ignores 'status'. */
+static inline int sum_X_X2_ints(void *init, const int *x, int n,
+		int na_rm, int status)
+{
+	double *double_init, xx;
+
+	double_init = (double *) init;
+	for (int i = 0; i < n; i++, x++) {
+		if (*x == NA_INTEGER) {
+			if (!na_rm) {
+				double_init[0] = double_init[1] = NA_REAL;
+				return 2;
+			}
+			continue;
+		}
+		xx = (double) *x;
+		double_init[0] += xx;
+		double_init[1] += xx * xx;
+	}
+	return status;
+}
+
+/* Ignores 'status'. */
+static inline int sum_X_X2_doubles(void *init, const double *x, int n,
+		int na_rm, int status)
+{
+	double *double_init, xx;
+
+	double_init = (double *) init;
+	for (int i = 0; i < n; i++, x++) {
+		xx = *x;
+		if (DOUBLE_IS_NA(xx)) {
+			if (!na_rm) {
+				double_init[0] = double_init[1] = xx;
+				if (R_IsNA(xx))
+					return 2;
+			}
+			continue;
+		}
+		if (!R_IsNaN(double_init[0])) {
+			double_init[0] += xx;
+			double_init[1] += xx * xx;
 		}
 	}
 	return status;
@@ -1081,14 +1130,23 @@ static void select_summarize_FUN(int opcode, SEXPTYPE Rtype, double center,
 		double_init[0] = 1.0;
 		return;
 	}
-	if (opcode == SUM_SQUARES_OPCODE) {
+	if (opcode == SUM_X2_OPCODE) {
 		if (Rtype == REALSXP) {
-			*summarize_doubles_FUN = sum_double_squares;
+			*summarize_doubles_FUN = sum_X2_doubles;
 		} else {
-			*summarize_ints_FUN = sum_int_squares;
+			*summarize_ints_FUN = sum_X2_ints;
 		}
 		double_init[0] = 0.0;
 		double_init[1] = center;
+		return;
+	}
+	if (opcode == SUM_X_X2_OPCODE) {
+		if (Rtype == REALSXP) {
+			*summarize_doubles_FUN = sum_X_X2_doubles;
+		} else {
+			*summarize_ints_FUN = sum_X_X2_ints;
+		}
+		double_init[0] = double_init[1] = 0.0;
 		return;
 	}
 	if (Rtype == REALSXP) {
@@ -1189,7 +1247,37 @@ SEXP _init2SEXP(int opcode, SEXPTYPE Rtype, void *init, int status)
 		UNPROTECT(1);
 		return ans;
 	}
-	/* 'opcode' is either SUM_OPCODE, PROD_OPCODE, or SUM_SQUARES_OPCODE. */
+	if (opcode == SUM_X_X2_OPCODE) {
+		/* Either 'double_init[0]' and 'double_init[1]' are both set
+		   to NA or NaN or none of them is. Furthermore, in the former
+		   case, they should both be set to the same kind of NA i.e.
+		   both are set to NA or both are set NaN. */
+		double init0 = double_init[0], init1 = double_init[1];
+		if (Rtype == INTSXP &&
+		    (init0 == NA_REAL ||
+		     (init0 <= INT_MAX && init0 >= -INT_MAX &&
+		      init1 <= INT_MAX && init1 >= -INT_MAX)))
+		{
+			ans = PROTECT(NEW_INTEGER(2));
+			if (init0 == NA_REAL) {
+				INTEGER(ans)[0] = INTEGER(ans)[1] = NA_INTEGER;
+			} else {
+				INTEGER(ans)[0] = (int) init0;
+				INTEGER(ans)[1] = (int) init1;
+			}
+		} else {
+			ans = PROTECT(NEW_NUMERIC(2));
+			if (DOUBLE_IS_NA(init0)) {
+				REAL(ans)[0] = REAL(ans)[1] = init0;
+			} else {
+				REAL(ans)[0] = init0;
+				REAL(ans)[1] = init1;
+			}
+		}
+		UNPROTECT(1);
+		return ans;
+	}
+	/* 'opcode' is either SUM_OPCODE, PROD_OPCODE, or SUM_X2_OPCODE. */
 	if (Rtype == REALSXP)
 		return ScalarReal(double_init[0]);
 	/* Direct comparison with NA_REAL is safe. No need to use R_IsNA(). */
