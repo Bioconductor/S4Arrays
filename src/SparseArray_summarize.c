@@ -1,14 +1,14 @@
 /****************************************************************************
- *                "Summary" methods for SparseArray objects                 *
+ *              Summarization methods for SparseArray objects               *
  ****************************************************************************/
-#include "SparseArray_Summary.h"
+#include "SparseArray_summarize.h"
 
 #include "Rvector_utils.h"
 #include "leaf_vector_utils.h"
 
 
 /****************************************************************************
- * C_SVT_SparseArray_Summary()
+ * C_summarize_SVT_SparseArray()
  */
 
 
@@ -78,7 +78,7 @@ static int summarize_SVT(SEXP SVT, const int *dim, int ndim, SEXPTYPE Rtype,
 	return status;
 }
 
-SEXP C_SVT_SparseArray_Summary(SEXP x_dim, SEXP x_type, SEXP x_SVT,
+SEXP C_summarize_SVT_SparseArray(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 		SEXP op, SEXP na_rm)
 {
 	SEXPTYPE Rtype;
@@ -90,7 +90,7 @@ SEXP C_SVT_SparseArray_Summary(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 	Rtype = _get_Rtype_from_Rstring(x_type);
         if (Rtype == 0)
 		error("S4Arrays internal error in "
-		      "C_SVT_SparseArray_Summary():\n"
+		      "C_summarize_SVT_SparseArray():\n"
 		      "    SVT_SparseArray object has invalid type");
 
 	opcode = _get_opcode(op, Rtype);
@@ -99,7 +99,7 @@ SEXP C_SVT_SparseArray_Summary(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 		error("'na.rm' must be TRUE or FALSE");
 	narm0 = LOGICAL(na_rm)[0];
 
-	_select_Summary_FUN(opcode, Rtype,
+	_select_summarize_FUN(opcode, Rtype,
 			&summarize_ints_FUN,
 			&summarize_doubles_FUN,
 			init);

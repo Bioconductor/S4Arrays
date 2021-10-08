@@ -1,20 +1,20 @@
 ### =========================================================================
-### "Summary" methods for SparseArray objects
+### Summarization methods for SparseArray objects
 ### -------------------------------------------------------------------------
 ###
-### "Summary" is a group generic with members: min(), max(), range(), sum(),
-### prod(), any(), all(). In this file we defines methods to make all these
-### functions work on SparseArray objects.
-###
-### We also define methods to make mean() and anyNA() work on these objects.
+### Summarization methods:
+###   - Summary group generic: min(), max(), range(), sum(), prod(),
+###                            any(), all()
+###   - mean(), anyNA()
+###   - Unary var(), sd()
 ###
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### min(), max(), range(), sum(), prod(), any(), all()
+### Summary group generic
 ###
 
-.COO_SparseArray_Summary <- function(.Generic, x, na.rm=FALSE)
+.summarize_COO_SparseArray <- function(.Generic, x, na.rm=FALSE)
 {
     stopifnot(is(x, "COO_SparseArray"))
     GENERIC <- match.fun(.Generic)
@@ -48,14 +48,14 @@ setMethod("Summary", "COO_SparseArray",
         if (length(list(...)) != 0L)
             stop(wmsg(.Generic, "() method for COO_SparseArray objects ",
                       "only accepts a single object"))
-        .COO_SparseArray_Summary(.Generic, x, na.rm=na.rm)
+        .summarize_COO_SparseArray(.Generic, x, na.rm=na.rm)
     }
 )
 
-.SVT_SparseArray_Summary <- function(.Generic, x, na.rm=FALSE)
+.summarize_SVT_SparseArray <- function(.Generic, x, na.rm=FALSE)
 {
     stopifnot(is(x, "SVT_SparseArray"))
-    .Call2("C_SVT_SparseArray_Summary",
+    .Call2("C_summarize_SVT_SparseArray",
            x@dim, x@type, x@SVT, .Generic, na.rm, PACKAGE="S4Arrays")
 }
 
@@ -65,7 +65,7 @@ setMethod("Summary", "SVT_SparseArray",
         if (length(list(...)) != 0L)
             stop(wmsg(.Generic, "() method for SVT_SparseArray objects ",
                       "only accepts a single object"))
-        .SVT_SparseArray_Summary(.Generic, x, na.rm=na.rm)
+        .summarize_SVT_SparseArray(.Generic, x, na.rm=na.rm)
     }
 )
 
@@ -95,9 +95,10 @@ range.COO_SparseArray <- function(..., na.rm=FALSE, finite=FALSE)
     zero <- vector(typeof(x@nzvals), length=1L)
     range(zero, x@nzvals, na.rm=na.rm, finite=finite)
 }
-### The signature of all the members of the S4 "Summary" group generic is
-### 'x, ..., na.rm' (see getGeneric("range")) which means that the S4 methods
-### cannot add arguments after 'na.rm'. So we add the 'finite' argument before.
+### The signature of all the members in the Summary group generic is
+### 'x, ..., na.rm' (see getGeneric("range")) which means that methods
+### cannot add arguments after 'na.rm'. So we add the 'finite' argument
+### before.
 setMethod("range", "COO_SparseArray",
     function(x, ..., finite=FALSE, na.rm=FALSE)
         range.COO_SparseArray(x, ..., na.rm=na.rm, finite=finite)
@@ -115,11 +116,12 @@ range.SVT_SparseArray <- function(..., na.rm=FALSE, finite=FALSE)
         stop(wmsg("range() method for SVT_SparseArray objects ",
                   "only accepts a single object"))
     x <- objects[[1L]]
-    .SVT_SparseArray_Summary("range", x, na.rm=na.rm)
+    .summarize_SVT_SparseArray("range", x, na.rm=na.rm)
 }
-### The signature of all the members of the S4 "Summary" group generic is
-### 'x, ..., na.rm' (see getGeneric("range")) which means that the S4 methods
-### cannot add arguments after 'na.rm'. So we add the 'finite' argument before.
+### The signature of all the members in the Summary group generic is
+### 'x, ..., na.rm' (see getGeneric("range")) which means that methods
+### cannot add arguments after 'na.rm'. So we add the 'finite' argument
+### before.
 setMethod("range", "SVT_SparseArray",
     function(x, ..., finite=FALSE, na.rm=FALSE)
         range.SVT_SparseArray(x, ..., na.rm=na.rm, finite=finite)

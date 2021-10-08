@@ -8,7 +8,7 @@
 #include "SparseArray_subassignment.h"
 #include "SparseArray_subsetting.h"
 #include "SparseArray_combine.h"
-#include "SparseArray_Summary.h"
+#include "SparseArray_summarize.h"
 #include "SparseMatrix_mult.h"
 #include "randomSparseArray.h"
 #include "readSparseCSV.h"
@@ -60,8 +60,8 @@ static const R_CallMethodDef callMethods[] = {
 /* SparseArray_combine.c */
 	CALLMETHOD_DEF(C_abind_SVT_SparseArray_objects, 3),
 
-/* SparseArray_Summary.c */
-	CALLMETHOD_DEF(C_SVT_SparseArray_Summary, 5),
+/* SparseArray_summarize.c */
+	CALLMETHOD_DEF(C_summarize_SVT_SparseArray, 5),
 	CALLMETHOD_DEF(C_count_SVT_SparseArray_NAs, 3),
 	CALLMETHOD_DEF(C_anyNA_SVT_SparseArray, 3),
 

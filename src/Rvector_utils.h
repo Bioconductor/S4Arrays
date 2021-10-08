@@ -266,7 +266,7 @@ typedef int (*SummarizeInts_FUNType)(
 typedef int (*SummarizeDoubles_FUNType)(
 	void *init, const double *x, int n, int na_rm, int status);
 
-void _select_Summary_FUN(
+void _select_summarize_FUN(
 	int opcode,
 	SEXPTYPE Rtype,
 	SummarizeInts_FUNType *summarize_ints_FUN,

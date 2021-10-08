@@ -700,9 +700,9 @@ int _get_opcode(SEXP op, SEXPTYPE Rtype)
 
 
 /****************************************************************************
- * Callback functions used for operations from the "Summary" group.
+ * Callback functions used for operations from the Summary group generic
  *
- * "Summary" is a group generic with members: min(), max(), range(), sum(),
+ * Summary is a group generic with members: min(), max(), range(), sum(),
  * prod(), any(), all().
  *
  * All these callback functions return the "new status":
@@ -712,7 +712,7 @@ int _get_opcode(SEXP op, SEXPTYPE Rtype)
  *
  * IMPORTANT NOTE: Most of them ignore the supplied 'status', only
  * min/max/range_ints() don't. This is because 'init' should have been set
- * by _select_Summary_FUN() before the callback function gets called (see
+ * by _select_summarize_FUN() before the callback function gets called (see
  * below in this file). So it doesn't matter whether the supplied 'status'
  * is 0 or 1, and it doesn't matter if the callback function returns a new
  * status of 0 or 1.
@@ -998,7 +998,7 @@ static inline int all_ints(void *init, const int *x, int n,
 
 /* One of '*summarize_ints_FUN' or '*summarize_doubles_FUN' will be set
    to NULL and the other one to a non-NULL value. */
-void _select_Summary_FUN(int opcode, SEXPTYPE Rtype,
+void _select_summarize_FUN(int opcode, SEXPTYPE Rtype,
 		SummarizeInts_FUNType *summarize_ints_FUN,
 		SummarizeDoubles_FUNType *summarize_doubles_FUN,
 		void *init)
