@@ -83,10 +83,8 @@ SEXP _subassign_leaf_vector_with_Rvector(
 int _summarize_leaf_vector(
 	SEXP lv,
 	int d,
-	SummarizeInts_FUNType summarize_ints_FUN,
-	SummarizeDoubles_FUNType summarize_doubles_FUN,
+	const SummarizeOp *summarize_op,
 	void *init,
-	int na_rm,
 	int status
 );
 

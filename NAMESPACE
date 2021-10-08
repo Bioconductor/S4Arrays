@@ -2,7 +2,7 @@ useDynLib(S4Arrays)
 
 import(methods)
 importFrom(stats, setNames)
-importClassFrom(Matrix, dgCMatrix, dgRMatrix, lgCMatrix, lgRMatrix)
+importClassFrom(Matrix, dgCMatrix, lgCMatrix, dgRMatrix, lgRMatrix)
 importFrom(Matrix, sparseMatrix, crossprod, tcrossprod)
 importFrom(crayon, make_style)
 
@@ -148,6 +148,7 @@ exportMethods(
     min, max, range, sum, prod, any, all,   # "Summary" group generic
     mean,
     anyNA,
+    var,
     nchar,
     crossprod,
 

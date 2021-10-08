@@ -14,13 +14,13 @@
 ### Summary group generic
 ###
 
-.summarize_COO_SparseArray <- function(.Generic, x, na.rm=FALSE)
+.summarize_COO_SparseArray <- function(op, x, na.rm=FALSE)
 {
     stopifnot(is(x, "COO_SparseArray"))
-    GENERIC <- match.fun(.Generic)
+    GENERIC <- match.fun(op)
     ## Whether 'x' contains zeros or not doesn't make a difference for
     ## sum() and any().
-    if (.Generic %in% c("sum", "any"))
+    if (op %in% c("sum", "any"))
         return(GENERIC(x@nzvals, na.rm=na.rm))
     ## Of course a typical COO_SparseArray object "contains" zeros
     ## (i.e. it would contain zeros if we converted it to a dense
@@ -32,7 +32,7 @@
     if (!x_has_zeros)
         return(GENERIC(x@nzvals, na.rm=na.rm))
     x_type <- typeof(x@nzvals)
-    if (.Generic == "all") {
+    if (op == "all") {
         ## Mimic what 'all(sparse2dense(x))' would do.
         if (x_type == "double")
             warning("coercing argument of type 'double' to logical")
@@ -52,11 +52,12 @@ setMethod("Summary", "COO_SparseArray",
     }
 )
 
-.summarize_SVT_SparseArray <- function(.Generic, x, na.rm=FALSE)
+### 'center' ignored by all ops except "sum_squares".
+.summarize_SVT_SparseArray <- function(op, x, na.rm=FALSE, center=0.0)
 {
     stopifnot(is(x, "SVT_SparseArray"))
     .Call2("C_summarize_SVT_SparseArray",
-           x@dim, x@type, x@SVT, .Generic, na.rm, PACKAGE="S4Arrays")
+           x@dim, x@type, x@SVT, op, na.rm, center, PACKAGE="S4Arrays")
 }
 
 setMethod("Summary", "SVT_SparseArray",
@@ -177,6 +178,40 @@ setMethod("anyNA", "SVT_SparseArray",
                       "does not support the 'recursive' argument"))
         .Call2("C_anyNA_SVT_SparseArray",
                x@dim, x@type, x@SVT, PACKAGE="S4Arrays")
+    }
+)
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### var()
+###
+
+### Will work out-of-the-box on any object 'x' that supports
+### .count_SparseArray_NAs(), mean(), `-`, `^`, and sum().
+### Won't be very efficient though because it passes 2 times on the
+### data in 'x' and 2 times in a modified version of 'x'!
+.var_SparseArray <- function(x, na.rm=FALSE)
+{
+    stopifnot(is(x, "SparseArray"))
+    nval <- length(x)
+    if (na.rm)
+        nval <- nval - .count_SparseArray_NAs(x)
+    if (nval <= 1L)
+        return(NA_real_)
+    s <- sum((x - mean(x, na.rm=na.rm))^2L, na.rm=na.rm)
+    s / (nval - 1L)
+}
+
+setMethod("var", "SparseArray",
+    function(x, y = NULL, na.rm = FALSE, use)
+    {
+        if (!is.null(y))
+            stop(wmsg("var() method for SparseArray objects ",
+                      "does not support the 'y' argument"))
+        if (!missing(use))
+            stop(wmsg("var() method for SparseArray objects ",
+                      "does not support the 'use' argument"))
+        .var_SparseArray(x, na.rm=na.rm)
     }
 )
 

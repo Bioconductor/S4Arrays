@@ -8,7 +8,8 @@ SEXP C_summarize_SVT_SparseArray(
 	SEXP x_type,
 	SEXP x_SVT,
 	SEXP op,
-	SEXP na_rm
+	SEXP na_rm,
+	SEXP center
 );
 
 SEXP C_count_SVT_SparseArray_NAs(

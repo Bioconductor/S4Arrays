@@ -316,32 +316,25 @@ SEXP _subassign_leaf_vector_with_Rvector(SEXP lv, SEXP index, SEXP Rvector)
  */
 
 int _summarize_leaf_vector(SEXP lv, int d,
-		SummarizeInts_FUNType summarize_ints_FUN,
-		SummarizeDoubles_FUNType summarize_doubles_FUN,
-		void *init, int na_rm, int status)
+		const SummarizeOp *summarize_op, void *init, int status)
 {
 	SEXP lv_vals;
 	int lv_len;
-	SEXPTYPE Rtype;
 
 	lv_vals = VECTOR_ELT(lv, 1);
 	lv_len = LENGTH(lv_vals);
-	Rtype = TYPEOF(lv_vals);
-	if (Rtype == INTSXP) {
-		status = summarize_ints_FUN(init, INTEGER(lv_vals), lv_len,
-					    na_rm, status);
-	} else {
-		status = summarize_doubles_FUN(init, REAL(lv_vals), lv_len,
-					    na_rm, status);
-	}
+	status = _apply_summarize_op(summarize_op,
+				     init, DATAPTR(lv_vals), lv_len, status);
 	if (status == 2 || lv_len == d)
 		return status;
-	if (Rtype == INTSXP) {
+	if (summarize_op->Rtype == INTSXP) {
 		int zero = 0;
-		status = summarize_ints_FUN(init, &zero, 1, na_rm, status);
+		status = _apply_summarize_op(summarize_op,
+					     init, &zero, 1, status);
 	} else {
 		double zero = 0.0;
-		status = summarize_doubles_FUN(init, &zero, 1, na_rm, status);
+		status = _apply_summarize_op(summarize_op,
+					     init, &zero, 1, status);
 	}
 	return status;
 }

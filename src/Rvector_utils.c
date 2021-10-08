@@ -660,10 +660,10 @@ void _copy_Rvector_elts_from_selected_lloffsets(SEXP in_Rvector,
 
 
 /****************************************************************************
- * _get_opcode()
+ * _get_summarize_opcode()
  */
 
-int _get_opcode(SEXP op, SEXPTYPE Rtype)
+int _get_summarize_opcode(SEXP op, SEXPTYPE Rtype)
 {
 	const char *s;
 
@@ -686,6 +686,8 @@ int _get_opcode(SEXP op, SEXPTYPE Rtype)
 		return SUM_OPCODE;
 	if (strcmp(s, "prod") == 0)
 		return PROD_OPCODE;
+	if (strcmp(s, "sum_squares") == 0)
+		return SUM_SQUARES_OPCODE;
 	if (Rtype == REALSXP)
 		error("%s() does not support SparseArray objects "
 		      "of type \"%s\"", s, type2char(Rtype));
@@ -694,16 +696,14 @@ int _get_opcode(SEXP op, SEXPTYPE Rtype)
 	if (strcmp(s, "all") == 0)
 		return ALL_OPCODE;
 	error("'op' must be one of: \"min\", \"max\", \"range\", "
-	      "\"sum\", \"prod\", \"any\", \"all\"");
+	      "\"sum\", \"prod\", \"any\", \"all\",\n"
+	      "                       \"sum_squares\"");
 	return 0;
 }
 
 
 /****************************************************************************
- * Callback functions used for operations from the Summary group generic
- *
- * Summary is a group generic with members: min(), max(), range(), sum(),
- * prod(), any(), all().
+ * Callback functions used for summarize operations
  *
  * All these callback functions return the "new status":
  *    0 = 'init' has not been set yet
@@ -712,7 +712,7 @@ int _get_opcode(SEXP op, SEXPTYPE Rtype)
  *
  * IMPORTANT NOTE: Most of them ignore the supplied 'status', only
  * min/max/range_ints() don't. This is because 'init' should have been set
- * by _select_summarize_FUN() before the callback function gets called (see
+ * by select_summarize_FUN() before the callback function gets called (see
  * below in this file). So it doesn't matter whether the supplied 'status'
  * is 0 or 1, and it doesn't matter if the callback function returns a new
  * status of 0 or 1.
@@ -996,9 +996,54 @@ static inline int all_ints(void *init, const int *x, int n,
 	return status;
 }
 
+/* Ignores 'status'. */
+static inline int sum_int_squares(void *init, const int *x, int n,
+		int na_rm, int status)
+{
+	double *double_init, y;
+
+	double_init = (double *) init;
+	for (int i = 0; i < n; i++, x++) {
+		if (*x == NA_INTEGER) {
+			if (!na_rm) {
+				double_init[0] = NA_REAL;
+				return 2;
+			}
+			continue;
+		}
+		y = (double) *x - double_init[1];
+		double_init[0] += y * y;
+	}
+	return status;
+}
+
+/* Ignores 'status'. */
+static inline int sum_double_squares(void *init, const double *x, int n,
+		int na_rm, int status)
+{
+	double *double_init, y;
+
+	double_init = (double *) init;
+	for (int i = 0; i < n; i++, x++) {
+		if (DOUBLE_IS_NA(*x)) {
+			if (!na_rm) {
+				double_init[0] = *x;
+				if (R_IsNA(*x))
+					return 2;
+			}
+			continue;
+		}
+		if (!R_IsNaN(double_init[0])) {
+			y = (double) *x - double_init[1];
+			double_init[0] += y * y;
+		}
+	}
+	return status;
+}
+
 /* One of '*summarize_ints_FUN' or '*summarize_doubles_FUN' will be set
    to NULL and the other one to a non-NULL value. */
-void _select_summarize_FUN(int opcode, SEXPTYPE Rtype,
+static void select_summarize_FUN(int opcode, SEXPTYPE Rtype, double center,
 		SummarizeInts_FUNType *summarize_ints_FUN,
 		SummarizeDoubles_FUNType *summarize_doubles_FUN,
 		void *init)
@@ -1036,6 +1081,16 @@ void _select_summarize_FUN(int opcode, SEXPTYPE Rtype,
 		double_init[0] = 1.0;
 		return;
 	}
+	if (opcode == SUM_SQUARES_OPCODE) {
+		if (Rtype == REALSXP) {
+			*summarize_doubles_FUN = sum_double_squares;
+		} else {
+			*summarize_ints_FUN = sum_int_squares;
+		}
+		double_init[0] = 0.0;
+		double_init[1] = center;
+		return;
+	}
 	if (Rtype == REALSXP) {
 		switch (opcode) {
 		    case MIN_OPCODE:
@@ -1061,6 +1116,40 @@ void _select_summarize_FUN(int opcode, SEXPTYPE Rtype,
 	    case RANGE_OPCODE: *summarize_ints_FUN = range_ints; break;
 	}
 	return;
+}
+
+SummarizeOp _init_SummarizeOp(int opcode, SEXPTYPE Rtype,
+		int na_rm, double center, void *init)
+{
+	SummarizeOp summarize_op;
+	SummarizeInts_FUNType summarize_ints_FUN;
+	SummarizeDoubles_FUNType summarize_doubles_FUN;
+
+	select_summarize_FUN(opcode, Rtype, center,
+		&summarize_ints_FUN, &summarize_doubles_FUN, init);
+
+	summarize_op.opcode = opcode;
+	summarize_op.Rtype = Rtype;
+	summarize_op.na_rm = na_rm;
+	summarize_op.center = center;
+	summarize_op.summarize_ints_FUN = summarize_ints_FUN;
+	summarize_op.summarize_doubles_FUN = summarize_doubles_FUN;
+	return summarize_op;
+}
+
+int _apply_summarize_op(const SummarizeOp *summarize_op,
+		void *init, const void *x, int n, int status)
+{
+	if (summarize_op->Rtype == INTSXP) {
+		status = summarize_op->summarize_ints_FUN(
+					init, (const int *) x, n,
+					summarize_op->na_rm, status);
+	} else {
+		status = summarize_op->summarize_doubles_FUN(
+					init, (const double *) x, n,
+					summarize_op->na_rm, status);
+	}
+	return status;
 }
 
 SEXP _init2SEXP(int opcode, SEXPTYPE Rtype, void *init, int status)
@@ -1100,7 +1189,7 @@ SEXP _init2SEXP(int opcode, SEXPTYPE Rtype, void *init, int status)
 		UNPROTECT(1);
 		return ans;
 	}
-	/* 'opcode' is either SUM_OPCODE or PROD_OPCODE. */
+	/* 'opcode' is either SUM_OPCODE, PROD_OPCODE, or SUM_SQUARES_OPCODE. */
 	if (Rtype == REALSXP)
 		return ScalarReal(double_init[0]);
 	/* Direct comparison with NA_REAL is safe. No need to use R_IsNA(). */

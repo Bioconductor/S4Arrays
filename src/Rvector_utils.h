@@ -250,15 +250,19 @@ void _copy_Rvector_elts_from_selected_lloffsets(
 	SEXP out_Rvector
 );
 
-#define MIN_OPCODE      1
-#define MAX_OPCODE      2
-#define RANGE_OPCODE    3
-#define SUM_OPCODE      4
-#define PROD_OPCODE     5
-#define ANY_OPCODE      6
-#define ALL_OPCODE      7
+/* "summarize" operations from Summary group generic */
+#define	MIN_OPCODE         1
+#define	MAX_OPCODE         2
+#define	RANGE_OPCODE       3
+#define	SUM_OPCODE         4
+#define	PROD_OPCODE        5
+#define	ANY_OPCODE         6
+#define	ALL_OPCODE         7
 
-int _get_opcode(SEXP op, SEXPTYPE Rtype);
+/* Other "summarize" operations */
+#define	SUM_SQUARES_OPCODE 8  /* as support for var() */
+
+int _get_summarize_opcode(SEXP op, SEXPTYPE Rtype);
 
 typedef int (*SummarizeInts_FUNType)(
 	void *init, const int *x, int n, int na_rm, int status);
@@ -266,12 +270,29 @@ typedef int (*SummarizeInts_FUNType)(
 typedef int (*SummarizeDoubles_FUNType)(
 	void *init, const double *x, int n, int na_rm, int status);
 
-void _select_summarize_FUN(
+typedef struct summarize_op_t {
+	int opcode;
+	SEXPTYPE Rtype;  /* only INTSXP or REALSXP at the moment */
+	int na_rm;
+	double center;
+	SummarizeInts_FUNType summarize_ints_FUN;
+	SummarizeDoubles_FUNType summarize_doubles_FUN;
+} SummarizeOp;
+
+SummarizeOp _init_SummarizeOp(
 	int opcode,
 	SEXPTYPE Rtype,
-	SummarizeInts_FUNType *summarize_ints_FUN,
-	SummarizeDoubles_FUNType *summarize_doubles_FUN,
+	int na_rm,
+	double center,
 	void *init
+);
+
+int _apply_summarize_op(
+	const SummarizeOp *summarize_op,
+	void *init,
+	const void *x,
+	int n,
+	int status
 );
 
 SEXP _init2SEXP(
