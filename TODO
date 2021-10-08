@@ -1,6 +1,10 @@
 - Implement C_subassign_SVT_with_Rarray() and C_subassign_SVT_with_SVT().
 
-- Implement Compare and Logic methods for SVT_SparseArray objects.
+- Implement Ops methods (Arith, Compare, Logic) for SVT_SparseArray objects.
+
+- Implement Math2 methods and **some** Math methods (only those that
+  preserve sparsity that is: abs, sign, sqrt, ceiling, floor, trunc, log1p,
+  asin, asinh, atan, atanh, expm1, sin, sinh, sinpi, tan, tanh, and tanpi).
 
 - Implement crossprod(), tcrossprod(), and %in%, for SVT_SparseMatrix objects.
 
