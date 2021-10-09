@@ -3,6 +3,7 @@
 
 #include <Rdefines.h>
 #include "Rvector_utils.h"
+#include "Rvector_summarize.h"
 
 /* A "leaf vector" is a vector of offset/value pairs sorted by strictly
    ascending offset. It is represented by a list of 2 parallel vectors:

@@ -3,7 +3,7 @@
  ****************************************************************************/
 #include "SparseArray_summarize.h"
 
-#include "Rvector_utils.h"
+#include "Rvector_summarize.h"
 #include "leaf_vector_utils.h"
 
 
