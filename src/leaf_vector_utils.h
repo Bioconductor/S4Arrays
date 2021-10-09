@@ -86,6 +86,7 @@ int _summarize_leaf_vector(
 	int d,
 	const SummarizeOp *summarize_op,
 	void *init,
+	R_xlen_t *na_rm_count,
 	int status
 );
 

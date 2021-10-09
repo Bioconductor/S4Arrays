@@ -316,7 +316,8 @@ SEXP _subassign_leaf_vector_with_Rvector(SEXP lv, SEXP index, SEXP Rvector)
  */
 
 int _summarize_leaf_vector(SEXP lv, int d,
-		const SummarizeOp *summarize_op, void *init, int status)
+		const SummarizeOp *summarize_op,
+		void *init, R_xlen_t *na_rm_count, int status)
 {
 	SEXP lv_vals;
 	int lv_len;
@@ -324,7 +325,8 @@ int _summarize_leaf_vector(SEXP lv, int d,
 	lv_vals = VECTOR_ELT(lv, 1);
 	lv_len = LENGTH(lv_vals);
 	status = _apply_summarize_op(summarize_op,
-				     init, DATAPTR(lv_vals), lv_len, status);
+				     init, DATAPTR(lv_vals), lv_len,
+				     na_rm_count, status);
 	if (status == 2 || lv_len == d)
 		return status;
 	if (summarize_op->opcode == SUM_X2_OPCODE) {
@@ -336,11 +338,13 @@ int _summarize_leaf_vector(SEXP lv, int d,
 	if (summarize_op->Rtype == INTSXP) {
 		int zero = 0;
 		status = _apply_summarize_op(summarize_op,
-					     init, &zero, 1, status);
+					     init, &zero, 1,
+					     na_rm_count, status);
 	} else {
 		double zero = 0.0;
 		status = _apply_summarize_op(summarize_op,
-					     init, &zero, 1, status);
+					     init, &zero, 1,
+					     na_rm_count, status);
 	}
 	return status;
 }

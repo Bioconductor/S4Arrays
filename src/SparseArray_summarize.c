@@ -14,7 +14,8 @@
 
 /* Recursive. */
 static int REC_summarize_SVT(SEXP SVT, const int *dim, int ndim,
-		const SummarizeOp *summarize_op, void *init, int status,
+		const SummarizeOp *summarize_op,
+		void *init, R_xlen_t *na_rm_count, int status,
 		int *has_null_leaves)
 {
 	int SVT_len, i;
@@ -28,7 +29,8 @@ static int REC_summarize_SVT(SEXP SVT, const int *dim, int ndim,
 	if (ndim == 1) {
 		/* 'SVT' is a "leaf vector". */
 		return _summarize_leaf_vector(SVT, dim[0],
-					summarize_op, init, status);
+					summarize_op,
+					init, na_rm_count, status);
 	}
 
 	/* 'SVT' is a regular node (list). */
@@ -36,7 +38,8 @@ static int REC_summarize_SVT(SEXP SVT, const int *dim, int ndim,
 	for (i = 0; i < SVT_len; i++) {
 		subSVT = VECTOR_ELT(SVT, i);
 		status = REC_summarize_SVT(subSVT, dim, ndim - 1,
-					summarize_op, init, status,
+					summarize_op,
+					init, na_rm_count, status,
 					has_null_leaves);
 		if (status == 2)
 			break;
@@ -46,19 +49,22 @@ static int REC_summarize_SVT(SEXP SVT, const int *dim, int ndim,
 
 static int summarize_SVT(SEXP SVT, const int *dim, int ndim,
 		int opcode, SEXPTYPE Rtype,
-		double *init, int na_rm, double center)
+		double *init, int na_rm, R_xlen_t *na_rm_count,
+		double center)
 {
 	SummarizeOp summarize_op;
 	int has_null_leaves, status;
 
 	summarize_op = _init_SummarizeOp(opcode, Rtype, na_rm, center, init);
+	*na_rm_count = 0;
 
 	if (SVT == R_NilValue)
 		return 0;
 	
 	status = has_null_leaves = 0;
 	status = REC_summarize_SVT(SVT, dim, ndim,
-				   &summarize_op, init, status,
+				   &summarize_op,
+				   init, na_rm_count, status,
 				   &has_null_leaves);
 	if (status == 2 || !has_null_leaves)
 		return status;
@@ -66,11 +72,13 @@ static int summarize_SVT(SEXP SVT, const int *dim, int ndim,
 	if (Rtype == INTSXP) {
 		int zero = 0;
 		status = _apply_summarize_op(&summarize_op,
-					     init, &zero, 1, status);
+					     init, &zero, 1,
+					     na_rm_count, status);
 	} else {
 		double zero = 0.0;
 		status = _apply_summarize_op(&summarize_op,
-					     init, &zero, 1, status);
+					     init, &zero, 1,
+					     na_rm_count, status);
 	}
 	return status;
 }
@@ -79,7 +87,8 @@ SEXP C_summarize_SVT_SparseArray(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 		SEXP op, SEXP na_rm, SEXP center)
 {
 	SEXPTYPE Rtype;
-	int opcode, status;
+	int opcode, narm0, status;
+	R_xlen_t na_rm_count;
 	double init[2];  /* 'init' will store 1 or 2 ints or doubles */
 
 	Rtype = _get_Rtype_from_Rstring(x_type);
@@ -92,6 +101,7 @@ SEXP C_summarize_SVT_SparseArray(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 
 	if (!(IS_LOGICAL(na_rm) && LENGTH(na_rm) == 1))
 		error("'na.rm' must be TRUE or FALSE");
+	narm0 = LOGICAL(na_rm)[0];
 
 	if (!IS_NUMERIC(center) || LENGTH(center) != 1)
 		error("S4Arrays internal error in "
@@ -100,9 +110,11 @@ SEXP C_summarize_SVT_SparseArray(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 
 	status = summarize_SVT(x_SVT, INTEGER(x_dim), LENGTH(x_dim),
 			       opcode, Rtype,
-			       init, LOGICAL(na_rm)[0], REAL(center)[0]);
+			       init, narm0, &na_rm_count,
+			       REAL(center)[0]);
 
-	return _init2SEXP(opcode, Rtype, init, status);
+	return _make_SEXP_from_summarize_result(opcode, Rtype,
+			       init, narm0, na_rm_count, status);
 }
 
 

@@ -53,6 +53,9 @@ setMethod("Summary", "COO_SparseArray",
 )
 
 ### 'center' ignored by all ops except "sum_X2".
+### Returns an integer or numeric vector of length 1 or 2.
+### If 'na_rm' is TRUE, then the "na_rm_count" attribute is set on the
+### returned vector.
 .summarize_SVT_SparseArray <- function(op, x, na.rm=FALSE, center=0.0)
 {
     stopifnot(is(x, "SVT_SparseArray"))
@@ -66,7 +69,10 @@ setMethod("Summary", "SVT_SparseArray",
         if (length(list(...)) != 0L)
             stop(wmsg(.Generic, "() method for SVT_SparseArray objects ",
                       "only accepts a single object"))
-        .summarize_SVT_SparseArray(.Generic, x, na.rm=na.rm)
+        ans <- .summarize_SVT_SparseArray(.Generic, x, na.rm=na.rm)
+        if (na.rm)
+            attr(ans, "na_rm_count") <- NULL
+        ans
     }
 )
 
@@ -117,8 +123,12 @@ range.SVT_SparseArray <- function(..., na.rm=FALSE, finite=FALSE)
         stop(wmsg("range() method for SVT_SparseArray objects ",
                   "only accepts a single object"))
     x <- objects[[1L]]
-    .summarize_SVT_SparseArray("range", x, na.rm=na.rm)
+    ans <- .summarize_SVT_SparseArray("range", x, na.rm=na.rm)
+    if (na.rm)
+        attr(ans, "na_rm_count") <- NULL
+    ans
 }
+
 ### The signature of all the members in the Summary group generic is
 ### 'x, ..., na.rm' (see getGeneric("range")) which means that methods
 ### cannot add arguments after 'na.rm'. So we add the 'finite' argument
@@ -189,16 +199,21 @@ setMethod("anyNA", "SVT_SparseArray",
 .var_SparseArray <- function(x, na.rm=FALSE, method=0L)
 {
     stopifnot(is(x, "SparseArray"))
-    if (method == 0L)
-        return(.summarize_SVT_SparseArray("var", x, na.rm=na.rm))
-    nval <- length(x)
-    if (na.rm)
-        nval <- nval - .count_SparseArray_NAs(x)  # 1st pass on 'x'
-    if (nval <= 1L)
-        return(NA_real_)
+    if (method == 0L) {
+	## A single pass on 'x'.
+        ans <- .summarize_SVT_SparseArray("var", x, na.rm=na.rm)
+        if (na.rm)
+            attr(ans, "na_rm_count") <- NULL
+        return(ans)
+    }
     if (method == 1L) {
-	## 2nd pass on 'x'.
+	## A single pass on 'x'.
         sum_X_X2 <- .summarize_SVT_SparseArray("sum_X_X2", x, na.rm=na.rm)
+        nval <- length(x)
+        if (na.rm)
+            nval <- nval - attr(sum_X_X2, "na_rm_count")
+        if (nval <= 1L)
+            return(NA_real_)
         S1 <- as.double(sum_X_X2[[1L]])
         S2 <- as.double(sum_X_X2[[2L]])
         return((S2 - S1 * S1 / nval) / (nval - 1L))
@@ -206,9 +221,13 @@ setMethod("anyNA", "SVT_SparseArray",
     ## Will work out-of-the-box on any object 'x' that supports
     ## .count_SparseArray_NAs(), mean(), `-`, `^`, and sum().
     ## Won't be very efficient though because it performs 5 passes: 3 passes
-    ## on 'x' (1st pass was by .count_SparseArray_NAs() above) and 2 passes
-    ## on a modified version of 'x'!
-    s <- sum((x - mean(x, na.rm=na.rm))^2L, na.rm=na.rm)
+    ## on 'x' and 2 passes on a modified version of 'x'!
+    nval <- length(x)
+    if (na.rm)
+        nval <- nval - .count_SparseArray_NAs(x)  # 1st pass on 'x'
+    if (nval <= 1L)
+        return(NA_real_)
+    s <- sum((x - mean(x, na.rm=na.rm))^2L, na.rm=na.rm)  # 4 passes on 'x'
     s / (nval - 1L)
 }
 

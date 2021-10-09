@@ -19,10 +19,12 @@
 int _get_summarize_opcode(SEXP op, SEXPTYPE Rtype);
 
 typedef int (*SummarizeInts_FUNType)(
-	void *init, const int *x, int n, int na_rm, int status);
+	void *init, const int *x, int n, int na_rm, R_xlen_t *na_rm_count,
+	int status);
 
 typedef int (*SummarizeDoubles_FUNType)(
-	void *init, const double *x, int n, int na_rm, int status);
+	void *init, const double *x, int n, int na_rm, R_xlen_t *na_rm_count,
+	int status);
 
 typedef struct summarize_op_t {
 	int opcode;
@@ -46,13 +48,16 @@ int _apply_summarize_op(
 	void *init,
 	const void *x,
 	int n,
+	R_xlen_t *na_rm_count,
 	int status
 );
 
-SEXP _init2SEXP(
+SEXP _make_SEXP_from_summarize_result(
 	int opcode,
 	SEXPTYPE Rtype,
 	void *init,
+	int na_rm,
+	R_xlen_t na_rm_count,
 	int status
 );
 
