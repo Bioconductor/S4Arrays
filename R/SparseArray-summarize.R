@@ -159,11 +159,19 @@ setMethod("range", "SVT_SparseArray",
 
 .mean_SparseArray <- function(x, na.rm=FALSE)
 {
-    s <- as.double(sum(x, na.rm=na.rm))
     nval <- length(x)
-    if (na.rm)
-        nval <- nval - .count_SparseArray_NAs(x)
-    s / nval
+    if (is(x, "COO_SparseArray")) {
+        sum_X <- sum(x, na.rm=na.rm)
+        if (na.rm)
+            nval <- nval - .count_SparseArray_NAs(x)
+    } else if (is(x, "SVT_SparseArray")) {
+        sum_X <- .summarize_SVT_SparseArray("sum", x, na.rm=na.rm)
+        if (na.rm)
+            nval <- nval - attr(sum_X, "na_rm_count")
+    } else {
+        stop(wmsg(class(x)[[1L]], " objects are not supported"))
+    }
+    as.double(sum_X) / nval
 }
 
 ### S3/S4 combo for mean.SparseArray
@@ -207,16 +215,32 @@ setMethod("anyNA", "SVT_SparseArray",
         return(ans)
     }
     if (method == 1L) {
-	## A single pass on 'x'.
-        sum_X_X2 <- .summarize_SVT_SparseArray("sum_X_X2", x, na.rm=na.rm)
+        ## Uses primary variance formula:
+        ##     sum((x - mean(x))^2) / nval
+        ## Two passes on 'x'.
         nval <- length(x)
+        sum_X <- .summarize_SVT_SparseArray("sum", x, na.rm=na.rm)
+        if (na.rm)
+            nval <- nval - attr(sum_X, "na_rm_count")
+        mu <- sum_X / nval
+        sum_X2 <- .summarize_SVT_SparseArray("sum_X2", x, na.rm=na.rm,
+                                             center=mu)
+        sum_X2 <- sum_X2 + mu * mu * (nval - nzcount(x))
+        return(sum_X2 / (nval - 1))
+    }
+    if (method == 2L) {
+        ## Uses secondary variance formula:
+        ##     (sum(x^2) − (sum(x)^2) / nval) / (nval − 1)
+	## A single pass on 'x' so faster but numerically instable!
+        nval <- length(x)
+        sum_X_X2 <- .summarize_SVT_SparseArray("sum_X_X2", x, na.rm=na.rm)
         if (na.rm)
             nval <- nval - attr(sum_X_X2, "na_rm_count")
         if (nval <= 1L)
             return(NA_real_)
-        S1 <- as.double(sum_X_X2[[1L]])
-        S2 <- as.double(sum_X_X2[[2L]])
-        return((S2 - S1 * S1 / nval) / (nval - 1L))
+        sum_X <- as.double(sum_X_X2[[1L]])
+        sum_X2 <- as.double(sum_X_X2[[2L]])
+        return((sum_X2 - sum_X * sum_X / nval) / (nval - 1))
     }
     ## Will work out-of-the-box on any object 'x' that supports
     ## .count_SparseArray_NAs(), mean(), `-`, `^`, and sum().
@@ -240,7 +264,7 @@ setMethod("var", "SparseArray",
         if (!missing(use))
             stop(wmsg("var() method for SparseArray objects ",
                       "does not support the 'use' argument"))
-        .var_SparseArray(x, na.rm=na.rm, method=1L)
+        .var_SparseArray(x, na.rm=na.rm, method=2L)
     }
 )
 

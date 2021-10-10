@@ -395,7 +395,7 @@ static inline int sum_X2_doubles(void *init, const double *x, int n,
 			continue;
 		}
 		if (!R_IsNaN(double_init[0])) {
-			y = (double) *x - double_init[1];
+			y = *x - double_init[1];
 			double_init[0] += y * y;
 		}
 	}
@@ -610,7 +610,7 @@ static SEXP init2nakedSEXP(int opcode, SEXPTYPE Rtype, void *init, int status)
 	}
 
 	/* 'opcode' is either SUM_OPCODE, PROD_OPCODE, or SUM_X2_OPCODE. */
-	if (Rtype == REALSXP)
+	if (Rtype == REALSXP || opcode == SUM_X2_OPCODE)
 		return ScalarReal(double_init[0]);
 
 	/* Direct comparison with NA_REAL is safe. No need to use R_IsNA(). */
