@@ -225,13 +225,14 @@ setMethod("anyNA", "SVT_SparseArray",
         mu <- sum_X / nval
         sum_X2 <- .summarize_SVT_SparseArray("sum_X2", x, na.rm=na.rm,
                                              center=mu)
-        sum_X2 <- sum_X2 + mu * mu * (nval - nzcount(x))
+        sum_X2 <- sum_X2 + mu * mu * (length(x) - nzcount(x))
         return(sum_X2 / (nval - 1))
     }
     if (method == 2L) {
         ## Uses secondary variance formula:
         ##     (sum(x^2) − (sum(x)^2) / nval) / (nval − 1)
-	## A single pass on 'x' so faster but numerically instable!
+	## A single pass on 'x' so faster than method 1 but numerically
+	## instable!
         nval <- length(x)
         sum_X_X2 <- .summarize_SVT_SparseArray("sum_X_X2", x, na.rm=na.rm)
         if (na.rm)

@@ -66,9 +66,8 @@ static int summarize_SVT(SEXP SVT, const int *dim, int ndim,
 				   &summarize_op,
 				   init, na_rm_count, status,
 				   &has_null_leaves);
-	if (status == 2 || !has_null_leaves)
+	if (status == 2 || !has_null_leaves || opcode == SUM_X2_OPCODE)
 		return status;
-
 	if (Rtype == INTSXP) {
 		int zero = 0;
 		status = _apply_summarize_op(&summarize_op,

@@ -584,26 +584,34 @@ static SEXP init2nakedSEXP(int opcode, SEXPTYPE Rtype, void *init, int status)
 		   case, they should both be set to the same kind of NA i.e.
 		   both are set to NA or both are set NaN. */
 		double init0 = double_init[0], init1 = double_init[1];
-		if (Rtype == INTSXP &&
-		    (init0 == NA_REAL ||
-		     (init0 <= INT_MAX && init0 >= -INT_MAX &&
-		      init1 <= INT_MAX && init1 >= -INT_MAX)))
-		{
-			ans = PROTECT(NEW_INTEGER(2));
+		if (Rtype == INTSXP) {
+			/* When 'Rtype' is INTSXP, the only kind of NA that
+			   can end up in 'init0' is NA_REAL. No NaN. */
 			if (init0 == NA_REAL) {
+				ans = PROTECT(NEW_INTEGER(2));
 				INTEGER(ans)[0] = INTEGER(ans)[1] = NA_INTEGER;
-			} else {
-				INTEGER(ans)[0] = (int) init0;
-				INTEGER(ans)[1] = (int) init1;
+				UNPROTECT(1);
+				return ans;
 			}
+			if (init0 <= INT_MAX && init0 >= -INT_MAX &&
+			    init1 <= INT_MAX && init1 >= -INT_MAX)
+			{
+				ans = PROTECT(NEW_INTEGER(2));
+				/* We round 'init0' and 'init1' to the
+				   closest integer. */
+				INTEGER(ans)[0] = (int) (init0 + 0.5);
+				INTEGER(ans)[1] = (int) (init1 + 0.5);
+				UNPROTECT(1);
+				return ans;
+			}
+		}
+		ans = PROTECT(NEW_NUMERIC(2));
+		if (DOUBLE_IS_NA(init0)) {
+			/* init0' is NA_REAL or NaN. */
+			REAL(ans)[0] = REAL(ans)[1] = init0;
 		} else {
-			ans = PROTECT(NEW_NUMERIC(2));
-			if (DOUBLE_IS_NA(init0)) {
-				REAL(ans)[0] = REAL(ans)[1] = init0;
-			} else {
-				REAL(ans)[0] = init0;
-				REAL(ans)[1] = init1;
-			}
+			REAL(ans)[0] = init0;
+			REAL(ans)[1] = init1;
 		}
 		UNPROTECT(1);
 		return ans;
