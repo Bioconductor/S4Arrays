@@ -13,8 +13,8 @@
 #define	ALL_OPCODE      7
 
 /* Other "summarize" operations */
-#define	SUM_X2_OPCODE   8  /* to support var() */
-#define	SUM_X_X2_OPCODE 9  /* to support var() */
+#define	SUM_SHIFTED_X2_OPCODE 8  /* to support var1() */
+#define	SUM_X_X2_OPCODE       9  /* to support var2() */
 
 int _get_summarize_opcode(SEXP op, SEXPTYPE Rtype);
 
@@ -30,7 +30,7 @@ typedef struct summarize_op_t {
 	int opcode;
 	SEXPTYPE Rtype;  /* only INTSXP or REALSXP at the moment */
 	int na_rm;
-	double center;
+	double shift;
 	SummarizeInts_FUNType summarize_ints_FUN;
 	SummarizeDoubles_FUNType summarize_doubles_FUN;
 } SummarizeOp;
@@ -39,7 +39,7 @@ SummarizeOp _init_SummarizeOp(
 	int opcode,
 	SEXPTYPE Rtype,
 	int na_rm,
-	double center,
+	double shift,
 	void *init
 );
 

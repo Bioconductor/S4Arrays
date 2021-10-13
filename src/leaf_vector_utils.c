@@ -328,7 +328,7 @@ int _summarize_leaf_vector(SEXP lv, int d,
 				     init, DATAPTR(lv_vals), lv_len,
 				     na_rm_count, status);
 	if (status == 2 || lv_len == d ||
-	    summarize_op->opcode == SUM_X2_OPCODE)
+	    summarize_op->opcode == SUM_SHIFTED_X2_OPCODE)
 		return status;
 	if (summarize_op->Rtype == INTSXP) {
 		int zero = 0;

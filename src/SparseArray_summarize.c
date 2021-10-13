@@ -50,12 +50,12 @@ static int REC_summarize_SVT(SEXP SVT, const int *dim, int ndim,
 static int summarize_SVT(SEXP SVT, const int *dim, int ndim,
 		int opcode, SEXPTYPE Rtype,
 		double *init, int na_rm, R_xlen_t *na_rm_count,
-		double center)
+		double shift)
 {
 	SummarizeOp summarize_op;
 	int has_null_leaves, status;
 
-	summarize_op = _init_SummarizeOp(opcode, Rtype, na_rm, center, init);
+	summarize_op = _init_SummarizeOp(opcode, Rtype, na_rm, shift, init);
 	*na_rm_count = 0;
 
 	if (SVT == R_NilValue)
@@ -66,7 +66,7 @@ static int summarize_SVT(SEXP SVT, const int *dim, int ndim,
 				   &summarize_op,
 				   init, na_rm_count, status,
 				   &has_null_leaves);
-	if (status == 2 || !has_null_leaves || opcode == SUM_X2_OPCODE)
+	if (status == 2 || !has_null_leaves || opcode == SUM_SHIFTED_X2_OPCODE)
 		return status;
 	if (Rtype == INTSXP) {
 		int zero = 0;
@@ -83,7 +83,7 @@ static int summarize_SVT(SEXP SVT, const int *dim, int ndim,
 }
 
 SEXP C_summarize_SVT_SparseArray(SEXP x_dim, SEXP x_type, SEXP x_SVT,
-		SEXP op, SEXP na_rm, SEXP center)
+		SEXP op, SEXP na_rm, SEXP shift)
 {
 	SEXPTYPE Rtype;
 	int opcode, narm0, status;
@@ -102,15 +102,15 @@ SEXP C_summarize_SVT_SparseArray(SEXP x_dim, SEXP x_type, SEXP x_SVT,
 		error("'na.rm' must be TRUE or FALSE");
 	narm0 = LOGICAL(na_rm)[0];
 
-	if (!IS_NUMERIC(center) || LENGTH(center) != 1)
+	if (!IS_NUMERIC(shift) || LENGTH(shift) != 1)
 		error("S4Arrays internal error in "
 		      "C_summarize_SVT_SparseArray():\n"
-		      "    'center' must be a single numeric value");
+		      "    'shift' must be a single numeric value");
 
 	status = summarize_SVT(x_SVT, INTEGER(x_dim), LENGTH(x_dim),
 			       opcode, Rtype,
 			       init, narm0, &na_rm_count,
-			       REAL(center)[0]);
+			       REAL(shift)[0]);
 
 	return _make_SEXP_from_summarize_result(opcode, Rtype,
 			       init, narm0, na_rm_count, status);

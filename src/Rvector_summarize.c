@@ -31,8 +31,8 @@ int _get_summarize_opcode(SEXP op, SEXPTYPE Rtype)
 		return SUM_OPCODE;
 	if (strcmp(s, "prod") == 0)
 		return PROD_OPCODE;
-	if (strcmp(s, "sum_X2") == 0)
-		return SUM_X2_OPCODE;
+	if (strcmp(s, "sum_shifted_X2") == 0)
+		return SUM_SHIFTED_X2_OPCODE;
 	if (strcmp(s, "sum_X_X2") == 0)
 		return SUM_X_X2_OPCODE;
 	if (Rtype == REALSXP)
@@ -44,7 +44,7 @@ int _get_summarize_opcode(SEXP op, SEXPTYPE Rtype)
 		return ALL_OPCODE;
 	error("'op' must be one of: \"min\", \"max\", \"range\", "
 	      "\"sum\", \"prod\", \"any\", \"all\",\n"
-	      "                       \"sum_X2\", \"sum_X_X2\"");
+	      "                       \"sum_shifted_X2\", \"sum_X_X2\"");
 	return 0;
 }
 
@@ -356,7 +356,7 @@ static inline int all_ints(void *init, const int *x, int n,
 }
 
 /* Ignores 'status'. */
-static inline int sum_X2_ints(void *init, const int *x, int n,
+static inline int sum_shifted_X2_ints(void *init, const int *x, int n,
 		int na_rm, R_xlen_t *na_rm_count, int status)
 {
 	double *double_init, y;
@@ -378,7 +378,7 @@ static inline int sum_X2_ints(void *init, const int *x, int n,
 }
 
 /* Ignores 'status'. */
-static inline int sum_X2_doubles(void *init, const double *x, int n,
+static inline int sum_shifted_X2_doubles(void *init, const double *x, int n,
 		int na_rm, R_xlen_t *na_rm_count, int status)
 {
 	double *double_init, y;
@@ -453,7 +453,7 @@ static inline int sum_X_X2_doubles(void *init, const double *x, int n,
 
 /* One of '*summarize_ints_FUN' or '*summarize_doubles_FUN' will be set
    to NULL and the other one to a non-NULL value. */
-static void select_summarize_FUN(int opcode, SEXPTYPE Rtype, double center,
+static void select_summarize_FUN(int opcode, SEXPTYPE Rtype, double shift,
 		SummarizeInts_FUNType *summarize_ints_FUN,
 		SummarizeDoubles_FUNType *summarize_doubles_FUN,
 		void *init)
@@ -491,14 +491,14 @@ static void select_summarize_FUN(int opcode, SEXPTYPE Rtype, double center,
 		double_init[0] = 1.0;
 		return;
 	}
-	if (opcode == SUM_X2_OPCODE) {
+	if (opcode == SUM_SHIFTED_X2_OPCODE) {
 		if (Rtype == REALSXP) {
-			*summarize_doubles_FUN = sum_X2_doubles;
+			*summarize_doubles_FUN = sum_shifted_X2_doubles;
 		} else {
-			*summarize_ints_FUN = sum_X2_ints;
+			*summarize_ints_FUN = sum_shifted_X2_ints;
 		}
 		double_init[0] = 0.0;
-		double_init[1] = center;
+		double_init[1] = shift;
 		return;
 	}
 	if (opcode == SUM_X_X2_OPCODE) {
@@ -598,7 +598,7 @@ static SEXP init2nakedSEXP(int opcode, SEXPTYPE Rtype, void *init, int status)
 			{
 				ans = PROTECT(NEW_INTEGER(2));
 				/* We round 'init0' and 'init1' to the
-				   closest integer. */
+				   nearest integer. */
 				INTEGER(ans)[0] = (int) (init0 + 0.5);
 				INTEGER(ans)[1] = (int) (init1 + 0.5);
 				UNPROTECT(1);
@@ -617,15 +617,17 @@ static SEXP init2nakedSEXP(int opcode, SEXPTYPE Rtype, void *init, int status)
 		return ans;
 	}
 
-	/* 'opcode' is either SUM_OPCODE, PROD_OPCODE, or SUM_X2_OPCODE. */
-	if (Rtype == REALSXP || opcode == SUM_X2_OPCODE)
+	/* 'opcode' is either SUM_OPCODE, PROD_OPCODE, or
+	   SUM_SHIFTED_X2_OPCODE. */
+	if (Rtype == REALSXP || opcode == SUM_SHIFTED_X2_OPCODE)
 		return ScalarReal(double_init[0]);
 
 	/* Direct comparison with NA_REAL is safe. No need to use R_IsNA(). */
 	if (double_init[0] == NA_REAL)
 		return ScalarInteger(NA_INTEGER);
 	if (double_init[0] <= INT_MAX && double_init[0] >= -INT_MAX)
-		return ScalarInteger((int) double_init[0]);
+		/* Round 'double_init[0]' to the nearest integer. */
+		return ScalarInteger((int) (double_init[0] + 0.5));
 	return ScalarReal(double_init[0]);
 }
 
@@ -637,19 +639,19 @@ static SEXP init2nakedSEXP(int opcode, SEXPTYPE Rtype, void *init, int status)
  */
 
 SummarizeOp _init_SummarizeOp(int opcode, SEXPTYPE Rtype,
-		int na_rm, double center, void *init)
+		int na_rm, double shift, void *init)
 {
 	SummarizeOp summarize_op;
 	SummarizeInts_FUNType summarize_ints_FUN;
 	SummarizeDoubles_FUNType summarize_doubles_FUN;
 
-	select_summarize_FUN(opcode, Rtype, center,
+	select_summarize_FUN(opcode, Rtype, shift,
 		&summarize_ints_FUN, &summarize_doubles_FUN, init);
 
 	summarize_op.opcode = opcode;
 	summarize_op.Rtype = Rtype;
 	summarize_op.na_rm = na_rm;
-	summarize_op.center = center;
+	summarize_op.shift = shift;
 	summarize_op.summarize_ints_FUN = summarize_ints_FUN;
 	summarize_op.summarize_doubles_FUN = summarize_doubles_FUN;
 	return summarize_op;

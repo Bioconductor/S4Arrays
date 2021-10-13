@@ -52,15 +52,15 @@ setMethod("Summary", "COO_SparseArray",
     }
 )
 
-### 'center' ignored by all ops except "sum_X2".
+### 'shift' ignored by all ops except "sum_shifted_X2".
 ### Returns an integer or numeric vector of length 1 or 2.
 ### If 'na_rm' is TRUE, then the "na_rm_count" attribute is set on the
 ### returned vector.
-.summarize_SVT_SparseArray <- function(op, x, na.rm=FALSE, center=0.0)
+.summarize_SVT_SparseArray <- function(op, x, na.rm=FALSE, shift=0.0)
 {
     stopifnot(is(x, "SVT_SparseArray"))
     .Call2("C_summarize_SVT_SparseArray",
-           x@dim, x@type, x@SVT, op, na.rm, center, PACKAGE="S4Arrays")
+           x@dim, x@type, x@SVT, op, na.rm, shift, PACKAGE="S4Arrays")
 }
 
 setMethod("Summary", "SVT_SparseArray",
@@ -223,10 +223,12 @@ setMethod("anyNA", "SVT_SparseArray",
         if (na.rm)
             nval <- nval - attr(sum_X, "na_rm_count")
         mu <- sum_X / nval
-        sum_X2 <- .summarize_SVT_SparseArray("sum_X2", x, na.rm=na.rm,
-                                             center=mu)
-        sum_X2 <- sum_X2 + mu * mu * (length(x) - nzcount(x))
-        return(sum_X2 / (nval - 1))
+        sum_shifted_X2 <- .summarize_SVT_SparseArray("sum_shifted_X2",
+                                                     x, na.rm=na.rm,
+                                                     shift=mu)
+        sum_shifted_X2 <- sum_shifted_X2 + mu * mu * (length(x) - nzcount(x))
+        attributes(sum_shifted_X2) <- NULL
+        return(sum_shifted_X2 / (nval - 1))
     }
     if (method == 2L) {
         ## Uses secondary variance formula:

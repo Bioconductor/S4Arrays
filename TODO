@@ -1,5 +1,10 @@
 - Implement C_subassign_SVT_with_Rarray() and C_subassign_SVT_with_SVT().
 
+- Implement table() method for SVT_SparseArray objects of type logical,
+  integer, or raw (should it go in R/SparseArray-summarize.R?)
+
+- Implement matrixStats methods for SVT_SparseMatrix objects.
+
 - Implement Ops methods (Arith, Compare, Logic) for SVT_SparseArray objects.
 
 - Implement Math2 methods and **some** Math methods (only those that
@@ -14,6 +19,4 @@
 
 - Implement function for loading a TENxMatrixSeed subset as an
   SVT_SparseMatrix. Test it on the 1.3 Million Brain Cell Dataset.
-
-- Implement matrixStats methods for SVT_SparseMatrix objects.
 
