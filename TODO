@@ -20,3 +20,11 @@
 - Implement function for loading a TENxMatrixSeed subset as an
   SVT_SparseMatrix. Test it on the 1.3 Million Brain Cell Dataset.
 
+- Go after dgCMatrix objects in ExperimentHub (query(eh, "dgCMatrix")),
+  convert them to SVT_SparseMatrix objects and try to do the things that
+  are usually done on them.
+
+- Convert 8322787x1098 dgTMatrix (ExperimentHub resource EH5453) to
+  SVT_SparseMatrix and try to do the things that the curatedMetagenomicData
+  folks usually do on it.
+
