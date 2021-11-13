@@ -49,7 +49,8 @@
 
 \description{
   The COO_SparseArray class is a container for efficient in-memory
-  representation of multidimensional sparse arrays.
+  representation of multidimensional sparse arrays. It uses the
+  \emph{COO layout} to represent the nonzero data internally.
 
   A COO_SparseMatrix object is a COO_SparseArray object of 2 dimensions.
 

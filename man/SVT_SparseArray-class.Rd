@@ -46,8 +46,9 @@
 \title{SVT_SparseArray objects}
 
 \description{
-  SVT_SparseArray is a new class for efficient in-memory representation
-  of multidimensional sparse arrays.
+  The SVT_SparseArray class is a new container for efficient in-memory
+  representation of multidimensional sparse arrays. It uses the
+  \emph{SVT layout} to represent the nonzero data internally.
 
   An SVT_SparseMatrix object is an SVT_SparseArray object of 2 dimensions.
 

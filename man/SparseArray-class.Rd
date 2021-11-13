@@ -28,8 +28,11 @@
   SparseArray is a virtual class to be extended by classes that aim at
   representing in-memory multidimensional sparse arrays.
 
-  It has currently two concrete subclasses: \link{COO_SparseArray}
-  and \link{SVT_SparseArray}.
+  It has currently two concrete subclasses, \link{COO_SparseArray}
+  and \link{SVT_SparseArray}, that use two different internal
+  representations for the nonzero data, the \emph{COO layout} and
+  the \emph{SVT layout}. These layouts are described in the
+  \link{COO_SparseArray} and \link{SVT_SparseArray} man pages, respectively.
 
   Here is where SparseArray and its two concrete subclasses fit in the
   \link{Array} class hierarchy:
