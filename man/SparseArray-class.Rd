@@ -9,6 +9,7 @@
 \alias{SparseMatrix-class}
 \alias{SparseMatrix}
 
+\alias{dim,SparseArray-method}
 \alias{dimnames,SparseArray-method}
 \alias{dimnames<-,SparseArray-method}
 \alias{is_sparse}

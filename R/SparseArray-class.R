@@ -9,7 +9,7 @@ setClass("SparseArray",
     contains="Array",
     representation(
         "VIRTUAL",
-        dim="integer",     # This gives us dim() for free!
+        dim="integer",
         dimnames="list"    # List with one list element per dimension. Each
                            # list element must be NULL or a character vector.
     ),
@@ -67,6 +67,8 @@ setValidity2("SparseMatrix", .validate_SparseMatrix)
 ### - Getters: dim(), length(), dimnames(), type().
 ### - Setters: `dimnames<-`(), `type<-`().
 ### - is_sparse().
+
+setMethod("dim", "SparseArray", function(x) x@dim)
 
 setMethod("dimnames", "SparseArray",
     function(x) simplify_NULL_dimnames(x@dimnames)

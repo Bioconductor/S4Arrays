@@ -3,7 +3,12 @@
 
 #include <Rdefines.h>
 
-SEXP C_readSparseCSV(
+SEXP C_readSparseCSV_as_SVT_SparseMatrix(
+	SEXP filexp,
+	SEXP sep
+);
+
+SEXP C_readSparseCSV_as_COO_SparseMatrix(
 	SEXP filexp,
 	SEXP sep
 );

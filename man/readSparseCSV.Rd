@@ -10,7 +10,8 @@
 }
 
 \usage{
-readSparseCSV(filepath, sep=",", transpose=FALSE)
+readSparseCSV(filepath, sep=",", transpose=FALSE,
+              as=c("SparseMatrix", "dgCMatrix"))
 }
 
 \arguments{
@@ -21,6 +22,9 @@ readSparseCSV(filepath, sep=",", transpose=FALSE)
     COMING SOON...
   }
   \item{transpose}{
+    COMING SOON...
+  }
+  \item{as}{
     COMING SOON...
   }
 }
@@ -45,5 +49,7 @@ example(readSparseCounts)  # to create 'outfile'
 
 readSparseCSV(outfile, sep="\t")
 readSparseCSV(outfile, sep="\t", transpose=TRUE)
+
+readSparseCSV(outfile, sep="\t", as="dgCMatrix")
 }
 \keyword{utilities}

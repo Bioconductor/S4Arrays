@@ -73,7 +73,8 @@ static const R_CallMethodDef callMethods[] = {
 	CALLMETHOD_DEF(C_poissonSparseArray, 2),
 
 /* readSparseCSV.c */
-	CALLMETHOD_DEF(C_readSparseCSV, 2),
+	CALLMETHOD_DEF(C_readSparseCSV_as_SVT_SparseMatrix, 2),
+	CALLMETHOD_DEF(C_readSparseCSV_as_COO_SparseMatrix, 2),
 
 	{NULL, NULL, 0}
 };

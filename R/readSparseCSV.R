@@ -78,12 +78,60 @@
     c(TRUE, FALSE)
 }
 
-readSparseCSV <- function(filepath, sep=",", transpose=FALSE)
+.readSparseCSV_as_SVT_SparseMatrix <- function(con, sep, csv_colnames,
+                                               transpose=FALSE)
+{
+    C_ans <- .Call2("C_readSparseCSV_as_SVT_SparseMatrix", con, sep,
+                                                           PACKAGE="S4Arrays")
+    ans_colnames <- C_ans[[1L]]
+    ans_SVT      <- C_ans[[2L]]
+    ans_dim <- c(length(csv_colnames), length(ans_colnames))
+    ans_dimnames <- list(csv_colnames, ans_colnames)
+    ans_type <- "integer"
+
+    ans <- new_SVT_SparseArray(ans_dim, ans_dimnames, ans_type, ans_SVT,
+                               check=FALSE)
+    if (!transpose)
+        ans <- t(ans)
+    ans
+}
+
+.readSparseCSV_as_dgCMatrix <- function(con, sep, csv_colnames,
+                                        transpose=FALSE)
+{
+    C_ans <- .Call2("C_readSparseCSV_as_COO_SparseMatrix", con, sep,
+                                                           PACKAGE="S4Arrays")
+    if (transpose) {
+        ans_rownames <- csv_colnames
+        ans_colnames <- C_ans[[1L]]
+        ans_nzcoo1 <- C_ans[[3L]]
+        ans_nzcoo2 <- C_ans[[2L]]
+    } else {
+        ans_rownames <- C_ans[[1L]]
+        ans_colnames <- csv_colnames
+        ans_nzcoo1 <- C_ans[[2L]]
+        ans_nzcoo2 <- C_ans[[3L]]
+    }
+    ans_nzvals <- C_ans[[4L]]
+    ans_dim <- c(length(ans_rownames), length(ans_colnames))
+    ans_dimnames <- list(ans_rownames, ans_colnames)
+
+    ## Construct dgCMatrix object.
+    CsparseMatrix(ans_dim, ans_nzcoo1, ans_nzcoo2, ans_nzvals,
+                  dimnames=ans_dimnames)
+}
+
+readSparseCSV <- function(filepath, sep=",", transpose=FALSE,
+                          as=c("SparseMatrix", "dgCMatrix"))
 {
     if (!isSingleString(filepath))
         stop(wmsg("'filepath' must be a single string"))
+    if (!(isSingleString(sep) && nchar(sep) == 1L))
+        stop(wmsg("'sep' must be a single character"))
     if (!isTRUEorFALSE(transpose))
         stop(wmsg("'transpose' must be TRUE or FALSE"))
+    as <- match.arg(as)
+
     first_two_lines <- .scan_first_two_lines(filepath, sep=sep)
     line1 <- first_two_lines[[1L]]
     line2 <- first_two_lines[[2L]]
@@ -105,25 +153,12 @@ readSparseCSV <- function(filepath, sep=",", transpose=FALSE)
     con <- file(filepath, "r")
     on.exit(close(con))
 
-    C_ans <- .Call2("C_readSparseCSV", con, sep, PACKAGE="S4Arrays")
-    if (transpose) {
-        ans_rownames <- line1[-1L]
-        ans_colnames <- C_ans[[1L]]
-        ans_nzcoo1 <- C_ans[[3L]]
-        ans_nzcoo2 <- C_ans[[2L]]
+    if (as == "SparseMatrix") {
+        .readSparseCSV_as_SVT_SparseMatrix(con, sep, line1[-1L],
+                                           transpose=transpose)
     } else {
-        ans_rownames <- C_ans[[1L]]
-        ans_colnames <- line1[-1L]
-        ans_nzcoo1 <- C_ans[[2L]]
-        ans_nzcoo2 <- C_ans[[3L]]
+        .readSparseCSV_as_dgCMatrix(con, sep, line1[-1L], transpose=transpose)
     }
-    ans_nzvals <- C_ans[[4L]]
-    ans_dim <- c(length(ans_rownames), length(ans_colnames))
-    ans_dimnames <- list(ans_rownames, ans_colnames)
-
-    ## Construct dgCMatrix object.
-    CsparseMatrix(ans_dim, ans_nzcoo1, ans_nzcoo2, ans_nzvals,
-                  dimnames=ans_dimnames)
 }
 
 readSparseTable <- function(...)

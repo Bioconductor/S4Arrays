@@ -9,7 +9,11 @@
    ascending offset. It is represented by a list of 2 parallel vectors:
    an integer vector of offsets (i.e. 0-based positions) and a vector
    (atomic or list) of values that are typically but not necessarily nonzeros.
-   The length of a "leaf vector" is **always** >= 1 and <= INT_MAX. */
+   The length of a "leaf vector" is the number of offset/value pairs in it.
+   A "leaf vector" should **never** be empty i.e. it must **always** contain
+   at least one offset/value pair. That's because you should always use a
+   NULL if you need to represent an empty "leaf vector". Furthermore, the
+   length of a "leaf vector" is **always** >= 1 and <= INT_MAX. */
 
 SEXP _new_leaf_vector(
 	SEXP lv_offs,
