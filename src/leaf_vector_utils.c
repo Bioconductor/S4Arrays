@@ -52,6 +52,8 @@ SEXP _alloc_leaf_vector(int lv_len, SEXPTYPE Rtype)
 	return ans;
 }
 
+/* Do NOT use when 'lv_len' is 0. Leaf vectors of length 0 are ILLEGAL! Always
+   use a R_NilValue instead. See leaf_vector_utils.h */
 SEXP _alloc_and_split_leaf_vector(int lv_len, SEXPTYPE Rtype,
 		SEXP *lv_offs, SEXP *lv_vals)
 {

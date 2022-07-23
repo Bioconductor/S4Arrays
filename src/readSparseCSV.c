@@ -7,6 +7,8 @@
 #include "S4Vectors_interface.h"
 #include "XVector_interface.h"
 
+#include "leaf_vector_utils.h"
+
 #include <R_ext/Connections.h>  /* for R_ReadConnection() */
 
 #include <string.h>  /* for memcpy */
@@ -102,14 +104,14 @@ static inline void CharAEAE_fast_append(CharAEAE *aeae, CharAE *ae)
 	return;
 }
 
-static void load_rowname(const char *data, int data_len,
-			 CharAEAE *rownames_buf)
+static void load_csv_rowname(const char *data, int data_len,
+			     CharAEAE *csv_rownames_buf)
 {
 	CharAE *ae = new_CharAE(data_len);
 	memcpy(ae->elts, data, data_len);
 	/* We don't use CharAE_set_nelt() for maximum speed. */
 	ae->_nelt = data_len;
-	CharAEAE_fast_append(rownames_buf, ae);
+	CharAEAE_fast_append(csv_rownames_buf, ae);
 }
 
 
@@ -123,16 +125,15 @@ static void load_csv_data1(const char *data, int data_len,
 	int val;
 
 	data_len = delete_trailing_LF_or_CRLF(data, data_len);
-	val = as_int(data, data_len);
-	if (val != 0) {
-		IntAE_fast_append(offs_buf, off);
-		IntAE_fast_append(vals_buf, val);
-	}
+	if (data_len == 0 || (val = as_int(data, data_len)) == 0)
+		return;
+	IntAE_fast_append(offs_buf, off);
+	IntAE_fast_append(vals_buf, val);
 	return;
 }
 
 static void load_csv_row_to_SVT_bufs(const char *line, char sep,
-		CharAEAE *colnames_buf, IntAE *offs_buf, IntAE *vals_buf)
+		CharAEAE *csv_rownames_buf, IntAE *offs_buf, IntAE *vals_buf)
 {
 	int col_idx, i, data_len;
 	const char *data;
@@ -147,7 +148,7 @@ static void load_csv_row_to_SVT_bufs(const char *line, char sep,
 			continue;
 		}
 		if (col_idx == 0) {
-			load_rowname(data, data_len, colnames_buf);
+			load_csv_rowname(data, data_len, csv_rownames_buf);
 		} else {
 			load_csv_data1(data, data_len,
 				       col_idx - 1, offs_buf, vals_buf);
@@ -163,8 +164,8 @@ static void load_csv_row_to_SVT_bufs(const char *line, char sep,
 
 static const char *read_sparse_csv_as_SVT_SparseMatrix(
 		SEXP filexp, char sep,
-		CharAEAE *colnames_buf,
-		IntAEAE *lv_offs_bufs, IntAEAE *lv_vals_bufs)
+		CharAEAE *csv_rownames_buf,
+		IntAEAE *offs_bufs, IntAEAE *vals_bufs)
 {
 	int row_idx, lineno, ret_code, EOL_in_buf;
 	char buf[IOBUF_SIZE];
@@ -194,18 +195,54 @@ static const char *read_sparse_csv_as_SVT_SparseMatrix(
 		offs_buf = new_IntAE(0, 0, 0);
 		vals_buf = new_IntAE(0, 0, 0);
 		load_csv_row_to_SVT_bufs(buf, sep,
-					 colnames_buf, offs_buf, vals_buf);
-		IntAEAE_insert_at(lv_offs_bufs, row_idx - 1, offs_buf);
-		IntAEAE_insert_at(lv_vals_bufs, row_idx - 1, vals_buf);
+					 csv_rownames_buf, offs_buf, vals_buf);
+		IntAEAE_insert_at(offs_bufs, row_idx - 1, offs_buf);
+		IntAEAE_insert_at(vals_bufs, row_idx - 1, vals_buf);
 		row_idx++;
 	}
 	return NULL;
 }
 
-static SEXP make_SVT_from_bufs(const IntAEAE *lv_offs_bufs,
-			       const IntAEAE *lv_vals_bufs)
+/* 'offs_buf' and 'vals_buf' are **asumed** to have the same length and this
+   length is **assumed** to be != 0. We don't check this! */
+static SEXP make_leaf_vector_from_bufs(const IntAE *offs_buf,
+				       const IntAE *vals_buf)
 {
-	return R_NilValue;
+	SEXP ans_offs, ans_vals, ans;
+
+	ans_offs = PROTECT(new_INTEGER_from_IntAE(offs_buf));
+	ans_vals = PROTECT(new_INTEGER_from_IntAE(vals_buf));
+	ans = _new_leaf_vector(ans_offs, ans_vals);  // unprotected!
+	UNPROTECT(2);
+	return ans;
+}
+
+/* 'offs_bufs' and 'vals_bufs' are **asumed** to have the same shape.
+   We don't check this! */
+static SEXP make_SVT_from_bufs(const IntAEAE *offs_bufs,
+			       const IntAEAE *vals_bufs)
+{
+	int SVT_len, is_empty, i, lv_len;
+	SEXP ans, ans_elt;
+	const IntAE *offs_buf, *vals_buf;
+
+	SVT_len = IntAEAE_get_nelt(offs_bufs);
+	ans = PROTECT(NEW_LIST(SVT_len));
+	is_empty = 1;
+	for (i = 0; i < SVT_len; i++) {
+		offs_buf = offs_bufs->elts[i];
+		lv_len = IntAE_get_nelt(offs_buf);
+		if (lv_len == 0)
+			continue;
+		vals_buf = vals_bufs->elts[i];
+		ans_elt = make_leaf_vector_from_bufs(offs_buf, vals_buf);
+		PROTECT(ans_elt);
+		SET_VECTOR_ELT(ans, i, ans_elt);
+		UNPROTECT(1);
+		is_empty = 0;
+	}
+	UNPROTECT(1);
+	return is_empty ? R_NilValue : ans;
 }
 
 /* --- .Call ENTRY POINT ---
@@ -213,32 +250,32 @@ static SEXP make_SVT_from_bufs(const IntAEAE *lv_offs_bufs,
  *   filexp: A "file external pointer" (see src/io_utils.c in the XVector
  *           package). TODO: Support connections (see src/readGFF.c in the
  *           rtracklayer package for how to do that).
- * Returns 'list(colnames, SVT)'.
+ * Returns 'list(csv_rownames, SVT)'.
  */
 SEXP C_readSparseCSV_as_SVT_SparseMatrix(SEXP filexp, SEXP sep)
 {
-	CharAEAE *colnames_buf;
-	IntAEAE *lv_offs_bufs, *lv_vals_bufs;
+	CharAEAE *csv_rownames_buf;
+	IntAEAE *offs_bufs, *vals_bufs;
 	const char *errmsg;
 	SEXP ans, ans_elt;
 
-	colnames_buf = new_CharAEAE(0, 0);
-	lv_offs_bufs = new_IntAEAE(0, 0);
-	lv_vals_bufs = new_IntAEAE(0, 0);
+	csv_rownames_buf = new_CharAEAE(0, 0);
+	offs_bufs = new_IntAEAE(0, 0);
+	vals_bufs = new_IntAEAE(0, 0);
 
 	errmsg = read_sparse_csv_as_SVT_SparseMatrix(
 				filexp, get_sep_char(sep),
-				colnames_buf, lv_offs_bufs, lv_vals_bufs);
+				csv_rownames_buf, offs_bufs, vals_bufs);
 	if (errmsg != NULL)
 		error("reading file: %s", errmsg);
 
 	ans = PROTECT(NEW_LIST(2));
 
-	ans_elt = PROTECT(new_CHARACTER_from_CharAEAE(colnames_buf));
+	ans_elt = PROTECT(new_CHARACTER_from_CharAEAE(csv_rownames_buf));
 	SET_VECTOR_ELT(ans, 0, ans_elt);
 	UNPROTECT(1);
 
-	ans_elt = PROTECT(make_SVT_from_bufs(lv_offs_bufs, lv_vals_bufs));
+	ans_elt = PROTECT(make_SVT_from_bufs(offs_bufs, vals_bufs));
 	SET_VECTOR_ELT(ans, 1, ans_elt);
 	UNPROTECT(1);
 
@@ -258,17 +295,16 @@ static void load_csv_data2(const char *data, int data_len,
 	int val;
 
 	data_len = delete_trailing_LF_or_CRLF(data, data_len);
-	val = as_int(data, data_len);
-	if (val != 0) {
-		IntAE_fast_append(nzcoo1_buf, row_idx);
-		IntAE_fast_append(nzcoo2_buf, col_idx);
-		IntAE_fast_append(nzvals_buf, val);
-	}
+	if (data_len == 0 || (val = as_int(data, data_len)) == 0)
+		return;
+	IntAE_fast_append(nzcoo1_buf, row_idx);
+	IntAE_fast_append(nzcoo2_buf, col_idx);
+	IntAE_fast_append(nzvals_buf, val);
 	return;
 }
 
 static void load_csv_row_to_COO_bufs(const char *line, char sep, int row_idx,
-		CharAEAE *rownames_buf,
+		CharAEAE *csv_rownames_buf,
 		IntAE *nzcoo1_buf, IntAE *nzcoo2_buf, IntAE *nzvals_buf)
 {
 	int col_idx, i, data_len;
@@ -284,7 +320,7 @@ static void load_csv_row_to_COO_bufs(const char *line, char sep, int row_idx,
 			continue;
 		}
 		if (col_idx == 0) {
-			load_rowname(data, data_len, rownames_buf);
+			load_csv_rowname(data, data_len, csv_rownames_buf);
 		} else {
 			load_csv_data2(data, data_len,
 				       row_idx, col_idx,
@@ -304,7 +340,7 @@ static void load_csv_row_to_COO_bufs(const char *line, char sep, int row_idx,
 
 static const char *read_sparse_csv_as_COO_SparseMatrix(
 		SEXP filexp, char sep,
-		CharAEAE *rownames_buf,
+		CharAEAE *csv_rownames_buf,
 		IntAE *nzcoo1_buf, IntAE *nzcoo2_buf,
 		IntAE *nzvals_buf)
 {
@@ -333,7 +369,7 @@ static const char *read_sparse_csv_as_COO_SparseMatrix(
 		if (lineno == 1)
 			continue;
 		load_csv_row_to_COO_bufs(buf, sep, row_idx,
-				rownames_buf,
+				csv_rownames_buf,
 				nzcoo1_buf, nzcoo2_buf, nzvals_buf);
 		row_idx++;
 	}
@@ -345,23 +381,23 @@ static const char *read_sparse_csv_as_COO_SparseMatrix(
  *   filexp: A "file external pointer" (see src/io_utils.c in the XVector
  *           package). TODO: Support connections (see src/readGFF.c in the
  *           rtracklayer package for how to do that).
- * Returns 'list(rownames, nzcoo1, nzcoo2, nzvals)'.
+ * Returns 'list(csv_rownames, nzcoo1, nzcoo2, nzvals)'.
  */
 SEXP C_readSparseCSV_as_COO_SparseMatrix(SEXP filexp, SEXP sep)
 {
-	CharAEAE *rownames_buf;
+	CharAEAE *csv_rownames_buf;
 	IntAE *nzcoo1_buf, *nzcoo2_buf, *nzvals_buf;
 	const char *errmsg;
 	SEXP ans, ans_elt;
 
-	rownames_buf = new_CharAEAE(0, 0);
+	csv_rownames_buf = new_CharAEAE(0, 0);
 	nzcoo1_buf = new_IntAE(0, 0, 0);
 	nzcoo2_buf = new_IntAE(0, 0, 0);
 	nzvals_buf = new_IntAE(0, 0, 0);
 
 	errmsg = read_sparse_csv_as_COO_SparseMatrix(
 				filexp, get_sep_char(sep),
-				rownames_buf,
+				csv_rownames_buf,
 				nzcoo1_buf, nzcoo2_buf,
 				nzvals_buf);
 	if (errmsg != NULL)
@@ -369,7 +405,7 @@ SEXP C_readSparseCSV_as_COO_SparseMatrix(SEXP filexp, SEXP sep)
 
 	ans = PROTECT(NEW_LIST(4));
 
-	ans_elt = PROTECT(new_CHARACTER_from_CharAEAE(rownames_buf));
+	ans_elt = PROTECT(new_CHARACTER_from_CharAEAE(csv_rownames_buf));
 	SET_VECTOR_ELT(ans, 0, ans_elt);
 	UNPROTECT(1);
 
