@@ -66,6 +66,48 @@ static int filexp_gets2(SEXP filexp, char *buf, int buf_size, int *EOL_in_buf)
 	return 1;
 }
 
+/****************************************************************************
+ * Using an environment as a growable list.
+ */
+
+static inline SEXP idx0_to_key(int idx0)
+{
+	char keybuf[11];
+
+	snprintf(keybuf, sizeof(keybuf), "%010d", idx0);
+	return mkChar(keybuf);  // unprotected!
+}
+
+static void set_env_elt(SEXP env, int i, SEXP val)
+{
+	SEXP key;
+
+	key = PROTECT(idx0_to_key(i));
+	defineVar(install(translateChar(key)), val, env);
+	UNPROTECT(1);
+	return;
+}
+
+static SEXP dump_env_as_list_or_R_NilValue(SEXP env, int ans_len)
+{
+	SEXP ans, key, ans_elt;
+	int is_empty, i;
+
+	ans = PROTECT(NEW_LIST(ans_len));
+	is_empty = 1;
+	for (i = 0; i < ans_len; i++) {
+		key = PROTECT(idx0_to_key(i));
+		ans_elt = findVar(install(translateChar(key)), env);
+		UNPROTECT(1);
+		if (ans_elt == R_UnboundValue)
+			continue;
+		SET_VECTOR_ELT(ans, i, ans_elt);
+		is_empty = 0;
+	}
+	UNPROTECT(1);
+	return is_empty ? R_NilValue : ans;
+}
+
 
 /****************************************************************************
  * Stuff shared by C_readSparseCSV_as_SVT_SparseMatrix() and
@@ -125,6 +167,64 @@ static void load_csv_rowname(const char *data, int data_len,
  * C_readSparseCSV_as_SVT_SparseMatrix()
  */
 
+/* 'offs_buf' and 'vals_buf' are **asumed** to have the same length and this
+   length is **assumed** to be != 0. We don't check this! */
+static SEXP make_leaf_vector_from_AEbufs(const IntAE *offs_buf,
+					 const IntAE *vals_buf)
+{
+	SEXP ans_offs, ans_vals, ans;
+
+	ans_offs = PROTECT(new_INTEGER_from_IntAE(offs_buf));
+	ans_vals = PROTECT(new_INTEGER_from_IntAE(vals_buf));
+	ans = _new_leaf_vector(ans_offs, ans_vals);  // unprotected!
+	UNPROTECT(2);
+	return ans;
+}
+
+static void store_AEbufs_in_env_as_leaf_vector(
+		const IntAE *offs_buf, const IntAE *vals_buf,
+		int idx0, SEXP env)
+{
+	int lv_len;
+	SEXP lv;
+
+	lv_len = IntAE_get_nelt(offs_buf);
+	if (lv_len == 0)
+		return;
+	lv = PROTECT(make_leaf_vector_from_AEbufs(offs_buf, vals_buf));
+	set_env_elt(env, idx0, lv);
+	UNPROTECT(1);
+	return;
+}
+
+/* 'offs_bufs' and 'vals_bufs' are **asumed** to have the same shape.
+   We don't check this! */
+static SEXP make_SVT_from_AEAEbufs(const IntAEAE *offs_bufs,
+				   const IntAEAE *vals_bufs)
+{
+	int SVT_len, is_empty, i, lv_len;
+	SEXP ans, ans_elt;
+	const IntAE *offs_buf, *vals_buf;
+
+	SVT_len = IntAEAE_get_nelt(offs_bufs);
+	ans = PROTECT(NEW_LIST(SVT_len));
+	is_empty = 1;
+	for (i = 0; i < SVT_len; i++) {
+		offs_buf = offs_bufs->elts[i];
+		lv_len = IntAE_get_nelt(offs_buf);
+		if (lv_len == 0)
+			continue;
+		vals_buf = vals_bufs->elts[i];
+		ans_elt = make_leaf_vector_from_AEbufs(offs_buf, vals_buf);
+		PROTECT(ans_elt);
+		SET_VECTOR_ELT(ans, i, ans_elt);
+		UNPROTECT(1);
+		is_empty = 0;
+	}
+	UNPROTECT(1);
+	return is_empty ? R_NilValue : ans;
+}
+
 static void load_csv_data1(const char *data, int data_len,
 		int off, IntAE *offs_buf, IntAE *vals_buf)
 {
@@ -152,13 +252,16 @@ static void load_csv_data2(const char *data, int data_len,
 	return;
 }
 
-static void load_and_transpose_csv_row_to_SVT_bufs(const char *line, char sep,
+/* Used to load the sparse data when 'transpose' is TRUE. */
+static void load_csv_row_to_AEbufs(const char *line, char sep,
 		CharAEAE *csv_rownames_buf, IntAE *offs_buf, IntAE *vals_buf)
 {
 	int col_idx, i, data_len;
 	const char *data;
 	char c;
 
+	IntAE_set_nelt(offs_buf, 0);
+	IntAE_set_nelt(vals_buf, 0);
 	col_idx = i = 0;
 	data = line;
 	data_len = 0;
@@ -182,7 +285,8 @@ static void load_and_transpose_csv_row_to_SVT_bufs(const char *line, char sep,
 	return;
 }
 
-static void load_csv_row_to_SVT_bufs(const char *line, char sep, int row_idx0,
+/* Used to load the sparse data when 'transpose' is FALSE. */
+static void load_csv_row_to_AEAEbufs(const char *line, char sep, int row_idx0,
 		CharAEAE *csv_rownames_buf,
 		IntAEAE *offs_bufs, IntAEAE *vals_bufs)
 {
@@ -218,12 +322,16 @@ static void load_csv_row_to_SVT_bufs(const char *line, char sep, int row_idx0,
 static const char *read_sparse_csv_as_SVT_SparseMatrix(
 		SEXP filexp, char sep, int transpose,
 		CharAEAE *csv_rownames_buf,
-		IntAEAE *offs_bufs, IntAEAE *vals_bufs)
+		IntAEAE *offs_bufs, IntAEAE *vals_bufs, SEXP tmpenv)
 {
+	IntAE *offs_buf, *vals_buf;
 	int row_idx0, lineno, ret_code, EOL_in_buf;
 	char buf[IOBUF_SIZE];
-	IntAE *offs_buf, *vals_buf;
 
+	if (transpose) {
+		offs_buf = new_IntAE(0, 0, 0);
+		vals_buf = new_IntAE(0, 0, 0);
+	}
 	if (TYPEOF(filexp) != EXTPTRSXP)
 		init_con_buf();
 	row_idx0 = 0;
@@ -246,76 +354,43 @@ static const char *read_sparse_csv_as_SVT_SparseMatrix(
 		if (lineno == 1)
 			continue;
 		if (transpose) {
-			offs_buf = new_IntAE(0, 0, 0);
-			vals_buf = new_IntAE(0, 0, 0);
-			load_and_transpose_csv_row_to_SVT_bufs(buf, sep,
-						csv_rownames_buf,
-						offs_buf, vals_buf);
-			IntAEAE_insert_at(offs_bufs, row_idx0, offs_buf);
-			IntAEAE_insert_at(vals_bufs, row_idx0, vals_buf);
+			/* Turn the CSV rows into leaf vectors as we go and
+			   store them in 'tmpenv'. */
+			load_csv_row_to_AEbufs(buf, sep,
+					       csv_rownames_buf,
+					       offs_buf, vals_buf);
+			store_AEbufs_in_env_as_leaf_vector(
+					       offs_buf, vals_buf,
+					       row_idx0, tmpenv);
 		} else {
-			load_csv_row_to_SVT_bufs(buf, sep, row_idx0,
-						csv_rownames_buf,
-						offs_bufs, vals_bufs);
+			load_csv_row_to_AEAEbufs(buf, sep, row_idx0,
+						 csv_rownames_buf,
+						 offs_bufs, vals_bufs);
 		}
 		row_idx0++;
 	}
 	return NULL;
 }
 
-/* 'offs_buf' and 'vals_buf' are **asumed** to have the same length and this
-   length is **assumed** to be != 0. We don't check this! */
-static SEXP make_leaf_vector_from_bufs(const IntAE *offs_buf,
-				       const IntAE *vals_buf)
-{
-	SEXP ans_offs, ans_vals, ans;
-
-	ans_offs = PROTECT(new_INTEGER_from_IntAE(offs_buf));
-	ans_vals = PROTECT(new_INTEGER_from_IntAE(vals_buf));
-	ans = _new_leaf_vector(ans_offs, ans_vals);  // unprotected!
-	UNPROTECT(2);
-	return ans;
-}
-
-/* 'offs_bufs' and 'vals_bufs' are **asumed** to have the same shape.
-   We don't check this! */
-static SEXP make_SVT_from_bufs(const IntAEAE *offs_bufs,
-			       const IntAEAE *vals_bufs)
-{
-	int SVT_len, is_empty, i, lv_len;
-	SEXP ans, ans_elt;
-	const IntAE *offs_buf, *vals_buf;
-
-	SVT_len = IntAEAE_get_nelt(offs_bufs);
-	ans = PROTECT(NEW_LIST(SVT_len));
-	is_empty = 1;
-	for (i = 0; i < SVT_len; i++) {
-		offs_buf = offs_bufs->elts[i];
-		lv_len = IntAE_get_nelt(offs_buf);
-		if (lv_len == 0)
-			continue;
-		vals_buf = vals_bufs->elts[i];
-		ans_elt = make_leaf_vector_from_bufs(offs_buf, vals_buf);
-		PROTECT(ans_elt);
-		SET_VECTOR_ELT(ans, i, ans_elt);
-		UNPROTECT(1);
-		is_empty = 0;
-	}
-	UNPROTECT(1);
-	return is_empty ? R_NilValue : ans;
-}
-
 /* --- .Call ENTRY POINT ---
  * Args:
- *   filexp: A "file external pointer" (see src/io_utils.c in the XVector
- *           package). TODO: Support connections (see src/readGFF.c in the
- *           rtracklayer package for how to do that).
+ *   filexp:    A "file external pointer" (see src/io_utils.c in the XVector
+ *              package). TODO: Support connections (see src/readGFF.c in the
+ *              rtracklayer package for how to do that).
+ *   sep:       A single string (i.e. character vector of length 1) made of a
+ *              single character.
+ *   transpose: A single logical (TRUE or FALSE).
+ *   csv_ncol:  Number of columns of data in the CSV file (1st column
+ *              containing the rownames doesn't count).
+ *   tmpenv:    An environment that will be used to grow the list
+ *              of "leaf vectors" when 'transpose' is TRUE.
  * Returns 'list(csv_rownames, SVT)'.
  */
 SEXP C_readSparseCSV_as_SVT_SparseMatrix(SEXP filexp, SEXP sep,
-					 SEXP transpose, SEXP csv_ncol)
+					 SEXP transpose, SEXP csv_ncol,
+					 SEXP tmpenv)
 {
-	int transpose0, ncol0;
+	int transpose0, nrow0, ncol0;
 	CharAEAE *csv_rownames_buf;
 	IntAEAE *offs_bufs, *vals_bufs;
 	const char *errmsg;
@@ -324,17 +399,14 @@ SEXP C_readSparseCSV_as_SVT_SparseMatrix(SEXP filexp, SEXP sep,
 	transpose0 = LOGICAL(transpose)[0];
 	ncol0 = INTEGER(csv_ncol)[0];
 	csv_rownames_buf = new_CharAEAE(0, 0);
-	if (transpose0) {
-		offs_bufs = new_IntAEAE(0, 0);
-		vals_bufs = new_IntAEAE(0, 0);
-	} else {
+	if (!transpose0) {
 		offs_bufs = new_IntAEAE(ncol0, ncol0);
 		vals_bufs = new_IntAEAE(ncol0, ncol0);
 	}
 
 	errmsg = read_sparse_csv_as_SVT_SparseMatrix(
 				filexp, get_sep_char(sep), transpose0,
-				csv_rownames_buf, offs_bufs, vals_bufs);
+				csv_rownames_buf, offs_bufs, vals_bufs, tmpenv);
 	if (errmsg != NULL)
 		error("reading file: %s", errmsg);
 
@@ -344,7 +416,13 @@ SEXP C_readSparseCSV_as_SVT_SparseMatrix(SEXP filexp, SEXP sep,
 	SET_VECTOR_ELT(ans, 0, ans_elt);
 	UNPROTECT(1);
 
-	ans_elt = PROTECT(make_SVT_from_bufs(offs_bufs, vals_bufs));
+	if (transpose0) {
+		nrow0 = CharAEAE_get_nelt(csv_rownames_buf);
+		ans_elt = dump_env_as_list_or_R_NilValue(tmpenv, nrow0);
+	} else {
+		ans_elt = make_SVT_from_AEAEbufs(offs_bufs, vals_bufs);
+	}
+	PROTECT(ans_elt);
 	SET_VECTOR_ELT(ans, 1, ans_elt);
 	UNPROTECT(1);
 
@@ -450,6 +528,8 @@ static const char *read_sparse_csv_as_COO_SparseMatrix(
  *   filexp: A "file external pointer" (see src/io_utils.c in the XVector
  *           package). TODO: Support connections (see src/readGFF.c in the
  *           rtracklayer package for how to do that).
+ *   sep:    A single string (i.e. character vector of length 1) made of a
+ *           single character.
  * Returns 'list(csv_rownames, nzcoo1, nzcoo2, nzvals)'.
  */
 SEXP C_readSparseCSV_as_COO_SparseMatrix(SEXP filexp, SEXP sep)

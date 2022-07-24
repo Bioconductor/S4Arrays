@@ -73,7 +73,7 @@
         return(c(TRUE, FALSE))
     if (any(.looks_like_a_name(line1[-1L])))
         return(c(FALSE, TRUE))
-    ## File maybe is more likely to have rownames than colnames but who knows,
+    ## Maybe file is more likely to have rownames than colnames but who knows,
     ## this is just a random guess.
     c(TRUE, FALSE)
 }
@@ -81,9 +81,11 @@
 .readSparseCSV_as_SVT_SparseMatrix <- function(con, sep, csv_colnames,
                                                transpose=FALSE)
 {
+    tmpenv <- new.env(parent=emptyenv())
     C_ans <- .Call2("C_readSparseCSV_as_SVT_SparseMatrix",
-                    con, sep, transpose, length(csv_colnames),
+                    con, sep, transpose, length(csv_colnames), tmpenv,
                     PACKAGE="S4Arrays")
+    rm(tmpenv)
 
     ## Construct SVT_SparseArray object.
     csv_rownames <- C_ans[[1L]]
