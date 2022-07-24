@@ -95,6 +95,12 @@ static inline void IntAE_fast_append(IntAE *ae, int val)
 	return;
 }
 
+static inline void IntAEAE_fast_append_at(IntAEAE *aeae, int at, int val)
+{
+	IntAE_fast_append(aeae->elts[at], val);
+	return;
+}
+
 static inline void CharAEAE_fast_append(CharAEAE *aeae, CharAE *ae)
 {
 	/* We don't use CharAEAE_get_nelt() for maximum speed. */
@@ -132,7 +138,21 @@ static void load_csv_data1(const char *data, int data_len,
 	return;
 }
 
-static void load_csv_row_to_SVT_bufs(const char *line, char sep,
+static void load_csv_data2(const char *data, int data_len,
+		int row_idx0, int col_idx0,
+		IntAEAE *offs_bufs, IntAEAE *vals_bufs)
+{
+	int val;
+
+	data_len = delete_trailing_LF_or_CRLF(data, data_len);
+	if (data_len == 0 || (val = as_int(data, data_len)) == 0)
+		return;
+	IntAEAE_fast_append_at(offs_bufs, col_idx0, row_idx0);
+	IntAEAE_fast_append_at(vals_bufs, col_idx0, val);
+	return;
+}
+
+static void load_and_transpose_csv_row_to_SVT_bufs(const char *line, char sep,
 		CharAEAE *csv_rownames_buf, IntAE *offs_buf, IntAE *vals_buf)
 {
 	int col_idx, i, data_len;
@@ -162,18 +182,51 @@ static void load_csv_row_to_SVT_bufs(const char *line, char sep,
 	return;
 }
 
-static const char *read_sparse_csv_as_SVT_SparseMatrix(
-		SEXP filexp, char sep,
+static void load_csv_row_to_SVT_bufs(const char *line, char sep, int row_idx0,
 		CharAEAE *csv_rownames_buf,
 		IntAEAE *offs_bufs, IntAEAE *vals_bufs)
 {
-	int row_idx, lineno, ret_code, EOL_in_buf;
+	int col_idx, i, data_len;
+	const char *data;
+	char c;
+
+	col_idx = i = 0;
+	data = line;
+	data_len = 0;
+	while ((c = line[i++])) {
+		if (c != sep) {
+			data_len++;
+			continue;
+		}
+		if (col_idx == 0) {
+			load_csv_rowname(data, data_len, csv_rownames_buf);
+		} else {
+			load_csv_data2(data, data_len,
+				       row_idx0, col_idx - 1,
+				       offs_bufs, vals_bufs);
+		}
+		col_idx++;
+		data = line + i;
+		data_len = 0;
+	}
+	load_csv_data2(data, data_len,
+		       row_idx0, col_idx - 1,
+		       offs_bufs, vals_bufs);
+	return;
+}
+
+static const char *read_sparse_csv_as_SVT_SparseMatrix(
+		SEXP filexp, char sep, int transpose,
+		CharAEAE *csv_rownames_buf,
+		IntAEAE *offs_bufs, IntAEAE *vals_bufs)
+{
+	int row_idx0, lineno, ret_code, EOL_in_buf;
 	char buf[IOBUF_SIZE];
 	IntAE *offs_buf, *vals_buf;
 
 	if (TYPEOF(filexp) != EXTPTRSXP)
 		init_con_buf();
-	row_idx = 1;
+	row_idx0 = 0;
 	for (lineno = 1;
 	     (ret_code = filexp_gets2(filexp, buf, IOBUF_SIZE, &EOL_in_buf));
 	     lineno += EOL_in_buf)
@@ -192,13 +245,20 @@ static const char *read_sparse_csv_as_SVT_SparseMatrix(
 		}
 		if (lineno == 1)
 			continue;
-		offs_buf = new_IntAE(0, 0, 0);
-		vals_buf = new_IntAE(0, 0, 0);
-		load_csv_row_to_SVT_bufs(buf, sep,
-					 csv_rownames_buf, offs_buf, vals_buf);
-		IntAEAE_insert_at(offs_bufs, row_idx - 1, offs_buf);
-		IntAEAE_insert_at(vals_bufs, row_idx - 1, vals_buf);
-		row_idx++;
+		if (transpose) {
+			offs_buf = new_IntAE(0, 0, 0);
+			vals_buf = new_IntAE(0, 0, 0);
+			load_and_transpose_csv_row_to_SVT_bufs(buf, sep,
+						csv_rownames_buf,
+						offs_buf, vals_buf);
+			IntAEAE_insert_at(offs_bufs, row_idx0, offs_buf);
+			IntAEAE_insert_at(vals_bufs, row_idx0, vals_buf);
+		} else {
+			load_csv_row_to_SVT_bufs(buf, sep, row_idx0,
+						csv_rownames_buf,
+						offs_bufs, vals_bufs);
+		}
+		row_idx0++;
 	}
 	return NULL;
 }
@@ -252,19 +312,28 @@ static SEXP make_SVT_from_bufs(const IntAEAE *offs_bufs,
  *           rtracklayer package for how to do that).
  * Returns 'list(csv_rownames, SVT)'.
  */
-SEXP C_readSparseCSV_as_SVT_SparseMatrix(SEXP filexp, SEXP sep)
+SEXP C_readSparseCSV_as_SVT_SparseMatrix(SEXP filexp, SEXP sep,
+					 SEXP transpose, SEXP csv_ncol)
 {
+	int transpose0, ncol0;
 	CharAEAE *csv_rownames_buf;
 	IntAEAE *offs_bufs, *vals_bufs;
 	const char *errmsg;
 	SEXP ans, ans_elt;
 
+	transpose0 = LOGICAL(transpose)[0];
+	ncol0 = INTEGER(csv_ncol)[0];
 	csv_rownames_buf = new_CharAEAE(0, 0);
-	offs_bufs = new_IntAEAE(0, 0);
-	vals_bufs = new_IntAEAE(0, 0);
+	if (transpose0) {
+		offs_bufs = new_IntAEAE(0, 0);
+		vals_bufs = new_IntAEAE(0, 0);
+	} else {
+		offs_bufs = new_IntAEAE(ncol0, ncol0);
+		vals_bufs = new_IntAEAE(ncol0, ncol0);
+	}
 
 	errmsg = read_sparse_csv_as_SVT_SparseMatrix(
-				filexp, get_sep_char(sep),
+				filexp, get_sep_char(sep), transpose0,
 				csv_rownames_buf, offs_bufs, vals_bufs);
 	if (errmsg != NULL)
 		error("reading file: %s", errmsg);
@@ -288,7 +357,7 @@ SEXP C_readSparseCSV_as_SVT_SparseMatrix(SEXP filexp, SEXP sep)
  * C_readSparseCSV_as_COO_SparseMatrix()
  */
 
-static void load_csv_data2(const char *data, int data_len,
+static void load_csv_data3(const char *data, int data_len,
 		int row_idx, int col_idx,
 		IntAE *nzcoo1_buf, IntAE *nzcoo2_buf, IntAE *nzvals_buf)
 {
@@ -322,7 +391,7 @@ static void load_csv_row_to_COO_bufs(const char *line, char sep, int row_idx,
 		if (col_idx == 0) {
 			load_csv_rowname(data, data_len, csv_rownames_buf);
 		} else {
-			load_csv_data2(data, data_len,
+			load_csv_data3(data, data_len,
 				       row_idx, col_idx,
 				       nzcoo1_buf, nzcoo2_buf,
 				       nzvals_buf);
@@ -331,7 +400,7 @@ static void load_csv_row_to_COO_bufs(const char *line, char sep, int row_idx,
 		data = line + i;
 		data_len = 0;
 	}
-	load_csv_data2(data, data_len,
+	load_csv_data3(data, data_len,
 		       row_idx, col_idx,
 		       nzcoo1_buf, nzcoo2_buf,
 		       nzvals_buf);

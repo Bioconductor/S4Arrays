@@ -5,7 +5,9 @@
 
 SEXP C_readSparseCSV_as_SVT_SparseMatrix(
 	SEXP filexp,
-	SEXP sep
+	SEXP sep,
+	SEXP transpose,
+	SEXP csv_ncol
 );
 
 SEXP C_readSparseCSV_as_COO_SparseMatrix(
