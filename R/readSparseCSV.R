@@ -7,7 +7,7 @@
 ### writeSparseCSV()
 ###
 
-.write_csv_data_line <- function(rowname, vals, filepath, sep, write.zeros)
+.write_csv_line <- function(rowname, vals, filepath, sep, write.zeros)
 {
     if (write.zeros) {
         line <- as.character(vals)
@@ -19,8 +19,32 @@
     cat(rowname, paste0(sep, line), "\n", file=filepath, sep="", append=TRUE)
 }
 
+.write_csv_block <- function(rownames, block, filepath, sep, write.zeros)
+{
+    stopifnot(is.matrix(block))
+    ## Write 'block' row by row. Not very efficient!
+    for (i in seq_len(nrow(block))) {
+        vals <- as.integer(block[i, ])
+        .write_csv_line(rownames[[i]], vals, filepath, sep, write.zeros)
+    }
+}
+
+### TODO: Maybe use a block-processing approach that is RealizationSink-based
+### i.e. it would use:
+### - A dedicated RealizationSink object for CSV files e.g. CSVRealizationSink
+###   (to be implemented) and its required methods. See
+###   DelayedArray/R/write_block.R in the DelayedArray package.
+### - DelayedArray::BLOCK_write_to_sink()
+### - See writeTENxMatrix() in the HDF5Array package for the details.
+###   Note that writeHDF5Array() in the same package also uses a
+###   RealizationSink-based approach.
+### Major difference with writeTENxMatrix(): BLOCK_write_to_sink() must use
+### a **row-oriented** grid obtained with rowAutoGrid(..., nrow=chunknrow).
+### I'm not sure BLOCK_write_to_sink() will be able to handle the case
+### when 'transpose' is TRUE case out-of-the-box though. Might require some
+### tweaks, hopefully nothing really complicated.
 writeSparseCSV <- function(x, filepath, sep=",", transpose=FALSE,
-                           write.zeros=FALSE)
+                              write.zeros=FALSE, chunknrow=250)
 {
     ## Check 'x'.
     x_dim <- dim(x)
@@ -51,22 +75,24 @@ writeSparseCSV <- function(x, filepath, sep=",", transpose=FALSE,
     x_colnames <- x_dimnames[[2L]]
 
     if (transpose) {
+        chunks <- breakInChunks(x_ncol, chunksize=chunknrow)
         cat(paste0(sep, x_rownames), "\n", file=filepath, sep="")
-        ## Write the object column by column. Not very efficient!
         ## Note that walking on the columns of a SVT_SparseMatrix should be
         ## slightly more efficient than walking on its rows.
-        for (j in seq_len(x_ncol)) {
-            vals <- as.integer(x[ , j])
-            .write_csv_data_line(x_colnames[[j]], vals, filepath, sep,
-                                 write.zeros)
+        for (chunk_id in seq_along(chunks)) {
+            idx <- chunks[[chunk_id]]
+            block <- t(as.matrix(x[ , idx, drop=FALSE]))
+            .write_csv_block(x_colnames[idx], block, filepath, sep,
+                             write.zeros)
         }
     } else {
+        chunks <- breakInChunks(x_nrow, chunksize=chunknrow)
         cat(paste0(sep, x_colnames), "\n", file=filepath, sep="")
-        ## Write the object row by row. Not very efficient!
-        for (i in seq_len(x_nrow)) {
-            vals <- as.integer(x[i, ])
-            .write_csv_data_line(x_rownames[[i]], vals, filepath, sep,
-                                 write.zeros)
+        for (chunk_id in seq_along(chunks)) {
+            idx <- chunks[[chunk_id]]
+            block <- as.matrix(x[idx, , drop=FALSE])
+            .write_csv_block(x_rownames[idx], block, filepath, sep,
+                             write.zeros)
         }
     }
 }
@@ -185,7 +211,7 @@ writeSparseCSV <- function(x, filepath, sep=",", transpose=FALSE,
 
 ### Returns an SVT_SparseMatrix object by default.
 readSparseCSV <- function(filepath, sep=",", transpose=FALSE,
-                          as=c("SparseMatrix", "dgCMatrix"))
+                                    as=c("SparseMatrix", "dgCMatrix"))
 {
     ## Check 'filepath', 'sep', and 'transpose'.
     if (!isSingleString(filepath))

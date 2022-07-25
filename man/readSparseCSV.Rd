@@ -11,10 +11,11 @@
 }
 
 \usage{
-writeSparseCSV(x, filepath, sep=",", transpose=FALSE, write.zeros=FALSE)
+writeSparseCSV(x, filepath, sep=",", transpose=FALSE, write.zeros=FALSE,
+                  chunknrow=250)
 
 readSparseCSV(filepath, sep=",", transpose=FALSE,
-              as=c("SparseMatrix", "dgCMatrix"))
+                        as=c("SparseMatrix", "dgCMatrix"))
 }
 
 \arguments{
@@ -24,8 +25,8 @@ readSparseCSV(filepath, sep=",", transpose=FALSE,
 
     Another requirement is that the object must be subsettable. More
     precisely: it must support 2D-style subsetting of the kind \code{x[i, ]}
-    and \code{x[ , j]} where \code{i} and \code{j} are valid row and column
-    indices.
+    and \code{x[ , j]} where \code{i} and \code{j} are integer vectors
+    of valid row and column indices.
   }
   \item{filepath}{
     The path (as a single string) to the file where to write the
@@ -55,6 +56,13 @@ readSparseCSV(filepath, sep=",", transpose=FALSE,
     \code{TRUE} or \code{FALSE}. By default, the zero values in \code{x}
     are not written to the file. Set \code{write.zeros} to \code{TRUE} to
     write them.
+  }
+  \item{chunknrow}{
+    \code{writeSparseCSV()} uses a block-processing strategy to try to
+    speed up things. By default blocks of 250 rows (or columns if
+    \code{transpose=TRUE}) are used. In our experience trying to increase
+    this (e.g. to 500 or more) will generally not produce siginificant
+    benefits while it will increase memory usage, so use carefully.
   }
   \item{as}{
     What to return the sparse data as. By default it's returned as a
@@ -92,6 +100,7 @@ m0
 ## writeSparseCSV():
 writeSparseCSV(m0, filepath="", sep="\t")
 writeSparseCSV(m0, filepath="", sep="\t", write.zeros=TRUE)
+writeSparseCSV(m0, filepath="", sep="\t", transpose=TRUE)
 
 ## Note that writeSparseCSV() will automatically (and silently) coerce
 ## non-integer values to integer by passing them thru as.integer().
