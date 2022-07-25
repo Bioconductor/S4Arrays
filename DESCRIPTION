@@ -9,7 +9,7 @@ Description: The S4Arrays package defines the Array virtual class to be
 biocViews: Infrastructure, DataRepresentation
 URL: https://bioconductor.org/packages/S4Arrays
 BugReports: https://github.com/Bioconductor/S4Arrays/issues
-Version: 0.2.4
+Version: 0.3.0
 License: Artistic-2.0
 Encoding: UTF-8
 Author: Hervé Pagès <hpages.on.github@gmail.com>, Rafael A. Irizarry <rafa@ds.harvard.edu>, Vince Carey <stvjc@channing.harvard.edu>
@@ -18,8 +18,7 @@ Depends: R (>= 4.1.0), methods, Matrix, BiocGenerics, MatrixGenerics,
 	S4Vectors, IRanges
 Imports: stats, crayon, XVector
 LinkingTo: S4Vectors, IRanges, XVector
-Suggests: BiocParallel, DelayedArray, scuttle, testthat,
-	knitr, rmarkdown, BiocStyle
+Suggests: BiocParallel, DelayedArray, testthat, knitr, rmarkdown, BiocStyle
 VignetteBuilder: knitr
 Collate: utils.R
 	aperm2.R

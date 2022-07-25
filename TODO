@@ -15,8 +15,6 @@
 
 - Add unit tests for the SVT_SparseArray stuff.
 
-- Modify readSparseCSV() to return an SVT_SparseMatrix instead of a dgCMatrix.
-
 - Implement function for loading a TENxMatrixSeed subset as an
   SVT_SparseMatrix. Test it on the 1.3 Million Brain Cell Dataset.
 

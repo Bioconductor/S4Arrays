@@ -201,7 +201,7 @@ export(
     poissonSparseArray, poissonSparseMatrix,
 
     ## readSparseCSV.R:
-    readSparseCSV, readSparseTable
+    writeSparseCSV, readSparseCSV, readSparseTable
 )
 
 

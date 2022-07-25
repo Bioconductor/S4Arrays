@@ -1,6 +1,75 @@
 ### =========================================================================
-### readSparseCSV()
+### readSparseCSV() and writeSparseCSV()
 ### -------------------------------------------------------------------------
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### writeSparseCSV()
+###
+
+.write_csv_data_line <- function(rowname, vals, filepath, sep, write.zeros)
+{
+    if (write.zeros) {
+        line <- as.character(vals)
+    } else {
+        nzidx <- which_is_nonzero(vals)
+        line <- character(length(vals))
+        line[nzidx] <- as.character(vals[nzidx])
+    }
+    cat(rowname, paste0(sep, line), "\n", file=filepath, sep="", append=TRUE)
+}
+
+writeSparseCSV <- function(x, filepath, sep=",", transpose=FALSE,
+                           write.zeros=FALSE)
+{
+    ## Check 'x'.
+    x_dim <- dim(x)
+    if (length(x_dim) != 2L)
+        stop("'x' must be a matrix-like object")
+    x_dimnames <- dimnames(x)
+    if (is.null(x_dimnames))
+        stop("'x' must have dimnames")
+    x_type <- type(x)
+    if (!(x_type %in% c("logical", "integer", "double", "raw")))
+        stop(wmsg("'x' must be of type \"integer\" (types \"logical\", ",
+                  "\"double\", and \"raw\" are also supported via ",
+                  "coercion to \"integer\")"))
+
+    ## Check 'filepath', 'sep', 'transpose', and 'write.zeros'.
+    if (!isSingleString(filepath))
+        stop(wmsg("'filepath' must be a single string"))
+    if (!(isSingleString(sep) && nchar(sep) == 1L))
+        stop(wmsg("'sep' must be a single character"))
+    if (!isTRUEorFALSE(transpose))
+        stop(wmsg("'transpose' must be TRUE or FALSE"))
+    if (!isTRUEorFALSE(write.zeros))
+        stop(wmsg("'write.zeros' must be TRUE or FALSE"))
+
+    x_nrow <- x_dim[[1L]]
+    x_ncol <- x_dim[[2L]]
+    x_rownames <- x_dimnames[[1L]]
+    x_colnames <- x_dimnames[[2L]]
+
+    if (transpose) {
+        cat(paste0(sep, x_rownames), "\n", file=filepath, sep="")
+        ## Write the object column by column. Not very efficient!
+        ## Note that walking on the columns of a SVT_SparseMatrix should be
+        ## slightly more efficient than walking on its rows.
+        for (j in seq_len(x_ncol)) {
+            vals <- as.integer(x[ , j])
+            .write_csv_data_line(x_colnames[[j]], vals, filepath, sep,
+                                 write.zeros)
+        }
+    } else {
+        cat(paste0(sep, x_colnames), "\n", file=filepath, sep="")
+        ## Write the object row by row. Not very efficient!
+        for (i in seq_len(x_nrow)) {
+            vals <- as.integer(x[i, ])
+            .write_csv_data_line(x_rownames[[i]], vals, filepath, sep,
+                                 write.zeros)
+        }
+    }
+}
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -87,7 +156,7 @@
                     PACKAGE="S4Arrays")
     rm(tmpenv)
 
-    ## Construct SVT_SparseArray object.
+    ## Construct SVT_SparseMatrix object.
     csv_rownames <- C_ans[[1L]]
     ans_SVT <- C_ans[[2L]]
     if (transpose) {
@@ -118,6 +187,7 @@
 readSparseCSV <- function(filepath, sep=",", transpose=FALSE,
                           as=c("SparseMatrix", "dgCMatrix"))
 {
+    ## Check 'filepath', 'sep', and 'transpose'.
     if (!isSingleString(filepath))
         stop(wmsg("'filepath' must be a single string"))
     if (!(isSingleString(sep) && nchar(sep) == 1L))
