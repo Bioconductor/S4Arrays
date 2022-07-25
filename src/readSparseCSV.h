@@ -11,10 +11,5 @@ SEXP C_readSparseCSV_as_SVT_SparseMatrix(
 	SEXP tmpenv
 );
 
-SEXP C_readSparseCSV_as_COO_SparseMatrix(
-	SEXP filexp,
-	SEXP sep
-);
-
 #endif  /* _READ_SPARSE_CSV_H_ */
 

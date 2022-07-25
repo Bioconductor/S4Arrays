@@ -103,29 +103,18 @@
     new_SVT_SparseArray(ans_dim, ans_dimnames, ans_type, ans_SVT, check=FALSE)
 }
 
+### Based on .readSparseCSV_as_SVT_SparseMatrix() above.
 .readSparseCSV_as_dgCMatrix <- function(con, sep, csv_colnames,
                                         transpose=FALSE)
 {
-    if (transpose) {
-        ans <- .readSparseCSV_as_SVT_SparseMatrix(con, sep, csv_colnames,
-                                                  transpose=TRUE)
-        return(as(ans, "dgCMatrix"))
-    }
-
-    C_ans <- .Call2("C_readSparseCSV_as_COO_SparseMatrix",
-                    con, sep, PACKAGE="S4Arrays")
-
-    ## Construct dgCMatrix object.
-    csv_rownames <- C_ans[[1L]]
-    ans_nzcoo1 <- C_ans[[2L]]
-    ans_nzcoo2 <- C_ans[[3L]]
-    ans_nzvals <- C_ans[[4L]]
-    ans_dim <- c(length(csv_rownames), length(csv_colnames))
-    ans_dimnames <- list(csv_rownames, csv_colnames)
-    CsparseMatrix(ans_dim, ans_nzcoo1, ans_nzcoo2, ans_nzvals,
-                  dimnames=ans_dimnames)
+    ans <- .readSparseCSV_as_SVT_SparseMatrix(con, sep, csv_colnames,
+                                              transpose=TRUE)
+    if (!transpose)
+        ans <- t(ans)
+    as(ans, "dgCMatrix")
 }
 
+### Returns an SVT_SparseMatrix object by default.
 readSparseCSV <- function(filepath, sep=",", transpose=FALSE,
                           as=c("SparseMatrix", "dgCMatrix"))
 {
@@ -162,7 +151,8 @@ readSparseCSV <- function(filepath, sep=",", transpose=FALSE,
         .readSparseCSV_as_SVT_SparseMatrix(con, sep, line1[-1L],
                                            transpose=transpose)
     } else {
-        .readSparseCSV_as_dgCMatrix(con, sep, line1[-1L], transpose=transpose)
+        .readSparseCSV_as_dgCMatrix(con, sep, line1[-1L],
+                                    transpose=transpose)
     }
 }
 
