@@ -14,8 +14,8 @@ License: Artistic-2.0
 Encoding: UTF-8
 Author: Hervé Pagès <hpages.on.github@gmail.com>, Rafael A. Irizarry <rafa@ds.harvard.edu>, Vince Carey <stvjc@channing.harvard.edu>
 Maintainer: Hervé Pagès <hpages.on.github@gmail.com>
-Depends: R (>= 4.1.0), methods, Matrix, BiocGenerics, MatrixGenerics,
-	S4Vectors, IRanges
+Depends: R (>= 4.1.0), methods, Matrix, BiocGenerics (>= 0.43.1),
+	MatrixGenerics, S4Vectors, IRanges
 Imports: stats, crayon, XVector
 LinkingTo: S4Vectors, IRanges, XVector
 Suggests: BiocParallel, DelayedArray, testthat, knitr, rmarkdown, BiocStyle

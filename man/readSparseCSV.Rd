@@ -77,6 +77,10 @@ readSparseCSV(filepath, sep=",", transpose=FALSE,
 }
 
 \examples{
+## ---------------------------------------------------------------------
+## writeSparseCSV()
+## ---------------------------------------------------------------------
+
 ## Prepare toy matrix 'm0':
 rownames0 <- LETTERS[1:6]
 colnames0 <- letters[1:4]
@@ -89,10 +93,31 @@ m0
 writeSparseCSV(m0, filepath="", sep="\t")
 writeSparseCSV(m0, filepath="", sep="\t", write.zeros=TRUE)
 
+## Note that writeSparseCSV() will automatically (and silently) coerce
+## non-integer values to integer by passing them thru as.integer().
+
+## Example where type(x) is "double":
+m1 <- m0 * runif(length(m0))
+m1
+type(m1)
+writeSparseCSV(m1, filepath="", sep="\t")
+
+## Example where type(x) is "logical":
+writeSparseCSV(m0 != 0, filepath="", sep="\t")
+
+## Example where type(x) is "raw":
+m2 <- m0
+type(m2) <- "raw"
+m2
+writeSparseCSV(m2, filepath="", sep="\t")
+
+## ---------------------------------------------------------------------
+## readSparseCSV()
+## ---------------------------------------------------------------------
+
 outfile <- tempfile()
 writeSparseCSV(m0, outfile)
 
-## readSparseCSV():
 svt1 <- readSparseCSV(outfile)
 svt1
 
