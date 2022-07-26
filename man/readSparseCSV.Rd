@@ -30,7 +30,9 @@ readSparseCSV(filepath, sep=",", transpose=FALSE,
   }
   \item{filepath}{
     The path (as a single string) to the file where to write the
-    matrix-like object or to read it from.
+    matrix-like object or to read it from. Compressed files are
+    supported.
+
     If \code{""}, \code{writeSparseCSV()} will write the data to the
     standard output connection.
 
