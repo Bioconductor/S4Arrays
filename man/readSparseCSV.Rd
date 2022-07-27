@@ -14,8 +14,7 @@
 writeSparseCSV(x, filepath, sep=",", transpose=FALSE, write.zeros=FALSE,
                   chunknrow=250)
 
-readSparseCSV(filepath, sep=",", transpose=FALSE,
-                        as=c("SparseMatrix", "dgCMatrix"))
+readSparseCSV(filepath, sep=",", transpose=FALSE)
 }
 
 \arguments{
@@ -66,16 +65,13 @@ readSparseCSV(filepath, sep=",", transpose=FALSE,
     this (e.g. to 500 or more) will generally not produce siginificant
     benefits while it will increase memory usage, so use carefully.
   }
-  \item{as}{
-    What to return the sparse data as. By default it's returned as a
-    \link{SparseMatrix} object.
-  }
 }
 
 \value{
   \code{writeSparseCSV} returns an invisible \code{NULL}.
 
-  \code{readSparseCSV} returns a \link{SparseMatrix} object by default.
+  \code{readSparseCSV} returns a \link{SparseMatrix} object of class
+  \link{SVT_SparseMatrix}.
 }
 
 \seealso{
@@ -135,7 +131,10 @@ svt1
 svt2 <- readSparseCSV(outfile, transpose=TRUE)
 svt2
 
-readSparseCSV(outfile, as="dgCMatrix")
+## If you need the sparse data as a dgCMatrix object, just coerce the
+## returned object:
+as(svt1, "dgCMatrix")
+as(svt2, "dgCMatrix")
 
 ## Sanity checks:
 stopifnot(identical(m0, as.matrix(svt1)))

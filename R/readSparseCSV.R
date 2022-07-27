@@ -198,20 +198,8 @@ writeSparseCSV <- function(x, filepath, sep=",", transpose=FALSE,
     new_SVT_SparseArray(ans_dim, ans_dimnames, ans_type, ans_SVT, check=FALSE)
 }
 
-### Based on .readSparseCSV_as_SVT_SparseMatrix() above.
-.readSparseCSV_as_dgCMatrix <- function(con, sep, csv_colnames,
-                                        transpose=FALSE)
-{
-    ans <- .readSparseCSV_as_SVT_SparseMatrix(con, sep, csv_colnames,
-                                              transpose=TRUE)
-    if (!transpose)
-        ans <- t(ans)
-    as(ans, "dgCMatrix")
-}
-
 ### Returns an SVT_SparseMatrix object by default.
-readSparseCSV <- function(filepath, sep=",", transpose=FALSE,
-                                    as=c("SparseMatrix", "dgCMatrix"))
+readSparseCSV <- function(filepath, sep=",", transpose=FALSE)
 {
     ## Check 'filepath', 'sep', and 'transpose'.
     if (!isSingleString(filepath))
@@ -220,7 +208,6 @@ readSparseCSV <- function(filepath, sep=",", transpose=FALSE,
         stop(wmsg("'sep' must be a single character"))
     if (!isTRUEorFALSE(transpose))
         stop(wmsg("'transpose' must be TRUE or FALSE"))
-    as <- match.arg(as)
 
     first_two_lines <- .scan_first_two_lines(filepath, sep=sep)
     line1 <- first_two_lines[[1L]]
@@ -242,14 +229,8 @@ readSparseCSV <- function(filepath, sep=",", transpose=FALSE,
     #filexp <- open_input_files(filepath)[[1L]]
     con <- file(filepath, "r")
     on.exit(close(con))
-
-    if (as == "SparseMatrix") {
-        .readSparseCSV_as_SVT_SparseMatrix(con, sep, line1[-1L],
-                                           transpose=transpose)
-    } else {
-        .readSparseCSV_as_dgCMatrix(con, sep, line1[-1L],
-                                    transpose=transpose)
-    }
+    .readSparseCSV_as_SVT_SparseMatrix(con, sep, line1[-1L],
+                                       transpose=transpose)
 }
 
 readSparseTable <- function(...)
