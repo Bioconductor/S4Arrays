@@ -1,6 +1,8 @@
 - Try to speed up SVT_SparseArray transposition by implementing a one-pass
-  approach that uses growing IntAEAE bufs (offs_bufs, vals_bufs). See
-  src/readSparseCSV.c where this approach is already used.
+  approach that uses ExtendableJaggedArray intermediate buffers (offss, valss).
+  See src/readSparseCSV.c where this approach is already used.
+  Note that this will require that ExtendableJaggedArray structs are able
+  to support other types of columns (only support int at the moment).
 
 - Implement C_subassign_SVT_with_Rarray() and C_subassign_SVT_with_SVT().
 
