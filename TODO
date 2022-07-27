@@ -1,3 +1,7 @@
+- Try to speed up SVT_SparseArray transposition by implementing a one-pass
+  approach that uses growing IntAEAE bufs (offs_bufs, vals_bufs). See
+  src/readSparseCSV.c where this approach is already used.
+
 - Implement C_subassign_SVT_with_Rarray() and C_subassign_SVT_with_SVT().
 
 - Implement table() method for SVT_SparseArray objects of type logical,
