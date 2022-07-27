@@ -8,10 +8,11 @@
 #include "XVector_interface.h"
 
 #include "leaf_vector_utils.h"
+#include "ExtendableJaggedArray.h"
 
 #include <R_ext/Connections.h>  /* for R_ReadConnection() */
 
-#include <string.h>  /* for memcpy */
+#include <string.h>  /* for memcpy() */
 
 #define	IOBUF_SIZE 8000002
 
@@ -136,12 +137,6 @@ static inline void IntAE_fast_append(IntAE *ae, int val)
 	return;
 }
 
-static inline void IntAEAE_fast_append_at(IntAEAE *aeae, int at, int val)
-{
-	IntAE_fast_append(aeae->elts[at], val);
-	return;
-}
-
 static inline void CharAEAE_fast_append(CharAEAE *aeae, CharAE *ae)
 {
 	/* We don't use CharAEAE_get_nelt() for maximum speed. */
@@ -196,34 +191,6 @@ static void store_AEbufs_in_env_as_leaf_vector(
 	return;
 }
 
-/* 'offs_bufs' and 'vals_bufs' are **asumed** to have the same shape.
-   We don't check this! */
-static SEXP make_SVT_from_AEAEbufs(const IntAEAE *offs_bufs,
-				   const IntAEAE *vals_bufs)
-{
-	int SVT_len, is_empty, i, lv_len;
-	SEXP ans, ans_elt;
-	const IntAE *offs_buf, *vals_buf;
-
-	SVT_len = IntAEAE_get_nelt(offs_bufs);
-	ans = PROTECT(NEW_LIST(SVT_len));
-	is_empty = 1;
-	for (i = 0; i < SVT_len; i++) {
-		offs_buf = offs_bufs->elts[i];
-		lv_len = IntAE_get_nelt(offs_buf);
-		if (lv_len == 0)
-			continue;
-		vals_buf = vals_bufs->elts[i];
-		ans_elt = make_leaf_vector_from_AEbufs(offs_buf, vals_buf);
-		PROTECT(ans_elt);
-		SET_VECTOR_ELT(ans, i, ans_elt);
-		UNPROTECT(1);
-		is_empty = 0;
-	}
-	UNPROTECT(1);
-	return is_empty ? R_NilValue : ans;
-}
-
 static void load_csv_data_to_AEbufs(const char *data, int data_len,
 		int off, IntAE *offs_buf, IntAE *vals_buf)
 {
@@ -237,17 +204,17 @@ static void load_csv_data_to_AEbufs(const char *data, int data_len,
 	return;
 }
 
-static void load_csv_data_to_AEAEbufs(const char *data, int data_len,
+static void load_csv_data_to_offss_and_valss(const char *data, int data_len,
 		int row_idx0, int col_idx0,
-		IntAEAE *offs_bufs, IntAEAE *vals_bufs)
+		ExtendableJaggedArray *offss, ExtendableJaggedArray *valss)
 {
 	int val;
 
 	data_len = delete_trailing_LF_or_CRLF(data, data_len);
 	if (data_len == 0 || (val = as_int(data, data_len)) == 0)
 		return;
-	IntAEAE_fast_append_at(offs_bufs, col_idx0, row_idx0);
-	IntAEAE_fast_append_at(vals_bufs, col_idx0, val);
+	_add_ExtendableJaggedArray_elt(offss, col_idx0, row_idx0);
+	_add_ExtendableJaggedArray_elt(valss, col_idx0, val);
 	return;
 }
 
@@ -285,9 +252,9 @@ static void load_csv_row_to_AEbufs(const char *line, char sep,
 }
 
 /* Used to load the sparse data when 'transpose' is FALSE. */
-static void load_csv_row_to_AEAEbufs(const char *line, char sep, int row_idx0,
-		CharAEAE *csv_rownames_buf,
-		IntAEAE *offs_bufs, IntAEAE *vals_bufs)
+static void load_csv_row_to_offss_and_valss(const char *line, char sep,
+		int row_idx0, CharAEAE *csv_rownames_buf,
+		ExtendableJaggedArray *offss, ExtendableJaggedArray *valss)
 {
 	int col_idx, i, data_len;
 	const char *data;
@@ -304,24 +271,25 @@ static void load_csv_row_to_AEAEbufs(const char *line, char sep, int row_idx0,
 		if (col_idx == 0) {
 			load_csv_rowname(data, data_len, csv_rownames_buf);
 		} else {
-			load_csv_data_to_AEAEbufs(data, data_len,
+			load_csv_data_to_offss_and_valss(data, data_len,
 						  row_idx0, col_idx - 1,
-						  offs_bufs, vals_bufs);
+						  offss, valss);
 		}
 		col_idx++;
 		data = line + i;
 		data_len = 0;
 	}
-	load_csv_data_to_AEAEbufs(data, data_len,
+	load_csv_data_to_offss_and_valss(data, data_len,
 				  row_idx0, col_idx - 1,
-				  offs_bufs, vals_bufs);
+				  offss, valss);
 	return;
 }
 
 static const char *read_sparse_csv(
 		SEXP filexp, char sep, int transpose,
 		CharAEAE *csv_rownames_buf,
-		IntAEAE *offs_bufs, IntAEAE *vals_bufs, SEXP tmpenv)
+		ExtendableJaggedArray *offss, ExtendableJaggedArray *valss,
+		SEXP tmpenv)
 {
 	IntAE *offs_buf, *vals_buf;
 	int row_idx0, lineno, ret_code, EOL_in_buf;
@@ -362,9 +330,9 @@ static const char *read_sparse_csv(
 					       offs_buf, vals_buf,
 					       row_idx0, tmpenv);
 		} else {
-			load_csv_row_to_AEAEbufs(buf, sep, row_idx0,
-						 csv_rownames_buf,
-						 offs_bufs, vals_bufs);
+			load_csv_row_to_offss_and_valss(buf, sep, row_idx0,
+						csv_rownames_buf,
+						offss, valss);
 		}
 		row_idx0++;
 	}
@@ -392,7 +360,7 @@ SEXP C_readSparseCSV_as_SVT_SparseMatrix(SEXP filexp, SEXP sep,
 {
 	int transpose0, nrow0, ncol0;
 	CharAEAE *csv_rownames_buf;
-	IntAEAE *offs_bufs, *vals_bufs;
+	ExtendableJaggedArray offss, valss;
 	const char *errmsg;
 	SEXP ans, ans_elt;
 
@@ -400,12 +368,12 @@ SEXP C_readSparseCSV_as_SVT_SparseMatrix(SEXP filexp, SEXP sep,
 	ncol0 = INTEGER(csv_ncol)[0];
 	csv_rownames_buf = new_CharAEAE(0, 0);
 	if (!transpose0) {
-		offs_bufs = new_IntAEAE(ncol0, ncol0);
-		vals_bufs = new_IntAEAE(ncol0, ncol0);
+		offss = _new_ExtendableJaggedArray(ncol0);
+		valss = _new_ExtendableJaggedArray(ncol0);
 	}
 
 	errmsg = read_sparse_csv(filexp, get_sep_char(sep), transpose0,
-				 csv_rownames_buf, offs_bufs, vals_bufs,
+				 csv_rownames_buf, &offss, &valss,
 				 tmpenv);
 	if (errmsg != NULL)
 		error("reading file: %s", errmsg);
@@ -420,7 +388,9 @@ SEXP C_readSparseCSV_as_SVT_SparseMatrix(SEXP filexp, SEXP sep,
 		nrow0 = CharAEAE_get_nelt(csv_rownames_buf);
 		ans_elt = dump_env_as_list_or_R_NilValue(tmpenv, nrow0);
 	} else {
-		ans_elt = make_SVT_from_AEAEbufs(offs_bufs, vals_bufs);
+		ans_elt = _move_ExtendableJaggedArrays_to_SVT(&offss, &valss);
+		_free_ExtendableJaggedArray(&offss);
+		_free_ExtendableJaggedArray(&valss);
 	}
 	PROTECT(ans_elt);
 	SET_VECTOR_ELT(ans, 1, ans_elt);
