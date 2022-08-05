@@ -107,28 +107,3 @@ t.Array <- function(x)
 }
 setMethod("t", "Array", t.Array)
 
-### These coercions will work out-of-the-box on any Array derivative that
-### supports type() and coercion to [d|l]gCMatrix and to [d|l]gRMatrix.
-setAs("Array", "CsparseMatrix",
-    function(from)
-    {
-        ans_type <- infer_sparseMatrix_type_from_input_type(type(from))
-        ans_class <- if (ans_type == "double") "dgCMatrix" else "lgCMatrix"
-        as(from, ans_class)
-    }
-)
-setAs("Array", "RsparseMatrix",
-    function(from)
-    {
-        ans_type <- infer_sparseMatrix_type_from_input_type(type(from))
-        ans_class <- if (ans_type == "double") "dgRMatrix" else "lgRMatrix"
-        as(from, ans_class)
-    }
-)
-
-### We give the preference to the CsparseMatrix representation (compressed
-### column-oriented form).
-setAs("Array", "sparseMatrix",
-    function(from) as(from, "CsparseMatrix")
-)
-

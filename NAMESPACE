@@ -2,15 +2,11 @@ useDynLib(S4Arrays)
 
 import(methods)
 importFrom(stats, setNames)
-importClassFrom(Matrix, dgCMatrix, lgCMatrix, dgRMatrix, lgRMatrix)
-importFrom(Matrix, sparseMatrix, crossprod, tcrossprod)
 importFrom(crayon, make_style)
 
 import(BiocGenerics)
-import(MatrixGenerics)
 import(S4Vectors)
 import(IRanges)
-import(XVector)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -27,16 +23,7 @@ exportClasses(
 
     ## ArrayGrid-class.R:
     ArrayViewport, DummyArrayViewport, SafeArrayViewport,
-    ArrayGrid, DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid,
-
-    ## SparseArray-class.R:
-    SparseArray, SparseMatrix,
-
-    ## COO_SparseArray-class.R:
-    COO_SparseArray, COO_SparseMatrix,
-
-    ## SVT_SparseArray-class.R:
-    NULL_OR_list, SVT_SparseArray, SVT_SparseMatrix
+    ArrayGrid, DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid
 )
 
 
@@ -47,11 +34,8 @@ exportClasses(
 S3method(aperm, DummyArrayGrid)
 S3method(aperm, ArbitraryArrayGrid)
 S3method(aperm, RegularArrayGrid)
-S3method(aperm, COO_SparseArray)
 
 S3method(as.array, Array)
-S3method(as.array, COO_SparseArray)
-S3method(as.array, SVT_SparseArray)
 
 S3method(as.character, Array)
 S3method(as.character, ArrayGrid)
@@ -64,8 +48,8 @@ S3method(as.integer, Array)
 
 S3method(as.logical, Array)
 
-#S3method(as.matrix, SelectionTree)
 S3method(as.matrix, Array)
+#S3method(as.matrix, SelectionTree)
 
 S3method(as.numeric, Array)
 
@@ -73,15 +57,7 @@ S3method(as.raw, Array)
 
 S3method(as.vector, Array)
 
-S3method(mean, SparseArray)
-
-S3method(range, COO_SparseArray)
-S3method(range, SVT_SparseArray)
-
-S3method(rowsum, dgCMatrix)
-
 S3method(t, Array)
-S3method(t, SVT_SparseMatrix)
 
 ### We also export them thru the export() directive so that (a) they can be
 ### called directly, (b) tab-completion on the name of the generic shows them,
@@ -91,14 +67,11 @@ export(
     aperm.DummyArrayGrid,
     aperm.ArbitraryArrayGrid,
     aperm.RegularArrayGrid,
-    aperm.COO_SparseArray,
 
     as.array.Array,
-    as.array.COO_SparseArray,
-    as.array.SVT_SparseArray,
 
-    as.character.ArrayGrid,
     as.character.Array,
+    as.character.ArrayGrid,
 
     as.complex.Array,
 
@@ -117,15 +90,7 @@ export(
 
     as.vector.Array,
 
-    mean.SparseArray,
-
-    range.COO_SparseArray,
-    range.SVT_SparseArray,
-
-    rowsum.dgCMatrix,
-
-    t.Array,
-    t.SVT_SparseMatrix
+    t.Array
 )
 
 
@@ -150,7 +115,6 @@ exportMethods(
     anyNA,
     var,
     nchar,
-    crossprod,
 
     ## Methods for generics defined in the methods package:
     coerce, show,
@@ -185,23 +149,7 @@ export(
 
     ## ArrayGrid-class.R:
     DummyArrayViewport, ArrayViewport, makeNindexFromArrayViewport,
-    DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid,
-
-    ## SparseArray-class.R:
-    sparsity,
-
-    ## COO_SparseArray-class.R:
-    COO_SparseArray, dense2sparse, sparse2dense,
-
-    ## SVT_SparseArray-class.R:
-    SVT_SparseArray, SparseArray,
-
-    ## randomSparseArray.R:
-    randomSparseArray, randomSparseMatrix,
-    poissonSparseArray, poissonSparseMatrix,
-
-    ## readSparseCSV.R:
-    writeSparseCSV, readSparseCSV, readSparseTable
+    DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid
 )
 
 
@@ -216,36 +164,18 @@ export(
     ## abind.R:
     arbind, acbind,
 
-    ## sparseMatrix-utils.R:
-    rowsum, colsum,
-
     ## extract_array.R:
     extract_array,
 
     ## ArrayGrid-class.R:
-    refdim, maxlength, downsample,
-
-    ## SparseArray-class.R:
-    is_sparse, "is_sparse<-", nzcount,
-
-    ## COO_SparseArray-class.R:
-    nzcoo, nzvals,
-
-    ## SparseArray-subsetting.R:
-    extract_sparse_array
+    refdim, maxlength, downsample
 )
 
 ### Same list as above.
 exportMethods(
     aperm,
     arbind, acbind,
-    rowsum, colsum,
     extract_array,
-    refdim, maxlength, downsample,
-    is_sparse,
-    #"is_sparse<-",  # no methods defined in S4Arrays!
-    nzcount,
-    nzcoo, nzvals,
-    extract_sparse_array
+    refdim, maxlength, downsample
 )
 

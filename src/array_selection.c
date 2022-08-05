@@ -11,7 +11,7 @@
   An array selection is just an index into an array-like object that defines
   a subset of the array elements. This index can take various forms but 3
   special forms are particularly useful and extensively used thoughout
-  the DelayedArray framework:
+  the S4Arrays/SparseArray/DelayedArray framework:
 
   1. Linear index (also called "Lindex"): A numeric vector with no NAs
      where each value is >= 1 and <= the length of the array-like object.
@@ -61,29 +61,29 @@
 
          Nindex <- list(c(1, 4, 1), NULL, 1)
          ## Same as a[c(1, 4, 1), , 1, drop=FALSE]:
-         DelayedArray:::subset_by_Nindex(a, Nindex)
+         S4Arrays:::subset_by_Nindex(a, Nindex)
 
          Nindex <- list(integer(0), NULL, 1)
          ## Same as a[integer(0), , 1, drop=FALSE]:
-         DelayedArray:::subset_by_Nindex(a, Nindex)
+         S4Arrays:::subset_by_Nindex(a, Nindex)
 
          ## Non-normalized Nindex:
 
          Nindex <- list(-3, NULL, 1)
-         Nindex <- DelayedArray:::normalizeNindex(Nindex, a)
+         Nindex <- S4Arrays:::normalizeNindex(Nindex, a)
          ## Same as a[-3, , 1, drop=FALSE]:
-         DelayedArray:::subset_by_Nindex(a, Nindex)
+         S4Arrays:::subset_by_Nindex(a, Nindex)
 
          Nindex <- list(IRanges(2, 4), NULL, 1)
-         Nindex <- DelayedArray:::normalizeNindex(Nindex, a)
+         Nindex <- S4Arrays:::normalizeNindex(Nindex, a)
          ## Same as a[2:4, , 1, drop=FALSE]:
-         DelayedArray:::subset_by_Nindex(a, Nindex)
+         S4Arrays:::subset_by_Nindex(a, Nindex)
 
          dimnames(a)[[1]] <- LETTERS[1:4]
          Nindex <- list(c("D", "B"), NULL, 1)
-         Nindex <- DelayedArray:::normalizeNindex(Nindex, a)
+         Nindex <- S4Arrays:::normalizeNindex(Nindex, a)
          ## Same as a[c("D", "B"), , 1, drop=FALSE]:
-         DelayedArray:::subset_by_Nindex(a, Nindex)
+         S4Arrays:::subset_by_Nindex(a, Nindex)
 */
 
 #define ERRMSG_BUF_LENGTH 256

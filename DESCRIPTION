@@ -2,28 +2,25 @@ Package: S4Arrays
 Title: Foundation of array-like containers in Bioconductor
 Description: The S4Arrays package defines the Array virtual class to be
 	extended by other S4 classes that wish to implement a container with
-	an array-like semantic, as well as the following Array derivatives:
-	SparseArray for in-memory representation of multidimensional sparse
-	arrays, and ArrayGrid for defining a grid of viewports on an array-like
-	object (useful in the context of block processing).
+	an array-like semantic, as well as some low-level convenience
+	infrastructure to operate on array-like objects.
 biocViews: Infrastructure, DataRepresentation
 URL: https://bioconductor.org/packages/S4Arrays
 BugReports: https://github.com/Bioconductor/S4Arrays/issues
-Version: 0.3.1
+Version: 0.3.2
 License: Artistic-2.0
 Encoding: UTF-8
-Author: Hervé Pagès <hpages.on.github@gmail.com>, Rafael A. Irizarry <rafa@ds.harvard.edu>, Vince Carey <stvjc@channing.harvard.edu>
+Author: Hervé Pagès <hpages.on.github@gmail.com>
 Maintainer: Hervé Pagès <hpages.on.github@gmail.com>
-Depends: R (>= 4.1.0), methods, Matrix, BiocGenerics (>= 0.43.1),
-	MatrixGenerics, S4Vectors, IRanges
-Imports: stats, crayon, XVector
-LinkingTo: S4Vectors, IRanges, XVector
-Suggests: BiocParallel, DelayedArray, testthat, knitr, rmarkdown, BiocStyle
+Depends: R (>= 4.1.0), methods, BiocGenerics (>= 0.43.1), S4Vectors, IRanges
+Imports: stats, crayon
+LinkingTo: S4Vectors
+Suggests: BiocParallel, SparseArray, DelayedArray,
+	testthat, knitr, rmarkdown, BiocStyle
 VignetteBuilder: knitr
 Collate: utils.R
 	aperm2.R
 	abind.R
-	sparseMatrix-utils.R
 	ArraySelection-class.R
 	array_selection.R
 	Nindex-utils.R
@@ -31,16 +28,4 @@ Collate: utils.R
 	extract_array.R
 	ArrayGrid-class.R
 	show-utils.R
-	SparseArray-class.R
-	COO_SparseArray-class.R
-	SVT_SparseArray-class.R
-	SparseArray-subassignment.R
-	SparseArray-subsetting.R
-	SparseArray-combine.R
-	SparseArray-summarize.R
-	SparseArray-utils.R
-	SparseMatrix-mult.R
-	SparseMatrix-stats.R
-	randomSparseArray.R
-	readSparseCSV.R
 	zzz.R

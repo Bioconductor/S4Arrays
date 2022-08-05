@@ -25,6 +25,7 @@ setClass("ArrayViewport",
 ### these objects **unsafe** to use in some contexts. For example a
 ### DummyArrayViewport object can be used to extract a sparse block
 ### that is too big to be handled safely:
+###   library(Matrix)
 ###   m0 <- sparseMatrix(i=1, j=1, x=8, dims=c(5e4, 5e4))
 ###   block0 <- read_block(m0, DummyArrayViewport(x), as.sparse=TRUE)
 ###   m <- as(block0, "dgCMatrix")
