@@ -168,7 +168,10 @@ export(
     extract_array,
 
     ## ArrayGrid-class.R:
-    refdim, maxlength, downsample
+    refdim, maxlength, downsample,
+
+    ## mapToGrid.R:
+    mapToGrid, mapToRef
 )
 
 ### Same list as above.
@@ -176,6 +179,7 @@ exportMethods(
     aperm,
     arbind, acbind,
     extract_array,
-    refdim, maxlength, downsample
+    refdim, maxlength, downsample,
+    mapToGrid, mapToRef
 )
 
