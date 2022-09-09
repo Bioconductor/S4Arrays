@@ -50,6 +50,7 @@ validate_perm <- function(perm, a_dim)
     TRUE
 }
 
+### Supports dropping and/or adding ineffective dimensions.
 ### NOT exported for now (but maybe it should).
 aperm2 <- function(a, perm)
 {
@@ -74,9 +75,4 @@ aperm2 <- function(a, perm)
     dim(ans) <- ans_dim
     ans
 }
-
-### Like aperm2() above the various "aperm" methods implemented in the
-### package extend base::aperm() by allowing dropping and/or adding
-### ineffective dimensions.
-setGeneric("aperm", signature="a")
 

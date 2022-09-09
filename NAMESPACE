@@ -108,7 +108,6 @@ exportMethods(
     lengths,
     as.array, as.matrix, as.data.frame, as.vector,
     as.logical, as.integer, as.numeric, as.complex, as.character, as.raw,
-    t,
     which,
     min, max, range, sum, prod, any, all,   # "Summary" group generic
     mean,
@@ -121,6 +120,7 @@ exportMethods(
 
     ## Methods for generics defined in the BiocGenerics package:
     cbind, rbind,
+    t, aperm,
     dims,
     type, "type<-",
 
@@ -158,9 +158,6 @@ export(
 ###
 
 export(
-    ## aperm2.R:
-    aperm,
-
     ## abind.R:
     arbind, acbind,
 
@@ -176,7 +173,6 @@ export(
 
 ### Same list as above.
 exportMethods(
-    aperm,
     arbind, acbind,
     extract_array,
     refdim, maxlength, downsample,
