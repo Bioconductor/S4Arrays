@@ -51,12 +51,12 @@ validate_perm <- function(perm, a_dim)
 }
 
 ### Supports dropping and/or adding ineffective dimensions.
-### NOT exported for now (but maybe it should).
 aperm2 <- function(a, perm)
 {
     if (!is.array(a))
         stop(wmsg("'a' must be an array"))
     a_dim <- dim(a)
+    a_dimnames <- dimnames(a)
     perm <- normarg_perm(perm, a_dim)
     msg <- validate_perm(perm, a_dim)
     if (!isTRUE(msg))
@@ -72,7 +72,7 @@ aperm2 <- function(a, perm)
     ans <- base::aperm(a, perm=rank(perm0))
     ans_dim <- rep.int(1L, length(perm))
     ans_dim[nonNA_idx] <- dim(ans)
-    dim(ans) <- ans_dim
-    ans
+    ans <- set_dim(ans, ans_dim)
+    set_dimnames(ans, simplify_NULL_dimnames(a_dimnames[perm]))
 }
 
