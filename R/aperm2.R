@@ -2,9 +2,9 @@
 ### aperm2()
 ### -------------------------------------------------------------------------
 ###
-### Extend base::aperm() by allowing dropping and/or adding "ineffective
-### dimensions" (i.e. dimensions equal to 1). Like base::aperm(), aperm2()
-### preserves the length of input array 'a'.
+### Extend base::aperm() functionality by allowing dropping and/or
+### adding "ineffective dimensions" (i.e. dimensions with an extent of 1).
+### Like base::aperm(), aperm2() preserves the length of input array 'a'.
 ###
 
 ### Normalize 'perm' argument of extended aperm().
@@ -46,7 +46,7 @@ validate_perm <- function(perm, a_dim)
         dropped_dims <- a_dim[-perm0]
     }
     if (!all(dropped_dims == 1L))
-        return("only dimensions equal to 1 can be dropped")
+        return("only dimensions with an extent of 1 can be dropped")
     TRUE
 }
 
@@ -64,10 +64,10 @@ aperm2 <- function(a, perm)
     nonNA_idx <- which(!is.na(perm))
     perm0 <- perm[nonNA_idx]
     ## We drop the dimensions not present in 'perm0'. Even though the
-    ## dimensions to drop are guaranteed to be equal to 1, we should not
-    ## use drop() for this because this would drop **all** the dimensions
-    ## equal to 1, including some of the dimensions to keep (those can also
-    ## be equal to 1).
+    ## dimensions to drop are guaranteed to have an extent of 1, we should
+    ## not use drop() for this because this would drop **all** the dimensions
+    ## with an extent of 1, including some of the dimensions to keep (those
+    ## can also have an extent of 1).
     dim(a) <- a_dim[sort(perm0)]
     ans <- base::aperm(a, perm=rank(perm0))
     ans_dim <- rep.int(1L, length(perm))
