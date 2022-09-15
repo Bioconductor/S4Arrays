@@ -226,4 +226,5 @@ stopifnot(Mindex2Lindex(dim, dim) == prod(dim))
 stopifnot(identical(Mindex2Lindex(arrayInd(1:120, 6:4), 6:4), 1:120))
 stopifnot(identical(Mindex2Lindex(arrayInd(840:1, 4:7), 4:7), 840:1))
 }
+\keyword{array}
 \keyword{utilities}

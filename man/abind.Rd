@@ -52,4 +52,5 @@ a3 <- array(10001:10100, c(5, 5, 4),
 
 arbind(a1, a2, a3)
 }
-\keyword{methods}
+\keyword{array}
+\keyword{manip}
