@@ -2,6 +2,8 @@ useDynLib(S4Arrays)
 
 import(methods)
 importFrom(stats, setNames)
+importClassFrom(Matrix, dgCMatrix, lgCMatrix, dgRMatrix, lgRMatrix)
+
 importFrom(crayon, make_style)
 
 import(BiocGenerics)
@@ -161,11 +163,14 @@ export(
     ## abind.R:
     arbind, acbind,
 
+    ## ArrayGrid-class.R:
+    refdim, maxlength, downsample,
+
     ## extract_array.R:
     extract_array,
 
-    ## ArrayGrid-class.R:
-    refdim, maxlength, downsample,
+    ## is_sparse.R:
+    is_sparse, "is_sparse<-",
 
     ## mapToGrid.R:
     mapToGrid, mapToRef
@@ -174,8 +179,10 @@ export(
 ### Same list as above.
 exportMethods(
     arbind, acbind,
-    extract_array,
     refdim, maxlength, downsample,
+    extract_array,
+    is_sparse,
+    #"is_sparse<-",  # no methods defined in S4Arrays!
     mapToGrid, mapToRef
 )
 

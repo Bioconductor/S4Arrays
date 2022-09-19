@@ -418,15 +418,10 @@
 ### NOT exported but used in the HDF5Array package!
 array_as_one_line_summary <- function(x)
 {
-    if (!requireNamespace("SparseArray", quietly=TRUE))
-        stop(wmsg("Couldn't load the SparseArray package. Note that the ",
-                  "show() methods for some array-like objects require ",
-                  "the SparseArray package. Please install it with ",
-                  "BiocManager::install(\"SparseArray\")"))
     x_dim <- dim(x)
     sprintf("<%s>%s %s object of type \"%s\"",
             paste0(x_dim, collapse=" x "),
-            if (SparseArray::is_sparse(x)) " sparse" else "",
+            if (is_sparse(x)) " sparse" else "",
             class(x)[[1L]],
             type(x))
 }

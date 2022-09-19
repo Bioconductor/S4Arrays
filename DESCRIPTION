@@ -1,18 +1,19 @@
 Package: S4Arrays
 Title: Foundation of array-like containers in Bioconductor
 Description: The S4Arrays package defines the Array virtual class to be
-	extended by other S4 classes that wish to implement a container with
-	an array-like semantic, as well as some low-level convenience
+	extended by other S4 classes that wish to implement a container
+	with an array-like semantic, as well as some low-level convenience
 	infrastructure to operate on array-like objects.
 biocViews: Infrastructure, DataRepresentation
 URL: https://bioconductor.org/packages/S4Arrays
 BugReports: https://github.com/Bioconductor/S4Arrays/issues
-Version: 0.3.5
+Version: 0.3.6
 License: Artistic-2.0
 Encoding: UTF-8
 Author: Hervé Pagès <hpages.on.github@gmail.com>
 Maintainer: Hervé Pagès <hpages.on.github@gmail.com>
-Depends: R (>= 4.1.0), methods, BiocGenerics (>= 0.43.4), S4Vectors, IRanges
+Depends: R (>= 4.1.0), methods, Matrix,
+	BiocGenerics (>= 0.43.4), S4Vectors, IRanges
 Imports: stats, crayon
 LinkingTo: S4Vectors
 Suggests: BiocParallel, SparseArray, DelayedArray,
@@ -25,8 +26,9 @@ Collate: utils.R
 	array_selection.R
 	Nindex-utils.R
 	Array-class.R
-	extract_array.R
 	ArrayGrid-class.R
+	extract_array.R
+	is_sparse.R
 	show-utils.R
 	mapToGrid.R
 	zzz.R

@@ -75,11 +75,13 @@
 \title{ArrayGrid and ArrayViewport objects}
 
 \description{
-  A \emph{grid} is a partitioning of an array-like object into blocks
-  (or viewports).
+  A \emph{grid} is a partitioning of an array-like object into block-shaped
+  regions called \emph{viewports}.
 
-  In the \pkg{DelayedArray} package, grids and viewports are formally
-  represented by ArrayGrid and ArrayViewport objects, respectively.
+  The \pkg{S4Arrays} package defines two S4 classes to formally represent
+  grids and viewports: the ArrayGrid and ArrayViewport classes.
+  Note that ArrayGrid and ArrayViewport objects are used extensively in
+  the context of block processing of array-like objects.
 
   There are two variants of ArrayGrid objects:
   \itemize{
@@ -88,9 +90,6 @@
     \item ArbitraryArrayGrid objects: for grids where blocks don't
           necessarily have the same geometry.
   }
-
-  ArrayGrid and ArrayViewport objects are used extensively in the context
-  of block processing of array-like objects.
 }
 
 \usage{
@@ -154,9 +153,6 @@ downsample(x, ratio=1L)
           grid positions and vice-versa.
 
     \item \code{DelayedArray::\link[DelayedArray]{chunkGrid}} in the
-          \pkg{DelayedArray} package.
-
-    \item \link[DelayedArray]{DelayedArray} objects implemented in the
           \pkg{DelayedArray} package.
 
     \item \link[base]{array} objects in base R.

@@ -198,8 +198,8 @@ stopifnot(identical(a123, aperm2(a, perm=perm1[perm2[perm3]])))
 ## the original array):
 build_rev_perm <- function(perm, n=length(perm)) {
     rev_perm <- rep.int(NA_integer_, n)
-    not_na <- !is.na(perm)
-    rev_perm[perm[not_na]] <- seq_along(perm)[not_na]
+    na_idx <- which(!is.na(perm))
+    rev_perm[perm[na_idx]] <- na_idx
     rev_perm
 }
 
