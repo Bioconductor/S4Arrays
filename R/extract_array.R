@@ -69,14 +69,17 @@
 ### extract_array() generic and methods
 ###
 
-.contact_author_msg <- function(Class)
+### Similar to SparseArray:::.contact_author_msg2().
+.contact_author_msg1 <- function(.Generic, x_class)
 {
-    msg <- c("Please contact the author of the ", Class, " class")
-    class_package <- attr(Class, "package")
+    msg <- c("Please contact the authors/maintainers of the ",
+             x_class, " class")
+    class_package <- attr(x_class, "package")
     if (!is.null(class_package))
         msg <- c(msg, " (defined in the ", class_package, " package)")
-    c(msg, " about this and point them to the man page for ",
-           "extract_array() in the S4Arrays package (?extract_array).")
+    c(msg, " about this, and point them to the man page for the ",
+           .Generic, "() generic function defined in the S4Arrays ",
+           "package ('?S4Arrays::", .Generic, "').")
 }
 
 check_returned_array <- function(ans, expected_dim, .Generic, x_class)
@@ -84,12 +87,13 @@ check_returned_array <- function(ans, expected_dim, .Generic, x_class)
     if (!is.array(ans))
         stop(wmsg("The ", .Generic, "() method for ", x_class, " ",
                   "objects didn't return an ordinary array. ",
-                  .Generic, "() should always return an ordinary ",
-                  "array. ", .contact_author_msg(x_class)))
+                  .Generic, "() methods should **always** return an ",
+                  "ordinary array. ",
+                  .contact_author_msg1(.Generic, x_class)))
     if (!identical(dim(ans), expected_dim))
         stop(wmsg("The ", .Generic, "() method for ", x_class, " ",
                   "objects returned an array with incorrect ",
-                  "dimensions. ", .contact_author_msg(x_class)))
+                  "dimensions. ", .contact_author_msg1(.Generic, x_class)))
     ans
 }
 
@@ -111,6 +115,9 @@ setGeneric("extract_array", signature="x",
     }
 )
 
+### subset_by_Nindex() uses `[` internally to perform the subsetting, so
+### this default extract_sparse_array() method will work on any object 'x'
+### that supports `[` and as.array().
 setMethod("extract_array", "ANY",
     function(x, index)
     {

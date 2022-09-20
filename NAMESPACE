@@ -151,7 +151,10 @@ export(
 
     ## ArrayGrid-class.R:
     DummyArrayViewport, ArrayViewport, makeNindexFromArrayViewport,
-    DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid
+    DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid,
+
+    ## read_block.R:
+    read_block
 )
 
 
@@ -166,23 +169,27 @@ export(
     ## ArrayGrid-class.R:
     refdim, maxlength, downsample,
 
+    ## mapToGrid.R:
+    mapToGrid, mapToRef,
+
     ## extract_array.R:
     extract_array,
 
     ## is_sparse.R:
     is_sparse, "is_sparse<-",
 
-    ## mapToGrid.R:
-    mapToGrid, mapToRef
+    ## read_block.R:
+    read_block_as_dense
 )
 
 ### Same list as above.
 exportMethods(
     arbind, acbind,
     refdim, maxlength, downsample,
+    mapToGrid, mapToRef,
     extract_array,
     is_sparse,
     #"is_sparse<-",  # no methods defined in S4Arrays!
-    mapToGrid, mapToRef
+    read_block_as_dense
 )
 
