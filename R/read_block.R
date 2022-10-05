@@ -10,7 +10,7 @@
 ### higher-level user-facing read_block() function instead, with
 ### the 'as.sparse' argument set to FALSE.
 ### Must return an ordinary array.
-### Note that the read_block() wrapper will take care of propagating the
+### Note that the read_block() frontend will take care of propagating the
 ### dimnames, so, for the sake of efficiency, individual methods should not
 ### try to do it.
 
@@ -45,7 +45,7 @@ setMethod("read_block_as_dense", "ANY",
              "\n\n    BiocManager::install(\"SparseArray\")")
 }
 
-### A user-facing wrapper for read_block_as_dense() and read_block_as_sparse().
+### A user-facing frontend for read_block_as_dense() and read_block_as_sparse().
 ### Reads a block of data from array-like object 'x'. Depending on the value
 ### of argument 'as.sparse', the block is returned either as an ordinary
 ### array (dense representation) or a SparseArray object (sparse
