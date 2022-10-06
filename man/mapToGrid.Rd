@@ -92,9 +92,9 @@ mapToRef(major, minor, grid, linear=FALSE)
     \item \link{ArrayGrid} for the formal representation of grids and
           viewports.
 
-    \item \code{\link{Lindex2Mindex}} and \code{\link{Mindex2Lindex}} in
-          this package (\pkg{DelayedArray}) for converting back and forth
-          between \emph{linear indices} and \emph{matrix indices}.
+    \item \code{\link{Lindex2Mindex}} and \code{\link{Mindex2Lindex}}
+          for converting back and forth between \emph{linear indices}
+          and \emph{matrix indices}.
 
     \item \link[base]{array} objects in base R.
   }

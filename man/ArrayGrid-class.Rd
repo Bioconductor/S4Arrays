@@ -143,17 +143,15 @@ downsample(x, ratio=1L)
 
 \seealso{
   \itemize{
-    \item \code{DelayedArray::\link[DelayedArray]{read_block}} in the
-          \pkg{DelayedArray} package.
+    \item \code{\link{read_block}} to read a block of data from an
+          array-like object.
 
-    \item \code{DelayedArray::\link[DelayedArray]{blockApply}} and family
-          for convenient block processing of an array-like object.
+    \item \code{\link[DelayedArray]{blockApply}} and family, in the
+          \pkg{DelayedArray} package, for convenient block processing
+          of an array-like object.
 
     \item \code{\link{mapToGrid}} for mapping reference array positions to
           grid positions and vice-versa.
-
-    \item \code{DelayedArray::\link[DelayedArray]{chunkGrid}} in the
-          \pkg{DelayedArray} package.
 
     \item \link[base]{array} objects in base R.
   }

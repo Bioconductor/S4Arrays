@@ -33,11 +33,11 @@
 \description{
   \code{extract_array} is an internal generic function not aimed to be used
   directly by the user. It has methods defined for array, data.frame,
-  \link[S4Vectors]{DataFrame} objects and other array-like objects.
+  \link[S4Vectors]{DataFrame} objects, and other array-like objects.
 
-  The \code{DelayedArray::DelayedArray()} constructor function will accept
-  any seed that complies with the \emph{seed contract} i.e. that supports
-  \code{dim()}, \code{dimnames()}, and \code{extract_array()}.
+  Note that \code{extract_array} is part of the \emph{seed contract} as
+  defined in the \emph{Implementing A DelayedArray Backend} vignette from
+  the \pkg{DelayedArray} package.
 }
 
 \usage{
@@ -91,8 +91,8 @@ type(x)
 
 \seealso{
   \itemize{
-    \item \code{DelayedArray::\link[DelayedArray]{read_block}} in the
-          \pkg{DelayedArray} package.
+    \item \code{\link{read_block}} to read a block of data from an
+          array-like object.
 
     \item \link[base]{array} and \link[base]{data.frame} objects in base R.
 

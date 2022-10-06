@@ -8,7 +8,7 @@
 \title{Read array blocks}
 
 \description{
-  Use \code{read_block} to read a block from an array-like object.
+  Use \code{read_block} to read a block of data from an array-like object.
 
   Note that this function is typically used in the context of block processing
   of on-disk objects (e.g. \link[DelayedArray]{DelayedArray} objects).
