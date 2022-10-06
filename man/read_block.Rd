@@ -170,7 +170,7 @@ stopifnot(identical(block2b, as.array(block2)))
 ## ---------------------------------------------------------------------
 ## BASIC EXAMPLE 3: READ A BLOCK FROM A 3D ARRAY
 ## ---------------------------------------------------------------------
-a3 <- array(1:60, 5:3)
+a3 <- array(1:60, dim=5:3)
 
 ## Define the viewport on 'a3' to read the data from:
 block3_dim <- c(2, 4, 1)
@@ -191,7 +191,7 @@ stopifnot(identical(a3[1:2, 1:4, 3, drop=FALSE], block3))
 ## ---------------------------------------------------------------------
 ## BASIC EXAMPLE 4: READ AND PROCESS BLOCKS DEFINED BY A GRID
 ## ---------------------------------------------------------------------
-a4 <- array(runif(120), 6:4)
+a4 <- array(runif(120), dim=6:4)
 
 ## Define a grid of 2x3x2 blocks on 'a4':
 grid4 <- RegularArrayGrid(dim(a4), spacings=c(2,3,2))

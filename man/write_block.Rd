@@ -122,7 +122,7 @@ stopifnot(identical(m2A, m2B))
 ## ---------------------------------------------------------------------
 ## BASIC EXAMPLE 3: WRITE A BLOCK TO A 3D ARRAY
 ## ---------------------------------------------------------------------
-a3 <- array(1:60, 5:3)
+a3 <- array(1:60, dim=5:3)
 
 ## Define the viewport on 'a3' to write the data to:
 block3_dim <- c(2, 4, 1)
@@ -130,7 +130,7 @@ viewport3 <- ArrayViewport(dim(a3), IRanges(c(1, 1, 3), width=block3_dim))
 viewport3
 
 ## Data to write:
-block3 <- array(-(1:8), block3_dim)
+block3 <- array(-(1:8), dim=block3_dim)
 
 ## Write the block:
 a3A <- write_block(a3, viewport3, block3)
@@ -144,17 +144,17 @@ stopifnot(identical(a3A, a3B))
 ## ---------------------------------------------------------------------
 ## BASIC EXAMPLE 4: WRITE BLOCKS DEFINED BY A GRID
 ## ---------------------------------------------------------------------
-a4 <- array(NA_real_, 6:4)
+a4 <- array(NA_real_, dim=6:4)
 
 ## Define a grid of 2x3x2 blocks on 'a4':
 grid4 <- RegularArrayGrid(dim(a4), spacings=c(2,3,2))
 grid4
 nblock <- length(grid4)  # number of blocks
 
-## Walk on the grid and write blocks with random data:
+## Walk on the grid and write blocks of random data:
 for (bid in seq_len(nblock)) {
     viewport <- grid4[[bid]]
-    block <- array(runif(length(viewport)), dim(viewport))
+    block <- array(runif(length(viewport)), dim=dim(viewport))
     cat("====== Write block ", bid, "/", nblock, " ======\n", sep="")
     a4 <- write_block(a4, viewport, block)
 }
@@ -185,19 +185,19 @@ collapse_3rd_dim <- function(a) {
 ##    one for the sink, and one for the input:
 
 a5 <- array(runif(8000), dim=c(25, 40, 8))  # input
-m  <- array(NA_real_, dim(a5)[1:2])         # sink
+m  <- array(NA_real_, dim=dim(a5)[1:2])     # sink
 
 ## Since we're going to walk on the two grids simultaneously, read a
 ## block from 'a5' and write it to 'm', we need to make sure that we
-## define grids that are "aligned". More precisely the two grids must
-## have the same number of viewports and the viewports in one must
+## define grids that are "aligned". More precisely, the two grids must
+## have the same number of viewports, and the viewports in one must
 ## correspond to the viewports in the other one:
 m_grid  <- RegularArrayGrid(dim(m),  spacings=c(10, 10))
 a5_grid <- RegularArrayGrid(dim(a5), spacings=c(10, 10, dim(a5)[[3]]))
 
-## Here is how to check that the two grids are "aligned":
+## Let's check that our two grids are actually "aligned":
 stopifnot(identical(length(m_grid), length(a5_grid)))
-stopifnot(identical(dims(m_grid), dims(a5_grid)[ , -3]))
+stopifnot(identical(dims(m_grid), dims(a5_grid)[ , 1:2, drop=FALSE]))
 
 ## Walk on the two grids simultaneously, and read/collapse/write blocks:
 for (bid in seq_along(m_grid)) {
@@ -212,10 +212,9 @@ for (bid in seq_along(m_grid)) {
 }
 
 ## Sanity checks:
-target <- collapse_3rd_dim(a5)
-stopifnot(identical(dim(a5)[1:2], dim(target)))
-stopifnot(identical(sum(a5), sum(target)))
-stopifnot(identical(target, m))
+stopifnot(identical(dim(a5)[1:2], dim(m)))
+stopifnot(identical(sum(a5), sum(m)))
+stopifnot(identical(collapse_3rd_dim(a5), m))
 
 ## See '?RealizationSink' in the DelayedArray package for a more
 ## realistic "array collapse" example where the blocks are written
