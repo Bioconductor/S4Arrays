@@ -17,6 +17,7 @@
 ### Normalization of an Nindex
 ###
 
+### NOT exported but used in the HDF5Array package!
 normalizeSingleBracketSubscript2 <- function(i, x_len, x_names=NULL)
 {
     ## We support subsetting by an array-like subscript but only if the
@@ -53,7 +54,8 @@ normalize_Nindex <- function(Nindex, x)
 {
     x_dim <- dim(x)
     if (is.null(x_dim))
-        stop(wmsg("'x' must be an array-like object"))
+        stop(wmsg("'x' must be an array-like object ",
+                  "(i.e. it must have dimensions)"))
     x_ndim <- length(x_dim)
     if (is.null(Nindex))
         return(vector("list", length=x_ndim))
@@ -160,6 +162,7 @@ subset_by_Nindex <- function(x, Nindex, drop=FALSE)
 }
 
 ### Return the modified array.
+### Work on any array-like object that supports subassignment ('[<-').
 replace_by_Nindex <- function(x, Nindex, value)
 {
     subscripts <- .make_subscripts_from_Nindex(Nindex, x)

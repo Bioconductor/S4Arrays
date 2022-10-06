@@ -426,6 +426,7 @@ array_as_one_line_summary <- function(x)
             type(x))
 }
 
+### NOT exported but used in the SparseArray package!
 print_some_array_elements <- function(x)
 {
     if (type(x) == "integer") {

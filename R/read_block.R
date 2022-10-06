@@ -58,8 +58,12 @@ setMethod("read_block_as_dense", "ANY",
 ### Must propagate the dimnames.
 read_block <- function(x, viewport, as.sparse=NA)
 {
+    x_dim <- dim(x)
+    if (is.null(x_dim))
+        stop(wmsg("the first argument to read_block() must be an ",
+                  "array-like object (i.e. it must have dimensions)"))
     stopifnot(is(viewport, "ArrayViewport"),
-              identical(refdim(viewport), dim(x)),
+              identical(refdim(viewport), x_dim),
               is.logical(as.sparse),
               length(as.sparse) == 1L)
     if (is_sparse(x)) {

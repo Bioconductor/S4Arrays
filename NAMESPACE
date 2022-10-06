@@ -179,7 +179,10 @@ export(
     is_sparse, "is_sparse<-",
 
     ## read_block.R:
-    read_block_as_dense
+    read_block_as_dense,
+
+    ## write_block.R:
+    write_block
 )
 
 ### Same list as above.
@@ -190,6 +193,7 @@ exportMethods(
     extract_array,
     is_sparse,
     #"is_sparse<-",  # no methods defined in S4Arrays!
-    read_block_as_dense
+    read_block_as_dense,
+    write_block
 )
 

@@ -31,5 +31,6 @@ Collate: utils.R
 	extract_array.R
 	is_sparse.R
 	read_block.R
+	write_block.R
 	show-utils.R
 	zzz.R

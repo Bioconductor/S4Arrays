@@ -107,8 +107,8 @@ setGeneric("extract_array", signature="x",
     {
         x_dim <- dim(x)
         if (is.null(x_dim))
-            stop(wmsg("first argument to extract_array() ",
-                      "must be an array-like object"))
+            stop(wmsg("the first argument to extract_array() must be an ",
+                      "array-like object (i.e. it must have dimensions)"))
         ans <- standardGeneric("extract_array")
         expected_dim <- get_Nindex_lengths(index, x_dim)
         check_returned_array(ans, expected_dim, "extract_array", class(x))
