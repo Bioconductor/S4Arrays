@@ -143,7 +143,7 @@ expand_Nindex_RangeNSBS <- function(Nindex)
 {
     stopifnot(is.list(Nindex), length(Nindex) == length(dim(x)))
 
-    if (is.array(x))
+    if (is.array(x) || is(x, "sparseMatrix"))
         Nindex <- expand_Nindex_RangeNSBS(Nindex)
 
     ## Replace NULLs with list elements of class "name".

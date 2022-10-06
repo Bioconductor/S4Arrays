@@ -11,7 +11,8 @@
   Use \code{read_block} to read a block of data from an array-like object.
 
   Note that this function is typically used in the context of block processing
-  of on-disk objects (e.g. \link[DelayedArray]{DelayedArray} objects).
+  of on-disk objects (e.g. \link[DelayedArray]{DelayedArray} objects), often
+  in combination with \code{\link{write_block}}.
 }
 
 \usage{
@@ -76,7 +77,7 @@ read_block(x, viewport, as.sparse=NA)
 
 \seealso{
   \itemize{
-    \item \link{ArrayViewport} objects.
+    \item \link{ArrayGrid} for ArrayGrid and ArrayViewport objects.
 
     \item \link[SparseArray]{SparseArray} objects in the \pkg{SparseArray}
           package.
@@ -98,16 +99,13 @@ read_block(x, viewport, as.sparse=NA)
 }
 
 \examples{
-## ---------------------------------------------------------------------
-## TYPICAL USE
-## ---------------------------------------------------------------------
-## read_block() is typically used in combination with write_block().
-## See '?write_block' for typical uses of the read_block/write_block
-## combo.
+## Please note that, although educative, the examples below are somewhat
+## artificial and do not illustrate real-world usage of read_block().
+## See '?RealizationSink' in the DelayedArray package for more realistic
+## read_block/write_block examples.
 
 ## ---------------------------------------------------------------------
-## VERY BASIC (AND ALSO VERY ARTIFICIAL) EXAMPLE 1:
-## Read a block from an ordinary matrix
+## BASIC EXAMPLE 1: READ A BLOCK FROM AN ORDINARY MATRIX (DENSE)
 ## ---------------------------------------------------------------------
 m1 <- matrix(1:30, ncol=5)
 m1
@@ -137,8 +135,7 @@ stopifnot(identical(dim(viewport1), dim(block1b)))
 stopifnot(identical(block1, as.array(block1b)))
 
 ## ---------------------------------------------------------------------
-## VERY BASIC (AND ALSO VERY ARTIFICIAL) EXAMPLE 2:
-## Read a block from a sparse matrix
+## BASIC EXAMPLE 2: READ A BLOCK FROM A SPARSE MATRIX
 ## ---------------------------------------------------------------------
 m2 <- rsparsematrix(12, 20, density=0.2,
                     rand.x=function(n) sample(25, n, replace=TRUE))
@@ -171,8 +168,7 @@ stopifnot(identical(dim(viewport2), dim(block2b)))
 stopifnot(identical(block2b, as.array(block2)))
 
 ## ---------------------------------------------------------------------
-## VERY BASIC (AND ALSO VERY ARTIFICIAL) EXAMPLE 3:
-## Read a block from a 3D array
+## BASIC EXAMPLE 3: READ A BLOCK FROM A 3D ARRAY
 ## ---------------------------------------------------------------------
 a3 <- array(1:60, 5:3)
 
@@ -191,5 +187,39 @@ block3
 stopifnot(identical(type(a3), type(block3)))
 stopifnot(identical(dim(viewport3), dim(block3)))
 stopifnot(identical(a3[1:2, 1:4, 3, drop=FALSE], block3))
+
+## ---------------------------------------------------------------------
+## BASIC EXAMPLE 4: READ AND PROCESS BLOCKS DEFINED BY A GRID
+## ---------------------------------------------------------------------
+a4 <- array(runif(120), 6:4)
+
+## Define a grid of 2x3x2 blocks on 'a4':
+grid4 <- RegularArrayGrid(dim(a4), spacings=c(2,3,2))
+grid4
+nblock <- length(grid4)  # number of blocks
+
+## Walk on the grid and print the corresponding blocks:
+for (bid in seq_len(nblock)) {
+    viewport <- grid4[[bid]]
+    block <- read_block(a4, viewport)
+    cat("====== Block ", bid, "/", nblock, " ======\n", sep="")
+    print(block)
+}
+
+## Walk on the grid and compute the sum of each block:
+block_sums <- sapply(grid4,
+    function(viewport) sum(read_block(a4, viewport))
+)
+block_sums
+
+## Sanity checks:
+stopifnot(identical(length(block_sums), nblock))
+stopifnot(all.equal(sum(block_sums), sum(a4)))
+
+## ---------------------------------------------------------------------
+## THE read_block/write_block COMBO
+## ---------------------------------------------------------------------
+## See '?write_block' for examples that use the read_block/write_block
+## combo.
 }
 \keyword{methods}

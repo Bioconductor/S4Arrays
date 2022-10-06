@@ -39,6 +39,9 @@ setMethod("write_block", "ANY",
             ## value is also an ordinary array.
             if (!is.array(block))
                 block <- as.array(block)
+            sink_type <- type(sink)
+            if (type(block) != sink_type)
+                type(block) <- sink_type
         } else if (is(sink, "sparseMatrix")) {
             ## Subassignment of a sparseMatrix derivative (e.g. dgCMatrix
             ## object) only works if the right value is a sparseMatrix
