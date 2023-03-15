@@ -118,7 +118,7 @@ exportMethods(
     cbind, rbind,
     t, aperm,
     dims,
-    type, "type<-",
+    type,
 
     ## Methods for generics defined in the S4Vectors package:
     bindROWS,

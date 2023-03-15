@@ -21,12 +21,12 @@ read_block(x, viewport, as.sparse=NA)
 
 \arguments{
   \item{x}{
-    An array-like object. This can be an ordinary array, a
-    \link[SparseArray]{SparseArray} object from the \pkg{SparseArray} package,
-    a \linkS4class{dgCMatrix} object from the \pkg{Matrix} package,
-    a \link[DelayedArray]{DelayedArray} object from the \pkg{DelayedArray}
-    package, or any object with an array semantic (i.e. an object for
-    which \code{dim(x)} is not NULL).
+    An array-like object.
+    This can be an ordinary array, a \link[SparseArray]{SparseArray}
+    object from the \pkg{SparseArray} package, a \linkS4class{dgCMatrix}
+    object from the \pkg{Matrix} package, a \link[DelayedArray]{DelayedArray}
+    object from the \pkg{DelayedArray} package, or any object with an array
+    semantic (i.e. an object for which \code{dim(x)} is not NULL).
   }
   \item{viewport}{
     An \link{ArrayViewport} object compatible with \code{x}, that is,
@@ -79,8 +79,8 @@ read_block(x, viewport, as.sparse=NA)
   \itemize{
     \item \link{ArrayGrid} for ArrayGrid and ArrayViewport objects.
 
-    \item \link[SparseArray]{SparseArray} objects in the \pkg{SparseArray}
-          package.
+    \item \link[SparseArray]{SparseArray} objects implemented in the
+          \pkg{SparseArray} package.
 
     \item \code{\link{write_block}}.
 
@@ -91,8 +91,8 @@ read_block(x, viewport, as.sparse=NA)
     \item \link[Matrix]{dgCMatrix-class} and \link[Matrix]{lgCMatrix-class}
           objects in the \pkg{Matrix} package.
 
-    \item \link[DelayedArray]{DelayedArray} objects in the \pkg{DelayedArray}
-          package.
+    \item \link[DelayedArray]{DelayedArray} objects implemented in the
+          \pkg{DelayedArray} package.
 
     \item \link[base]{array} objects in base R.
   }

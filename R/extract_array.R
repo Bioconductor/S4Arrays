@@ -15,6 +15,20 @@
     ## Turn into a list and replace factors with character vectors.
     lapply(slice, as.vector)
 }
+
+.extract_DataFrame_slice0 <- function(x)
+{
+    ## Make sure that this remains consistent with .get_DataFrame_type()
+    ## defined in R/type.R
+    x0 <- x[0L, , drop=FALSE]
+    df0 <- as.data.frame(x0)
+    if (ncol(df0) != ncol(x))
+        stop(wmsg("DataFrame object 'x' can be used as the seed of ",
+                  "a DelayedArray object only if as.data.frame(x) ",
+                  "preserves the number of columns"))
+    BiocGenerics:::extract_data_frame_slice0(df0)
+}
+
 .extract_DataFrame_slice <- function(x, index)
 {
     slice <- subset_by_Nindex(x, index)
@@ -23,51 +37,13 @@
     lapply(slice, as.vector)
 }
 
-### Return a list with one list element per column in data frame 'x'.
-### All the list elements have length 0.
-.extract_data_frame_slice0 <- function(x)
-{
-    slice0 <- x[0L, , drop=FALSE]
-    ## Turn into a list and replace factors with character vectors.
-    lapply(slice0, as.vector)
-}
-.extract_DataFrame_slice0 <- function(x)
-{
-    slice0 <- x[0L, , drop=FALSE]
-    slice0 <- as.data.frame(slice0)
-    if (ncol(slice0) != ncol(x))
-        stop(wmsg("DataFrame object 'x' can be used as the seed of ",
-                  "a DelayedArray object only if as.data.frame(x) ",
-                  "preserves the number of columns"))
-    ## Turn into a list and replace factors with character vectors.
-    lapply(slice0, as.vector)
-}
-
-### Equivalent to 'typeof(as.matrix(x))' but with an almost-zero
-### memory footprint (it avoids the cost of turning 'x' into a matrix).
-.get_data_frame_type <- function(x)
-{
-    if (ncol(x) == 0L)
-        return("logical")
-    slice0 <- .extract_data_frame_slice0(x)
-    typeof(unlist(slice0, use.names=FALSE))
-}
-
-### Equivalent to 'typeof(as.matrix(as.data.frame(x)))' but with an
-### almost-zero memory footprint (it avoids the cost of turning 'x' first
-### into a data frame then into a matrix).
-.get_DataFrame_type <- function(x)
-{
-    if (ncol(x) == 0L)
-        return("logical")
-    slice0 <- .extract_DataFrame_slice0(x)
-    typeof(unlist(slice0, use.names=FALSE))
-}
-
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### extract_array() generic and methods
 ###
+### Note that extract_array() is part of the "seed contract" as defined in
+### the "Implementing A DelayedArray Backend" vignette from the DelayedArray
+### package.
 
 ### Similar to SparseArray:::.contact_author_msg2().
 .contact_author_msg1 <- function(.Generic, x_class)
@@ -139,10 +115,9 @@ setMethod("extract_array", "array",
 setMethod("extract_array", "data.frame",
     function(x, index)
     {
-        #ans_type <- .get_data_frame_type(x)
-        slice0 <- .extract_data_frame_slice0(x)
+        slice0 <- BiocGenerics:::extract_data_frame_slice0(x)
         slice <- .extract_data_frame_slice(x, index)
-        data <- unlist(c(slice0, slice), use.names=FALSE)
+        data <- unlist(c(slice0, slice), recursive=FALSE, use.names=FALSE)
         array(data, dim=get_Nindex_lengths(index, dim(x)))
     }
 )
@@ -157,26 +132,17 @@ setMethod("extract_array", "data.frame",
 setMethod("extract_array", "DataFrame",
     function(x, index)
     {
-        #ans_type <- .get_DataFrame_type(x)
         slice0 <- .extract_DataFrame_slice0(x)
         slice <- .extract_DataFrame_slice(x, index)
-        data <- unlist(c(slice0, slice), use.names=FALSE)
+        data <- unlist(c(slice0, slice), recursive=FALSE, use.names=FALSE)
         array(data, dim=get_Nindex_lengths(index, dim(x)))
     }
 )
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### 2 convenience wrappers around extract_array()
+### A convenience wrapper around extract_array()
 ###
-
-### Perform extract_array(x, list(integer(0), ..., integer(0))).
-### 'x' is **trusted** to be an array-like object.
-extract_empty_array <- function(x)
-{
-    index <- rep.int(list(integer(0)), length(dim(x)))
-    extract_array(x, index)
-}
 
 ### An enhanced version of extract_array() that accepts an Nindex (see
 ### Nindex-utils.R) and propagates the dimnames.
@@ -212,27 +178,6 @@ extract_array_by_Nindex <- function(x, Nindex)
 
     set_dimnames(ans, ans_dimnames)
 }
-
-
-### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### type() default method (the generic is defined in BiocGenerics)
-###
-
-### type() will work out-of-the-box on any array-like object that supports
-### extract_array().
-setMethod("type", "ANY",
-    function(x)
-    {
-        if (is.vector(x) || is.array(x))
-            return(typeof(x))
-        x_dim <- dim(x)
-        if (is.null(x_dim))
-            stop(wmsg("type() only supports array-like objects ",
-                      "and ordinary vectors. See ?type in the ",
-                      "S4Arrays package."))
-        type(extract_empty_array(x))
-    }
-)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -

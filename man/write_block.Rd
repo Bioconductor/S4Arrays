@@ -49,8 +49,8 @@ write_block(sink, viewport, block)
   \itemize{
     \item \link{ArrayGrid} for ArrayGrid and ArrayViewport objects.
 
-    \item \link[SparseArray]{SparseArray} objects in the \pkg{SparseArray}
-          package.
+    \item \link[SparseArray]{SparseArray} objects implemented in the
+          \pkg{SparseArray} package.
 
     \item \code{\link{read_block}}.
 
@@ -58,7 +58,7 @@ write_block(sink, viewport, block)
           \pkg{DelayedArray} package, for convenient block processing
           of an array-like object.
 
-    \item \link[DelayedArray]{RealizationSink} objects in the
+    \item \link[DelayedArray]{RealizationSink} objects implemented in the
           \pkg{DelayedArray} package for more realistic \code{write_block}
           examples.
 

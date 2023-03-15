@@ -60,21 +60,21 @@ mapToRef(major, minor, grid, linear=FALSE)
     \item For \code{mapToGrid()}: A list with 2 components, \code{major}
           and \code{minor}.
 
-          Each row in input matrix \code{Mindex} is an n-uplet that contains
+          Each row in input matrix \code{Mindex} is an n-tuple that contains
           the coordinates of an \emph{absolute} position.
 
           By default (i.e. when \code{linear} is \code{FALSE}), the 2
           components of the returned list are integer matrices of the same
           dimensions as the input matrix. A row in the \code{major} (or
-          \code{minor}) matrix is called a "major n-uplet" (or "minor n-uplet").
+          \code{minor}) matrix is called a "major n-tuple" (or "minor n-tuple").
           So for each "input position" (i.e. for each row in the input matrix),
-          2 n-uplets are returned: the "major n-uplet" and the "minor n-uplet".
-          The "major n-uplet" contains the coordinates of the "input position"
+          2 n-tuples are returned: the "major n-tuple" and the "minor n-tuple".
+          The "major n-tuple" contains the coordinates of the "input position"
           \emph{in the grid coordinate system}, that is, the coordinates of the
           grid element where the position falls in.
-          The "minor n-uplet" represents where exactly the "input position"
-          falls \emph{inside} the grid element reported by the "major n-uplet".
-          The coordinates in the "minor n-uplet" are \emph{relative} to this
+          The "minor n-tuple" represents where exactly the "input position"
+          falls \emph{inside} the grid element reported by the "major n-tuple".
+          The coordinates in the "minor n-tuple" are \emph{relative} to this
           grid element.
 
           When \code{linear} is \code{TRUE}, the \code{major} and \code{minor}
