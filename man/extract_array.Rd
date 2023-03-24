@@ -29,8 +29,8 @@
 \title{extract_array}
 
 \description{
-  \code{extract_array} is an internal generic function not aimed to be used
-  directly by the user. It has methods defined for array, data.frame,
+  \code{extract_array} is an internal generic function not intended to be
+  used directly by the end user. It has methods defined for array, data.frame,
   \link[S4Vectors]{DataFrame} objects, and other array-like objects.
 
   Note that \code{extract_array} is part of the \emph{seed contract} as
@@ -111,6 +111,63 @@ extract_array(x, index)
 }
 
 \examples{
-## Coming soon...
+extract_array
+showMethods("extract_array")
+
+## extract_array() works on array-like objects like SparseArray objects,
+## dgCMatrix objects, DataFrame objects, etc...
+
+## --- On a SparseArray object ---
+
+library(SparseArray)
+a <- array(0L, 5:3)
+a[c(1:2, 8, 10, 15:17, 20, 24, 40, 56:60)] <- (1:15)*10L
+svt <- as(a, "SparseArray")
+svt
+
+extract_array(svt, list(NULL, c(4L,2L,4L), 1L))
+extract_array(svt, list(NULL, c(4L,2L,4L), 2:3))
+extract_array(svt, list(NULL, c(4L,2L,4L), integer(0)))
+
+## Sanity checks:
+stopifnot(
+  identical(extract_array(svt, list(NULL, c(4L,2L,4L), 1L)),
+            as.array(svt)[ , c(4L,2L,4L), 1L, drop=FALSE]),
+  identical(extract_array(svt, list(NULL, c(4L,2L,4L), 2:3)),
+            as.array(svt)[ , c(4L,2L,4L), 2:3]),
+  identical(extract_array(svt, list(NULL, c(4L,2L,4L), integer(0))),
+            as.array(svt)[ , c(4L,2L,4L), integer(0)])
+)
+
+## --- On a dgCMatrix object ---
+
+library(Matrix)
+m <- a[ , , 1]
+dgcm <- as(m, "dgCMatrix")
+dgcm
+
+extract_array(dgcm, list(NULL, c(4L,2L,4L)))
+
+## Sanity check:
+stopifnot(
+  identical(extract_array(dgcm, list(NULL, c(4L,2L,4L))),
+            as.matrix(dgcm)[ , c(4L,2L,4L)])
+)
+
+## --- On a data.frame or DataFrame object ---
+
+df <- data.frame(a=44:49, b=letters[1:6], c=c(TRUE, FALSE))
+DF <- as(df, "DataFrame")
+
+extract_array(df, list(4:2, c(1L,3L)))
+extract_array(DF, list(4:2, c(1L,3L)))
+
+## Sanity check:
+target <- as.matrix(df)[4:2, c(1L,3L)]
+dimnames(target) <- NULL
+stopifnot(
+  identical(extract_array(df, list(4:2, c(1L,3L))), target),
+  identical(extract_array(DF, list(4:2, c(1L,3L))), target)
+)
 }
 \keyword{internal}

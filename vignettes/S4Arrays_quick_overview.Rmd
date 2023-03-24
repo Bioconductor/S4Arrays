@@ -1,0 +1,97 @@
+---
+title: "A quick overview of the _S4Arrays_ package"
+author:
+- name: Hervé Pagès
+  affiliation: Fred Hutchinson Cancer Research Center, Seattle, WA
+date: "Compiled `r doc_date()`;  Modified 23 March 2023"
+package: S4Arrays
+vignette: |
+  %\VignetteIndexEntry{A quick overview of the S4Arrays package}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+output:
+  BiocStyle::html_document
+---
+
+
+# Introduction
+
+`r Biocpkg("S4Arrays")` is an infrastructure package that provides a
+foundation for implementing _array-like_ containers in Bioconductor,
+that is, containers that mimic the behavior of ordinary matrices or
+arrays in R. It is not intended to be used directly by the end user.
+
+# The Array virtual class
+
+At the center of this foundation is the Array virtual class whose
+purpose is to be extended by other S4 classes that wish to implement
+a container with an array-like semantic. Examples of such classes are:
+
+- The SparseArray class defined in the `r Biocpkg("SparseArray")` package.
+
+- The DelayedArray class defined in the `r Biocpkg("DelayedArray")` package.
+
+- The ArrayGrid and ArrayViewport classes defined in the
+  `r Biocpkg("S4Arrays")` package itself.
+
+Note that Array is a virtual class with no slots:
+
+```{r, message=FALSE}
+library(S4Arrays)
+
+showClass("Array")
+```
+
+# The extract_array() generic function
+
+The `r Biocpkg("S4Arrays")` package also introduces the `extract_array()`
+S4 generic function that Arrays subclasses (a.k.a. Arrays extensions)
+are expected to support via specific methods. This allows some basic
+operations like `type()`, `as.array()` or `as.matrix()` to work
+out-of-the-box on instances of these Arrays subclasses (a.k.a.
+Arrays derivatives). It also allows them to be used as the seed of a
+DelayedArray object.
+
+Please refer to the man page of the `extract_array()` function for more
+information: `?extract_array`
+
+# Block processing of array-like objects
+
+The `r Biocpkg("S4Arrays")` package provides a framework that facilitates
+block processing of array-like objects. This framework consists of:
+
+- ArrayGrid and ArrayViewport objects for representing grids and viewports
+  on array-like objects. See `?ArrayGrid` for more information.
+
+- The `read_block()` and `write_block()` functions to read and write array
+  blocks. See `?read_block` and `?write_block` for more information.
+
+- The `mapToGrid()` and `mapToRef()` functions to map a set of reference
+  array positions to grid positions and vice-versa. See `?mapToGrid` for
+  more information.
+
+# Other functionalities
+
+In addition to the above, the `r Biocpkg("S4Arrays")` package provides
+the following functionalities:
+
+- The `is_sparse()` generic function for determining whether an array-like
+  object uses a sparse representation or not. See `?is_sparse` for more
+  information.
+
+- Low-level utilities for manipulating array selections. See `?Lindex2Mindex`
+  for more information.
+
+- `aperm2()`: an extension of `base::aperm()` that allows dropping and/or
+  adding _ineffective dimensions_. See `?aperm2` for more information.
+
+- The `arbind()` and `acbind()` generic functions for binding array-like
+  objects with an arbitrary number of dimensions along their rows or
+  columns. See `?arbind` for more information.
+
+# Session information
+
+```{r}
+sessionInfo()
+```
+

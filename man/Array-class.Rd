@@ -27,14 +27,14 @@
 \details{
   Some examples of Array derivatives:
   \itemize{
-    \item The \link{ArrayGrid} and \link{ArrayViewport} classes defined in
-          this package (the \pkg{S4Arrays} package).
-
     \item The \link[SparseArray]{SparseArray} class defined in the
           \pkg{SparseArray} package.
 
     \item The \link[DelayedArray]{DelayedArray} class defined in the
           \pkg{DelayedArray} package.
+
+    \item The \link{ArrayGrid} and \link{ArrayViewport} classes defined in
+          this package (the \pkg{S4Arrays} package).
   }
 }
 
