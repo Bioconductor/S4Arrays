@@ -149,17 +149,34 @@ normarg_dimnames <- function(dimnames, dim)
 ### of 'x'
 ###
 
+### Preserves the dimnames when dropping or adding rightmost dimensions (i.e.
+### outermost or slowest moving dimensions in the memory layout).
 set_dim <- function(x, value)
 {
-    if (!identical(dim(x), value))
-        dim(x) <- value
+    stopifnot(is.numeric(value))
+    if (!is.integer(value))
+        value <- as.integer(value)
+    x_dim <- dim(x)
+    if (identical(x_dim, value))
+        return(x)
+    x_dimnames <- dimnames(x)
+    dim(x) <- value
+    if (!is.null(x_dimnames)) {
+        old_ndim <- length(x_dim)
+        new_ndim <- length(value)
+        n <- min(old_ndim, new_ndim)
+        if (identical(head(x_dim, n=n), head(value, n=n)))
+            dimnames(x) <- x_dimnames[seq_len(new_ndim)]
+    }
     x
 }
 
 set_dimnames <- function(x, value)
 {
-    if (!identical(dimnames(x), value))
-        dimnames(x) <- value
+    stopifnot(is.null(value) || is.list(value))
+    if (identical(dimnames(x), value))
+        return(x)
+    dimnames(x) <- value
     x
 }
 
