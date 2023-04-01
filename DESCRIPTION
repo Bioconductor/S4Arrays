@@ -24,6 +24,7 @@ Suggests: BiocParallel, SparseArray (>= 0.0.4), DelayedArray,
 	testthat, knitr, rmarkdown, BiocStyle
 VignetteBuilder: knitr
 Collate: utils.R
+	rowsum.R
 	abind.R
 	aperm2.R
 	array_selection.R

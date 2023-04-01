@@ -154,6 +154,9 @@ export(
 ###
 
 export(
+    ## rowsum.R:
+    rowsum, colsum,
+
     ## abind.R:
     arbind, acbind,
 
@@ -178,6 +181,7 @@ export(
 
 ### Same list as above.
 exportMethods(
+    colsum,          # no rowsum() method defined in S4Arrays!
     arbind, acbind,
     refdim, maxlength, downsample,
     mapToGrid, mapToRef,
