@@ -67,35 +67,46 @@ extract_array(x, index)
     supported.
   }
   \item{index}{
-    An unnamed list of subscripts as positive integer vectors, one vector
-    per dimension in \code{x}. Empty and missing subscripts (represented
-    by \code{integer(0)} and \code{NULL} list elements, respectively) are
-    allowed. The subscripts can contain duplicated indices. They cannot
-    contain NAs or non-positive values.
+    An unnamed list of integer vectors, one per dimension in \code{x}.
+    Each vector is called a \emph{subscript} and can only contain
+    positive integers that are valid 1-based indices along the corresponding
+    dimension in \code{x}.
+
+    Empty or missing subscripts are allowed. They must be represented
+    by list elements set to \code{integer(0)} or \code{NULL}, respectively.
+
+    The subscripts cannot contain NAs or non-positive values.
+
+    Individual subscripts are allowed to contain duplicated indices.
   }
 }
 
 \details{
-  \code{extract_array} methods need to support empty and missing subscripts
-  e.g. \code{extract_array(x, list(NULL, integer(0)))} must return an M x 0
-  matrix and \code{extract_array(x, list(integer(0), integer(0)))} a 0 x 0
-  matrix.
+  \code{extract_array()} methods need to support empty or missing subscripts.
+  For example, if \code{x} is an M x N matrix-like object, then
+  \code{extract_array(x, list(NULL, integer(0)))} must return an M x 0
+  ordinary matrix, and \code{extract_array(x, list(integer(0), integer(0)))}
+  a 0 x 0 ordinary matrix.
 
   Also subscripts are allowed to contain duplicated indices so things like
-  \code{extract_array(seed, list(c(1:3, 3:1), 2L))} need to be supported.
+  \code{extract_array(x, list(c(1:3, 3:1), 2L))} need to be supported.
+
+  Finally, methods don't need to handle the dimnames on \code{x}.
 }
 
 \value{
-  An \emph{ordinary} array of the appropriate type (i.e. integer, double,
-  etc...). For example, if \code{x} is an object representing an M x N matrix
-  of complex numbers, \code{extract_array(x, list(NULL, 2L))} must return
-  its 2nd column as an \emph{ordinary} M x 1 matrix of type complex.
+  An \emph{ordinary} array of the same \code{type()} as \code{x}.
+  For example, if \code{x} is an object representing an M x N matrix
+  of complex numbers (i.e. \code{type(x) == "complex"}), then
+  \code{extract_array(x, list(NULL, 2L))} must return the 2nd column
+  in \code{x} as an M x 1 \emph{ordinary} matrix of \code{type()}
+  \code{"complex"}.
 }
 
 \seealso{
   \itemize{
-    \item \code{\link{read_block}} to read a block of data from an
-          array-like object.
+    \item \code{S4Arrays::\link[S4Arrays]{type}} to get the type of the
+          elements of an array-like object.
 
     \item \link[base]{array} and \link[base]{data.frame} objects in base R.
 
