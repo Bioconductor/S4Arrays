@@ -153,7 +153,7 @@ downsample(x, ratio=1L)
     \item \code{\link{mapToGrid}} for mapping reference array positions to
           grid positions and vice-versa.
 
-    \item \link[base]{array} objects in base R.
+    \item \link[base]{array} and \link[base]{matrix} objects in base R.
   }
 }
 

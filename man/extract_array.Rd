@@ -57,6 +57,7 @@ extract_array(x, index)
 \arguments{
   \item{x}{
     An array-like object.
+
     This can be an ordinary array, a \link[SparseArray]{SparseArray}
     object from the \pkg{SparseArray} package, a \linkS4class{dgCMatrix}
     object from the \pkg{Matrix} package, a \link[DelayedArray]{DelayedArray}
@@ -91,7 +92,8 @@ extract_array(x, index)
   Also subscripts are allowed to contain duplicated indices so things like
   \code{extract_array(x, list(c(1:3, 3:1), 2L))} need to be supported.
 
-  Finally, methods don't need to handle the dimnames on \code{x}.
+  Finally, for maximum efficiency, \code{extract_array()} methods
+  should not try to do anything with the dimnames on \code{x}.
 }
 
 \value{
@@ -182,3 +184,4 @@ stopifnot(
 )
 }
 \keyword{internal}
+\keyword{array}

@@ -96,7 +96,7 @@ mapToRef(major, minor, grid, linear=FALSE)
           for converting back and forth between \emph{linear indices}
           and \emph{matrix indices}.
 
-    \item \link[base]{array} objects in base R.
+    \item \link[base]{array} and \link[base]{matrix} objects in base R.
   }
 }
 

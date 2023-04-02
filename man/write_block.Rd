@@ -52,7 +52,8 @@ write_block(sink, viewport, block)
     \item \link[SparseArray]{SparseArray} objects implemented in the
           \pkg{SparseArray} package.
 
-    \item \code{\link{read_block}}.
+    \item \code{\link{read_block}} to read a block of data from an
+          array-like object.
 
     \item \code{\link[DelayedArray]{blockApply}} and family, in the
           \pkg{DelayedArray} package, for convenient block processing
@@ -62,7 +63,7 @@ write_block(sink, viewport, block)
           \pkg{DelayedArray} package for more realistic \code{write_block}
           examples.
 
-    \item \link[base]{array} objects in base R.
+    \item \link[base]{array} and \link[base]{matrix} objects in base R.
   }
 }
 

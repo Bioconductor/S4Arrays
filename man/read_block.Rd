@@ -17,11 +17,16 @@
 
 \usage{
 read_block(x, viewport, as.sparse=NA)
+
+## Internal generic function used by read_block() when is_sparse(x)
+## is FALSE:
+read_block_as_dense(x, viewport)
 }
 
 \arguments{
   \item{x}{
     An array-like object.
+
     This can be an ordinary array, a \link[SparseArray]{SparseArray}
     object from the \pkg{SparseArray} package, a \linkS4class{dgCMatrix}
     object from the \pkg{Matrix} package, a \link[DelayedArray]{DelayedArray}
@@ -41,8 +46,8 @@ read_block(x, viewport, as.sparse=NA)
     If \code{TRUE}, it's returned as a \link[SparseArray]{SparseArray} object.
 
     If \code{NA} (the default), the block is returned as an
-    ordinary array if \code{is_sparse(x)} is \code{FALSE} and
-    as a \link[SparseArray]{SparseArray} object otherwise.
+    ordinary array if \code{\link{is_sparse}(x)} is \code{FALSE}
+    and as a \link[SparseArray]{SparseArray} object otherwise.
     In other words, using \code{as.sparse=NA} is equivalent
     to using \code{as.sparse=is_sparse(x)}.
     This preserves sparsity and is the most efficient way to read a block.
@@ -55,6 +60,23 @@ read_block(x, viewport, as.sparse=NA)
     is \code{"double"} or \code{"integer"}, and a lgCMatrix
     object if it's \code{"logical"}.
   }
+}
+
+\details{
+  \code{read_block()} delegates to 2 internal generic functions for
+  reading a block:
+  \itemize{
+    \item \code{read_block_as_dense}: used when \code{is_sparse(x)}
+          is \code{FALSE}.
+
+    \item \code{\link[SparseArray]{read_block_as_sparse}} (defined in
+          the \pkg{SparseArray} package): used when \code{is_sparse(x)}
+          is \code{TRUE}.
+  }
+
+  Note that these 2 internal generic functions are not meant to be
+  called directly by the end user. The end user should always call
+  the higher-level user-facing \code{read_block()} function instead.
 }
 
 \value{
@@ -79,22 +101,34 @@ read_block(x, viewport, as.sparse=NA)
   \itemize{
     \item \link{ArrayGrid} for ArrayGrid and ArrayViewport objects.
 
+    \item \code{\link{is_sparse}} to check whether an object uses a
+          sparse representation of the data or not.
+
     \item \link[SparseArray]{SparseArray} objects implemented in the
           \pkg{SparseArray} package.
 
-    \item \code{\link{write_block}}.
+    \item \code{S4Arrays::\link[S4Arrays]{type}} to get the type of the
+          elements of an array-like object.
+
+    \item The \code{\link[SparseArray]{read_block_as_sparse}} internal
+          generic function defined in the \pkg{SparseArray} package
+          and used by \code{read_block()} when \code{is_sparse(x)}
+          is \code{TRUE}.
+
+    \item \code{\link{write_block}} to write a block of data to an
+          array-like object.
 
     \item \code{\link[DelayedArray]{blockApply}} and family, in the
           \pkg{DelayedArray} package, for convenient block processing
           of an array-like object.
 
-    \item \link[Matrix]{dgCMatrix-class} and \link[Matrix]{lgCMatrix-class}
-          objects in the \pkg{Matrix} package.
+    \item \linkS4class{dgCMatrix} and \linkS4class{lgCMatrix} objects
+          implemented in the \pkg{Matrix} package.
 
     \item \link[DelayedArray]{DelayedArray} objects implemented in the
           \pkg{DelayedArray} package.
 
-    \item \link[base]{array} objects in base R.
+    \item \link[base]{array} and \link[base]{matrix} objects in base R.
   }
 }
 
@@ -222,4 +256,5 @@ stopifnot(all.equal(sum(block_sums), sum(a4)))
 ## See '?write_block' for examples that use the read_block/write_block
 ## combo.
 }
+\keyword{array}
 \keyword{methods}
