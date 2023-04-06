@@ -20,8 +20,8 @@
 \title{Array objects}
 
 \description{
-  Array is a virtual class intended to be extended by concrete subclasses
-  with an array-like semantic.
+  Array is a virtual class with no slots intended to be extended by
+  concrete subclasses with an array-like semantic.
 }
 
 \details{

@@ -19,12 +19,13 @@ output:
 `r Biocpkg("S4Arrays")` is an infrastructure package that provides a
 foundation for implementing _array-like_ containers in Bioconductor,
 that is, containers that mimic the behavior of ordinary matrices or
-arrays in R. It is not intended to be used directly by the end user.
+arrays in R. The package is not intended to be used directly by the
+end user.
 
 # The Array virtual class
 
-At the center of this foundation is the Array virtual class whose
-purpose is to be extended by other S4 classes that wish to implement
+At the center of this foundation is the Array virtual class with no slots,
+whose purpose is to be extended by other S4 classes that wish to implement
 a container with an array-like semantic. Examples of such classes are:
 
 - The SparseArray class defined in the `r Biocpkg("SparseArray")` package.
