@@ -30,7 +30,7 @@ colsum(x, group, reorder=TRUE, ...)
 
 \arguments{
   \item{x}{
-    A matrix-like object.
+    A numeric matrix-like object.
   }
   \item{group, reorder, ...}{
     See \code{?base::\link[base]{rowsum}} for a description of
@@ -43,7 +43,7 @@ colsum(x, group, reorder=TRUE, ...)
   by the default method.
 
   The default \code{colsum} method performs
-  \code{t(rowsum(t(x), group, reorder=reorder, ...))}.
+  \code{rowsum(t(x), group, reorder=reorder, ...)}.
 
   Specific methods defined in Bioconductor packages should
   behave as consistently as possible with the default methods.
