@@ -191,6 +191,44 @@ Mindex2Lindex(Mindex, dim, use.names=FALSE, as.integer=FALSE)
 }
 
 \examples{
+## ---------------------------------------------------------------------
+## M-index vs L-index
+## ---------------------------------------------------------------------
+
+a <- array(101:124, 4:2)
+
+## The same "array selection" can be represented by an M-index or
+## an L-index. Here we use both representations to select the same
+## 4 array elements:
+Mindex <- rbind(c(3, 2, 1),
+                c(2, 1, 1),
+                c(4, 3, 2),
+                c(2, 1, 1))
+a[Mindex]
+
+Lindex <- c(7, 2, 24, 2)
+a[Lindex]
+
+## Sanity check:
+stopifnot(identical(a[Mindex], a[Lindex]))
+
+## ---------------------------------------------------------------------
+## Convert back and forth between M-index and L-index representation
+## ---------------------------------------------------------------------
+
+Mindex2Lindex(Mindex, dim(a))  # L-index
+
+Lindex2Mindex(Lindex, dim(a))  # M-index
+
+## Sanity checks:
+storage.mode(Mindex) <- storage.mode(Lindex) <- "integer"
+stopifnot(identical(Mindex2Lindex(Mindex, dim(a)), Lindex))
+stopifnot(identical(Lindex2Mindex(Lindex, dim(a)), Mindex))
+
+## ---------------------------------------------------------------------
+## More Mindex2Lindex() examples
+## ---------------------------------------------------------------------
+
 dim <- 4:2
 Mindex2Lindex(c(4, 3, 1), dim)
 Mindex2Lindex(c(4, 3, 2), dim)

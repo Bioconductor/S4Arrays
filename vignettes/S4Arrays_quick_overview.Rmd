@@ -3,7 +3,7 @@ title: "A quick overview of the _S4Arrays_ package"
 author:
 - name: Hervé Pagès
   affiliation: Fred Hutchinson Cancer Research Center, Seattle, WA
-date: "Compiled `r doc_date()`;  Modified 23 March 2023"
+date: "Compiled `r doc_date()`;  Modified 17 April 2023"
 package: S4Arrays
 vignette: |
   %\VignetteIndexEntry{A quick overview of the S4Arrays package}
@@ -17,16 +17,32 @@ output:
 # Introduction
 
 `r Biocpkg("S4Arrays")` is an infrastructure package that provides a
-foundation for implementing _array-like_ containers in Bioconductor,
-that is, containers that mimic the behavior of ordinary matrices or
-arrays in R. The package is not intended to be used directly by the
-end user.
+framework intended to facilitate implementation of _array-like_ containers
+in other Bioconductor packages. _Array-like_ containers are S4 objects that
+mimic the behavior of ordinary matrices or arrays in R. Please note that
+the package is not intended to be used directly by the end user.
+
+
+# Installation
+
+Like any other Bioconductor package, `r Biocpkg("S4Arrays")` should always
+be installed with `BiocManager::install()`:
+```{r, eval=FALSE}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("S4Arrays")
+```
+However, note that `r Biocpkg("S4Arrays")` will usually get automatically
+installed as a dependency of other Bioconductor packages, so explicitly
+installing the package is usually not needed.
+
 
 # The Array virtual class
 
-At the center of this foundation is the Array virtual class with no slots,
-whose purpose is to be extended by other S4 classes that wish to implement
-a container with an array-like semantic. Examples of such classes are:
+At the center of the framework provided by the `r Biocpkg("S4Arrays")`
+package is the Array virtual class whose only purpose is to be extended
+by other S4 classes that wish to implement a container with an array-like
+semantic. Examples of such classes are:
 
 - The SparseArray class defined in the `r Biocpkg("SparseArray")` package.
 
@@ -43,6 +59,7 @@ library(S4Arrays)
 showClass("Array")
 ```
 
+
 # The extract_array() generic function
 
 The `r Biocpkg("S4Arrays")` package also introduces the `extract_array()`
@@ -56,10 +73,13 @@ DelayedArray object.
 Please refer to the man page of the `extract_array()` function for more
 information: `?extract_array`
 
+
 # Block processing of array-like objects
 
 The `r Biocpkg("S4Arrays")` package provides a framework that facilitates
-block processing of array-like objects. This framework consists of:
+block processing of array-like objects. Note that block processing is
+typically used on _on-disk_ objects, that is, on objects where the array
+data is stored on disk. This framework consists of:
 
 - ArrayGrid and ArrayViewport objects for representing grids and viewports
   on array-like objects. See `?ArrayGrid` for more information.
@@ -70,6 +90,7 @@ block processing of array-like objects. This framework consists of:
 - The `mapToGrid()` and `mapToRef()` functions to map a set of reference
   array positions to grid positions and vice-versa. See `?mapToGrid` for
   more information.
+
 
 # Other functionalities
 
@@ -89,6 +110,7 @@ the following functionalities:
 - The `arbind()` and `acbind()` generic functions for binding array-like
   objects with an arbitrary number of dimensions along their rows or
   columns. See `?arbind` for more information.
+
 
 # Session information
 
