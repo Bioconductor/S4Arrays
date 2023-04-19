@@ -20,6 +20,7 @@ static const R_CallMethodDef callMethods[] = {
 void R_init_S4Arrays(DllInfo *info)
 {
 	R_registerRoutines(info, NULL, callMethods, NULL, NULL);
+	R_useDynamicSymbols(info, 0);
 	return;
 }
 
