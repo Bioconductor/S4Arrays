@@ -43,16 +43,16 @@ read_block_as_dense(x, viewport)
     If \code{FALSE}, the block is returned as an ordinary
     array (a.k.a. dense array).
 
-    If \code{TRUE}, it's returned as a \link[SparseArray]{SparseArray} object.
+    If \code{TRUE}, it's returned as a \link[DelayedArray]{SparseArraySeed} object.
 
     If \code{NA} (the default), the block is returned as an
     ordinary array if \code{\link{is_sparse}(x)} is \code{FALSE}
-    and as a \link[SparseArray]{SparseArray} object otherwise.
+    and as a \link[DelayedArray]{SparseArraySeed} object otherwise.
     In other words, using \code{as.sparse=NA} is equivalent
     to using \code{as.sparse=is_sparse(x)}.
     This preserves sparsity and is the most efficient way to read a block.
 
-    Note that when returned as a 2D \link[SparseArray]{SparseArray} object
+    Note that when returned as a 2D \link[DelayedArray]{SparseArraySeed} object
     with numeric or logical data, a block can easily and efficiently
     be coerced to a \link[Matrix]{sparseMatrix} derivative from the
     \pkg{Matrix} package with \code{as(block, "sparseMatrix")}.
@@ -69,8 +69,8 @@ read_block_as_dense(x, viewport)
     \item \code{read_block_as_dense}: used when \code{is_sparse(x)}
           is \code{FALSE}.
 
-    \item \code{\link[SparseArray]{read_block_as_sparse}} (defined in
-          the \pkg{SparseArray} package): used when \code{is_sparse(x)}
+    \item \code{\link[DelayedArray]{read_sparse_block}} (defined in
+          the \pkg{DelayedArray} package): used when \code{is_sparse(x)}
           is \code{TRUE}.
   }
 
@@ -84,7 +84,7 @@ read_block_as_dense(x, viewport)
   block delimited by the specified viewport.
 
   The block of data is returned either as an ordinary (dense) array
-  or as a \link[SparseArray]{SparseArray} object from the \pkg{SparseArray}
+  or as a \link[DelayedArray]{SparseArraySeed} object from the \pkg{DelayedArray}
   package.
 
   Note that the returned block of data is guaranteed to have the same type
@@ -104,14 +104,14 @@ read_block_as_dense(x, viewport)
     \item \code{\link{is_sparse}} to check whether an object uses a
           sparse representation of the data or not.
 
-    \item \link[SparseArray]{SparseArray} objects implemented in the
-          \pkg{SparseArray} package.
+    \item \link[DelayedArray]{SparseArraySeed} objects implemented in the
+          \pkg{DelayedArray} package.
 
     \item \code{S4Arrays::\link[S4Arrays]{type}} to get the type of the
           elements of an array-like object.
 
-    \item The \code{\link[SparseArray]{read_block_as_sparse}} internal
-          generic function defined in the \pkg{SparseArray} package
+    \item The \code{\link[DelayedArray]{read_sparse_block}} internal
+          generic function defined in the \pkg{DelayedArray} package
           and used by \code{read_block()} when \code{is_sparse(x)}
           is \code{TRUE}.
 
@@ -157,13 +157,13 @@ block1
 block1b <- read_block(m1, viewport1, as.sparse=TRUE)
 block1b
 is_sparse(block1b)  # TRUE
-class(block1b)  # a SparseArray object
+class(block1b)  # a SparseArraySeed object
 
 ## Sanity checks:
 stopifnot(identical(type(m1), type(block1)))
 stopifnot(identical(dim(viewport1), dim(block1)))
 stopifnot(identical(m1[3:6, 2:4, drop=FALSE], block1))
-stopifnot(is(block1b, "SparseArray"))
+stopifnot(is(block1b, "SparseArraySeed"))
 stopifnot(identical(type(m1), type(block1b)))
 stopifnot(identical(dim(viewport1), dim(block1b)))
 stopifnot(identical(block1, as.array(block1b)))
@@ -185,7 +185,7 @@ viewport2
 block2 <- read_block(m2, viewport2)
 block2
 is_sparse(block2)  # TRUE
-class(block2)  # a SparseArray object
+class(block2)  # a SparseArraySeed object
 
 ## Use 'as.sparse=FALSE' to force read_block() to return an ordinary
 ## matrix or array:
@@ -194,7 +194,7 @@ block2b
 as(block2b, "sparseMatrix")
 
 ## Sanity checks:
-stopifnot(is(block2, "SparseArray"))
+stopifnot(is(block2, "SparseArraySeed"))
 stopifnot(identical(type(m2), type(block2)))
 stopifnot(identical(dim(viewport2), dim(block2)))
 stopifnot(identical(type(m2), type(block2b)))

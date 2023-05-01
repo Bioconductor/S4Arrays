@@ -70,18 +70,18 @@
          ## Non-normalized Nindex:
 
          Nindex <- list(-3, NULL, 1)
-         Nindex <- S4Arrays:::normalizeNindex(Nindex, a)
+         Nindex <- S4Arrays:::normalize_Nindex(Nindex, a)
          ## Same as a[-3, , 1, drop=FALSE]:
          S4Arrays:::subset_by_Nindex(a, Nindex)
 
          Nindex <- list(IRanges(2, 4), NULL, 1)
-         Nindex <- S4Arrays:::normalizeNindex(Nindex, a)
+         Nindex <- S4Arrays:::normalize_Nindex(Nindex, a)
          ## Same as a[2:4, , 1, drop=FALSE]:
          S4Arrays:::subset_by_Nindex(a, Nindex)
 
          dimnames(a)[[1]] <- LETTERS[1:4]
          Nindex <- list(c("D", "B"), NULL, 1)
-         Nindex <- S4Arrays:::normalizeNindex(Nindex, a)
+         Nindex <- S4Arrays:::normalize_Nindex(Nindex, a)
          ## Same as a[c("D", "B"), , 1, drop=FALSE]:
          S4Arrays:::subset_by_Nindex(a, Nindex)
 */

@@ -42,8 +42,8 @@ colsum(x, group, reorder=TRUE, ...)
   See \code{?base::\link[base]{rowsum}} for the value returned
   by the default method.
 
-  The default \code{colsum} method performs
-  \code{rowsum(t(x), group, reorder=reorder, ...)}.
+  The default \code{colsum()} method simply does
+  \code{t(rowsum(t(x), group, reorder=reorder, ...))}.
 
   Specific methods defined in Bioconductor packages should
   behave as consistently as possible with the default methods.
