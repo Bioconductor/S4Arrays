@@ -92,8 +92,8 @@ setGeneric("extract_array", signature="x",
 )
 
 ### subset_by_Nindex() uses `[` internally to perform the subsetting, so
-### this default extract_sparse_array() method will work on any object 'x'
-### that supports `[` and as.array().
+### this default extract_array() method will work on any object 'x' that
+### supports `[` and as.array().
 setMethod("extract_array", "ANY",
     function(x, index)
     {

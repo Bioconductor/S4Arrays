@@ -17,7 +17,7 @@ setGeneric("colsum", signature="x",
 setMethod("colsum", "ANY",
     function(x, group, reorder=TRUE, ...)
     {
-        rowsum(t(x), group, reorder=reorder, ...)
+        t(rowsum(t(x), group, reorder=reorder, ...))
     }
 )
 
