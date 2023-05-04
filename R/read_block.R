@@ -55,7 +55,7 @@ setMethod("read_block_as_dense", "ANY",
 ### Provides the old read_block() behavior (used in BioC <= 3.17) where
 ### a sparse block gets returned as a SparseArraySeed object from the
 ### DelayedArray package.
-.read_block_OLD <- function(x, viewport, as.sparse=NA)
+.OLD_read_block <- function(x, viewport, as.sparse=NA)
 {
     if (is_sparse(x)) {
         .load_DelayedArray_for_read_block("on a ", class(x), " object ")
@@ -85,7 +85,7 @@ setMethod("read_block_as_dense", "ANY",
 ### new SparseArray package. Note that this new behavior makes use of
 ### the new SparseArray::read_block_as_sparse() generic (replaces
 ### DelayedArray::read_sparse_block()).
-.read_block_NEW <- function(x, viewport, as.sparse=NA)
+.NEW_read_block <- function(x, viewport, as.sparse=NA)
 {
     if (is_sparse(x)) {
         .load_SparseArray_for_read_block("on a ", class(x), " object ")
@@ -131,17 +131,13 @@ read_block <- function(x, viewport, as.sparse=NA)
               length(as.sparse) == 1L)
 
     ## IMPORTANT NOTE: We temporarily preserve the old read_block() behavior
-    ## for backward compatibility. See comments for .read_block_OLD()
-    ## and .read_block_NEW() above for additional details.
+    ## for backward compatibility. See comments for .OLD_read_block()
+    ## and .NEW_read_block() above for additional details.
     ## TODO: In BioC 3.18, the plan is to switch to the new behavior, and
-    ## to update man/read_block.Rd accordingly. But first DelayedArray
-    ## must depend on SparseArray, and also a bunch of
-    ## SparseArray::read_block_as_sparse() methods must be implemented
-    ## as replacement for all the DelayedArray::extract_sparse_array()
-    ## methods that are currently defined in DelayedArray and its rev deps.
-    ## See TODO file in DelayedArray.
-    ans <- .read_block_OLD(x, viewport, as.sparse=as.sparse)
-    #ans <- .read_block_NEW(x, viewport, as.sparse=as.sparse)
+    ## to update man/read_block.Rd accordingly. See TODO file in DelayedArray
+    ## for the details.
+    ans <- .OLD_read_block(x, viewport, as.sparse=as.sparse)
+    #ans <- .NEW_read_block(x, viewport, as.sparse=as.sparse)
 
     ## Individual read_block_as_dense() and read_block_as_sparse() methods
     ## are not expected to propagate the dimnames so we take care of this
