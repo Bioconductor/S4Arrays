@@ -87,7 +87,7 @@ make_dim_tuner_from_old2new_dims <- function(old_dim, new_dim, x_class)
             op <- ifelse(d > 0L, 1L, -1L)
             ans[offsets[[k]] + seq_len(abs(d))] <- rep.int(op, abs(d))
         }
-	ans
+        ans
     }
 
     compute_dim_tuner(effdim_idx1, effdim_idx2)
