@@ -97,7 +97,7 @@ export(
 exportMethods(
     ## Methods for generics defined in the base package:
     length,
-    dim, dimnames,
+    dim, "dim<-", dimnames,
     drop,
     "[", "[<-",
     "[[",
@@ -159,6 +159,9 @@ export(
 
     ## abind.R:
     arbind, acbind,
+
+    ## dim-tuning-utils.R:
+    tune_Array_dims,
 
     ## ArrayGrid-class.R:
     refdim, maxlength, downsample,
