@@ -1,5 +1,5 @@
 #ifndef _DIM_TUNING_UTILS_H_
-#define	_DIM_TUNING_UTILS_H_	
+#define	_DIM_TUNING_UTILS_H_
 
 #include <Rdefines.h>
 
