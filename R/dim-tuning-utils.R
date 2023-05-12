@@ -2,29 +2,15 @@
 ### Dim tuning utilities
 ### -------------------------------------------------------------------------
 ###
-### Dim tuning is the act of adding and/or dropping ineffective dimensions
-### to/from an array-like object. The exact actions to perform on the
-### dimensions of the object are described via the 'dim_tuner' argument.
-### See src/dim_tuning_utils.c for more information.
+### "Dim tuning" is the act of adding and/or dropping "ineffective
+### dimensions" to/from an array-like object, typically via the drop()
+### and/or dim() setter. The exact transformation to operate on the vector
+### of dimensions of the object can be precisely described by supplying
+### a 'dim_tuner' vector.
+### See src/dim_tuning_utils.c for additional information.
 
 
-### NOT exported but used in the SparseArray package!
-tune_dims <- function(dim, dim_tuner)
-{
-    stopifnot(is.integer(dim),
-              is.integer(dim_tuner))
-    .Call2("C_tune_dims", dim, dim_tuner, PACKAGE="S4Arrays")
-}
-
-### NOT exported but used in the SparseArray package!
-tune_dimnames <- function(dimnames, dim_tuner)
-{
-    stopifnot(is.null(dimnames) || is.list(dimnames),
-              is.integer(dim_tuner))
-    .Call2("C_tune_dimnames", dimnames, dim_tuner, PACKAGE="S4Arrays")
-}
-
-### NOT exported but used in the SparseArray and DelayedArray packages!
+### NOT exported but used in the DelayedArray packages!
 normalize_dim_replacement_value <- function(value, x_dim)
 {
     if (is.null(value))
@@ -46,8 +32,80 @@ normalize_dim_replacement_value <- function(value, x_dim)
     value
 }
 
-### NOT exported but used in the SparseArray package!
-make_dim_tuner_from_old2new_dims <- function(old_dim, new_dim, x_class)
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### The tune_Array_dims() low-level generic
+###
+### Array derivatives (e.g. SparseArray or DelayedArray objects) only need
+### to implement a tune_Array_dims() method to have drop() and the dim()
+### setter work out-of-the-box.
+###
+### Note that a "dim tuning" operation does NOT change the length of the
+### object (which is prod(dim(x))) or alter its content, and should always
+### be reversible (except when it drops ineffective dimensions with dimnames
+### on them). To revert a "dim tuning" operation, simply tune again
+### with '-dim_tuner' (i.e. with minus 'dim_tuner'). More precisely, for
+### tune_Array_dims(), 'x2' should always be identical to 'x' here:
+###
+###     y <- tune_Array_dims(x, dim_tuner)
+###     x2 <- tune_Array_dims(y, -dim_tuner)
+###     identical(x2, x)  # should be TRUE
+###
+### This should be the case for any array-like object 'x' (with no dimnames
+### on its ineffective dimensions) and any 'dim_tuner' vector compatible
+### with 'dim(x)'.
+
+setGeneric("tune_Array_dims", signature="x",
+    function(x, dim_tuner) standardGeneric("tune_Array_dims")
+)
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### tune_dims() and tune_dimnames()
+###
+### NOT exported but used by the tune_Array_dims() method for SVT_SparseArray
+### objects defined in the SparseArray package.
+
+tune_dims <- function(dim, dim_tuner)
+{
+    stopifnot(is.integer(dim),
+              is.integer(dim_tuner))
+    .Call2("C_tune_dims", dim, dim_tuner, PACKAGE="S4Arrays")
+}
+
+tune_dimnames <- function(dimnames, dim_tuner)
+{
+    stopifnot(is.null(dimnames) || is.list(dimnames),
+              is.integer(dim_tuner))
+    .Call2("C_tune_dimnames", dimnames, dim_tuner, PACKAGE="S4Arrays")
+}
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### drop() method
+###
+
+### Expected to be semantically equivalent to 'drop(as.array(x))'.
+### Will work out-of-the-box on any Array derivative that supports
+### tune_Array_dims() and as.array(). Note that the latter is used
+### only if 'x' has at most one effective dimension.
+.drop_Array <- function(x)
+{
+    is_effective <- dim(x) != 1L
+    if (sum(is_effective) <= 1L)
+        return(drop(as.array(x)))  # ordinary vector
+    dim_tuner <- -as.integer(!is_effective)
+    tune_Array_dims(x, dim_tuner)
+}
+
+setMethod("drop", "Array", .drop_Array)
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### dim() setter
+###
+
+.diff_dims <- function(old_dim, new_dim, x_class)
 {
     stopifnot(is.integer(old_dim), is.integer(new_dim))
 
@@ -92,4 +150,16 @@ make_dim_tuner_from_old2new_dims <- function(old_dim, new_dim, x_class)
 
     compute_dim_tuner(effdim_idx1, effdim_idx2)
 }
+
+.set_Array_dim <- function(x, value)
+{
+    x_dim <- dim(x)
+    value <- normalize_dim_replacement_value(value, x_dim)
+    dim_tuner <- .diff_dims(x_dim, value, class(x))
+    ans <- tune_Array_dims(x, dim_tuner)
+    stopifnot(identical(dim(ans), value))  # sanity check
+    ans
+}
+
+setReplaceMethod("dim", "Array", .set_Array_dim)
 
