@@ -8,14 +8,14 @@
 
 \alias{arbind}
 \alias{acbind}
-\alias{arbind,array-method}
-\alias{acbind,array-method}
+\alias{arbind,ANY-method}
+\alias{acbind,ANY-method}
 
 
 \title{Combine multidimensional array-like objects}
 
 \description{
-  Combine multidimensional array-like objects.
+  Bind multidimensional array-like objects along any dimension.
 
   NOTE: This man page is for the \code{abind}
   \emph{S4 generic function} defined in the \pkg{S4Arrays} package.
@@ -26,7 +26,7 @@
 }
 
 \usage{
-## Bind array-like objects along an arbitrary dimension:
+## Bind array-like objects along any dimension:
 abind(..., along=NULL, rev.along=NULL)
 
 ## Bind array-like objects along their first or second dimension:

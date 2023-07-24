@@ -211,9 +211,9 @@ add_missing_dims <- function(objects, ndim)
         function(object) {
             object_dim <- dim(object)
             object_ndim <- length(object_dim)
-            if (object_ndim < ndim)
-                dim(object) <- c(object_dim, rep.int(1L, ndim - object_ndim))
-            object
+            if (object_ndim >= ndim)
+                return(object)
+            set_dim(object, c(object_dim, rep.int(1L, ndim - object_ndim)))
         }
     )
 }
@@ -300,6 +300,6 @@ setMethod("abind", "ANY", .default_abind)
 setGeneric("arbind", function(...) standardGeneric("arbind"))
 setGeneric("acbind", function(...) standardGeneric("acbind"))
 
-setMethod("arbind", "array", function(...) simple_abind(..., along=1L))
-setMethod("acbind", "array", function(...) simple_abind(..., along=2L))
+setMethod("arbind", "ANY", function(...) abind(..., along=1L))
+setMethod("acbind", "ANY", function(...) abind(..., along=2L))
 
