@@ -108,13 +108,16 @@ test_that("acbind() on arrays", {
     }
     for (k in seq_len(dim(current)[[3L]])) check_2D_slice(k)
 
-    ## acbind() is not supported on 1D arrays
-    expected_msg <- "objects to bind must have at least 2 dimensions"
+    ## on 1D arrays
     a1 <- array(11:15, 5, dimnames=list(LETTERS[1:5]))
-    expect_error(acbind(a1), expected_msg)          # unary op
-    b1 <- array(letters[1:3])
-    expect_error(acbind(a1, b1), expected_msg)      # binary op
-    expect_error(acbind(b1, a1), expected_msg)      # binary op
-    expect_error(acbind(a1, b1, a1), expected_msg)  # ternary op
+    expected <- S4Arrays:::set_dim(a1, c(5, 1))
+    expect_identical(acbind(a1), expected)          # unary op
+    b1 <- array(letters[1:5])
+    expected <- cbind(a1, b1, deparse.level=0)
+    expect_identical(acbind(a1, b1), expected)      # binary op
+    expected <- cbind(b1, a1, deparse.level=0)
+    expect_identical(acbind(b1, a1), expected)      # binary op
+    expected <- cbind(a1, b1, a1, deparse.level=0)
+    expect_identical(acbind(a1, b1, a1), expected)  # ternary op
 })
 

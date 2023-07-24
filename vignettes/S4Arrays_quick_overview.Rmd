@@ -3,7 +3,7 @@ title: "A quick overview of the _S4Arrays_ package"
 author:
 - name: Hervé Pagès
   affiliation: Fred Hutchinson Cancer Research Center, Seattle, WA
-date: "Compiled `r doc_date()`;  Modified 17 April 2023"
+date: "Compiled `r doc_date()`;  Modified 24 July 2023"
 package: S4Arrays
 vignette: |
   %\VignetteIndexEntry{A quick overview of the S4Arrays package}
@@ -107,9 +107,8 @@ the following functionalities:
 - `aperm2()`: an extension of `base::aperm()` that allows dropping and/or
   adding _ineffective dimensions_. See `?aperm2` for more information.
 
-- The `arbind()` and `acbind()` generic functions for binding array-like
-  objects with an arbitrary number of dimensions along their rows or
-  columns. See `?arbind` for more information.
+- The `abind()` generic function for binding multidimensional array-like
+  objects along any dimension. See `?abind` for more information.
 
 
 # Session information
