@@ -11,12 +11,12 @@ Description: The S4Arrays package defines the Array virtual class to be
 biocViews: Infrastructure, DataRepresentation
 URL: https://bioconductor.org/packages/S4Arrays
 BugReports: https://github.com/Bioconductor/S4Arrays/issues
-Version: 1.0.4
+Version: 1.0.5
 License: Artistic-2.0
 Encoding: UTF-8
 Authors@R: person("Hervé", "Pagès", role=c("aut", "cre"),
 		  email="hpages.on.github@gmail.com")
-Depends: R (>= 4.3.0), methods, Matrix,
+Depends: R (>= 4.3.0), methods, Matrix, abind,
 	BiocGenerics (>= 0.45.2), S4Vectors, IRanges
 Imports: stats, crayon
 LinkingTo: S4Vectors
