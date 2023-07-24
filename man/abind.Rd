@@ -12,10 +12,10 @@
 \alias{acbind,array-method}
 
 
-\title{Combine multi-dimensional array-like objects}
+\title{Combine multidimensional array-like objects}
 
 \description{
-  Combine multi-dimensional array-like objects.
+  Combine multidimensional array-like objects.
 
   NOTE: This man page is for the \code{abind}
   \emph{S4 generic function} defined in the \pkg{S4Arrays} package.
