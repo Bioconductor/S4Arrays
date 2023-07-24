@@ -5,6 +5,7 @@ importFrom(stats, setNames)
 importClassFrom(Matrix, dgCMatrix, lgCMatrix, dgRMatrix, lgRMatrix)
 
 importFrom(crayon, make_style)
+importFrom(abind, abind)
 
 import(BiocGenerics)
 import(S4Vectors)
@@ -158,7 +159,7 @@ export(
     rowsum, colsum,
 
     ## abind.R:
-    arbind, acbind,
+    abind, arbind, acbind,
 
     ## dim-tuning-utils.R:
     tune_Array_dims,
@@ -185,7 +186,7 @@ export(
 ### Same list as above.
 exportMethods(
     colsum,          # no rowsum() method defined in S4Arrays!
-    arbind, acbind,
+    abind, arbind, acbind,
     refdim, maxlength, downsample,
     mapToGrid, mapToRef,
     extract_array,
