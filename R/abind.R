@@ -20,13 +20,14 @@
 ### a validity method.
 get_dims_to_bind <- function(objects, along)
 {
+    stopifnot(is.list(objects))
     along <- .normarg_along(along)
     dims <- lapply(objects, dim)
     ndims <- lengths(dims)
-    ndim <- ndims[[1L]]
-    if (ndim < along)
+    if (any(ndims < along))
         stop(wmsg("the array-like objects to bind must have at least ",
                   along, " dimensions for this binding operation"))
+    ndim <- ndims[[1L]]
     if (!all(ndims == ndim))
         return(paste0("all the objects to bind must have ",
                       "the same number of dimensions"))
@@ -40,6 +41,22 @@ get_dims_to_bind <- function(objects, along)
     dims
 }
 
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### combine_dims_along() and combine_dimnames_along()
+###
+### Compute the expected dims and dimnames of abind()'s result.
+### Both combine_dims_along() and combine_dimnames_along() generalize what
+### rbind/cbind do in the 2D case to the multidimensional case.
+###
+### A NOTE ABOUT CRAN PACKAGE abind 1.4-5: By default, abind::abind() does
+### NOT follow the same rules as rbind() and cbind() for propagation of the
+### dimnames. This is despite its man page (?abind::abind) claiming that it
+### does (see documentation of the 'use.first.dimnames' argument), when in
+### fact it has it backward! Very misleading!
+### The abind0() function defined below in this file is a simple wrapper
+### around abind::abind() that fixes that.
+
 ### Combine the dims the rbind/cbind way.
 combine_dims_along <- function(dims, along)
 {
@@ -51,13 +68,8 @@ combine_dims_along <- function(dims, along)
     ans_dim
 }
 
-
-### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-### Combine the dimnames of a list of array-like objects
-###
-
 ### Assume all the arrays in 'objects' have the same number of dimensions.
-combine_dimnames <- function(objects)
+.combine_dimnames <- function(objects)
 {
     lapply(seq_along(dim(objects[[1L]])),
         function(n) {
@@ -75,7 +87,7 @@ combine_dimnames_along <- function(objects, dims, along)
 {
     stopifnot(is.matrix(dims),
               isSingleInteger(along), along >= 1L, along <= nrow(dims))
-    dimnames <- combine_dimnames(objects)
+    dimnames <- .combine_dimnames(objects)
     along_names <- lapply(objects, function(object) dimnames(object)[[along]])
     along_names_lens <- lengths(along_names)
     if (any(along_names_lens != 0L)) {
@@ -155,7 +167,8 @@ simple_abind <- function(..., along)
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### simple_abind2()
 ###
-### A wrapper to simple_abind() that adds the following capabilities:
+### A wrapper to simple_abind() that adds some of the capabilities originally
+### found in abind::abind():
 ### 1. Not all arrays (supplied via 'objects') are required to have the same
 ###    number of dimensions. If N is the number of dimensions of the arrays
 ###    with the most dimensions, then artifical (a.k.a. ineffective) dimensions
@@ -200,8 +213,8 @@ get_along <- function(N, along=NULL, rev.along=NULL)
     along
 }
 
-### 'ndim' is expected to be >= number of dimensions of the arrays with the
-### most dimensions.
+### 'ndim' is expected to be >= number of dimensions of the arrays with
+### the most dimensions.
 ### To be re-used by other abind() methods e.g. by the method for SparseArray
 ### objects.
 add_missing_dims <- function(objects, ndim)
@@ -234,6 +247,19 @@ simple_abind2 <- function(objects, along=NULL, rev.along=NULL)
 
 
 ### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### abind0()
+###
+### A simple wrapper around abind::abind() that uses 'use.first.dimnames=TRUE'
+### by default to correct mishandling of the dimnames.
+### See "A NOTE ABOUT CRAN PACKAGE abind 1.4-5" above in this file.
+
+abind0 <- function(..., use.first.dimnames=TRUE)
+{
+    abind::abind(..., use.first.dimnames=use.first.dimnames)
+}
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 ### The abind() generic and default method
 ###
 
@@ -254,37 +280,104 @@ setGeneric("abind", signature="...",
 {
     objects <- list(...)
     objects[.ORGINAL_ABIND_ARGNAMES] <- NULL
-    unname(objects)
+    unname(S4Vectors:::delete_NULLs(objects))
 }
 
-### Return the list of supplied arguments that are "recognized" as belonging
-### to the original abind::abind().
-.extract_recognized_args <- function(...)
+### Return the list of supplied arguments that belong to the original
+### abind::abind() interface.
+.extract_crazy_args <- function(...)
 {
     dots <- list(...)
     dots[intersect(names(dots), .ORGINAL_ABIND_ARGNAMES)]
 }
 
+### One object in 'objects' **must** be an Array derivative, but not all!
+### Try to re-dispatch on an existing abind() method defined for some Array
+### derivative. If such method is found, then it should return an Array
+### derivative.
+.abind_as_Array <- function(objects, is_Array, is_array,
+                            along=NULL, rev.along=NULL)
+{
+    stopifnot(is.list(objects),
+              is.logical(is_Array), length(is_Array) == length(objects),
+              is.logical(is_array), length(is_array) == length(objects))
+    if (!all(is_Array | is_array))
+        stop(wmsg("all objects passed to abind() must be array-like ",
+                  "objects when some of them are Array derivatives"))
+
+    ## Avoid infinite recursion if re-dispatch fails to find an abind()
+    ## method defined for some Array derivatives.
+    if (all(is_Array)) {
+        x1 <- objects[[1L]]
+        stop(wmsg("no abind() method found for ", class(x1)[[1L]], " objects"))
+    }
+
+    ## Coerce all arrays or matrices to the class of the first Array
+    ## derivative found in 'objects'.
+    x1 <- objects[[which(is_Array)[[1L]]]]
+    objects[is_array] <- lapply(objects[is_array], S4Vectors:::coerce2, x1)
+
+    ## Call the abind() generic in the hope that method dispatch will find
+    ## a method defined for objects of class 'class(x1)'.
+    do.call(S4Arrays::abind, c(objects, list(along=along, rev.along=rev.along)))
+}
+
+### .default_abind() tries to dispatch on the following functions, in this
+### order:
+### 1. Dispatch on the abind() generic: If the objects to bind are supplied
+###    in a list then .default_abind() will dispatch on the abind() generic.
+###    However this time the objects are passed to abind() as individual
+###    arguments. This gives the abind() generic the opportunity to dispatch
+###    on the appropriate S4 method (e.g. on the abind() method for SparseArray
+###    objects if all the objects are SparseArray derivatives). If no specific
+###    S4 method is found then .default_abind() will be called again but note
+###    that infinite recursion is naturally avoided.
+### 2. Dispatch on .abind_as_Array(): If at least one of the objects to
+###    bind is an Array derivative then .default_abind() will dispatch
+###    on .abind_as_Array().
+### 3. Dispatch on simple_abind2(): When all the objects to bind are ordinary
+###    arrays (including matrices) and no "crazy arguments" are supplied,
+###    then .default_abind() will dispatch on simple_abind2(). Note that
+###    a "crazy argument" is any formal argument located after the ellipsis
+###    in abind::abind() except 'along' and 'rev.along'.
+### 4. Finally, if all the above fails, then dispatch on abind::abind()
+###    wrapper abind0().
 .default_abind <- function(..., along=NULL, rev.along=NULL)
 {
     objects <- .extract_objects(...)
-    recognized_args <- c(list(along=along, rev.along=rev.along),
-                         .extract_recognized_args(...))
-    ## If all supplied objects are arrays (or matrices) **and** no
-    ## arguments other than 'along' and 'rev.along' were supplied, then
-    ## we call simple_abind2(). Otherwise, we call abind::abind().
-    ok1 <- all(vapply(objects, is.array, logical(1)))
-    ok2 <- all(names(recognized_args) %in% c("along", "rev.along"))
-    if (ok1 && ok2) {
-        ## Call simple_abind2(), which is significantly faster
-        ## than abind::abind().
-        ans <- simple_abind2(objects, along=recognized_args$along,
-                                      rev.along=recognized_args$rev.along)
-    } else {
-        ## Call abind::abind().
-        ans <- do.call(abind::abind, c(objects, recognized_args))
+    if (length(objects) == 0L)
+        return(NULL)
+    crazy_args <- .extract_crazy_args(...)
+    all_extra_args <- c(list(along=along, rev.along=rev.along), crazy_args)
+    ok1 <- vapply(objects, is.list, logical(1))
+    ok2 <- vapply(objects, is.array, logical(1))
+    ok3 <- vapply(objects, is, logical(1), "Array")
+    if (any(ok1 & !(ok2 | ok3))) {
+        ## 1. Dispatch on the abind() generic.
+        if (length(objects) != 1L)
+            stop(wmsg("when supplying a list, all the objects ",
+                      "to bind must be supplied via the list"))
+        x <- objects[[1L]]
+        return(do.call(S4Arrays::abind, c(x, all_extra_args)))
     }
-    ans
+    if (any(ok3)) {
+        ## 2. Dispatch on .abind_as_Array().
+        if (length(crazy_args) != 0L) {
+            argnames <- paste0("'", names(crazy_args), "'", collapse=",")
+            stop(wmsg("unsupported argument(s) when calling abind() ",
+                      "on Array derivatives: ", argnames))
+        }
+        return(.abind_as_Array(objects, ok3, ok2,
+                               along=along, rev.along=rev.along))
+    }
+    if (all(ok2) && length(crazy_args) == 0L) {
+        ## 3. Dispatch on simple_abind2(), which is significantly faster than
+        ##    abind::abind().
+        return(simple_abind2(objects, along=along, rev.along=rev.along))
+    }
+    ## 4. Dispatch on abind::abind() wrapper abind0().
+    all_extra_args <- S4Vectors:::delete_NULLs(all_extra_args)
+    do.call(abind0, c(objects, all_extra_args))
 }
 
 setMethod("abind", "ANY", .default_abind)
