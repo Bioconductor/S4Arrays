@@ -20,7 +20,7 @@
 
 test_that("split and unsplit array", {
     a1 <- array(1:300, c(3, 10, 2, 5))
-    A1 <- DelayedArray:::realize(a1)
+    A1 <- DelayedArray::DelayedArray(DelayedArray::realize(a1))
 
     for (block_len in c(1:7, 29:31, 39:40, 59:60, 119:120)) {
         blocks <- .split_array_by_block(a1, block_len)
@@ -35,13 +35,13 @@ test_that("split and unsplit array", {
 
 test_that("split and unsplit matrix", {
     a1 <- array(1:300, c(3, 10, 2, 5))
-    A1 <- DelayedArray:::realize(a1)
+    A1 <- DelayedArray::DelayedArray(DelayedArray::realize(a1))
 
     m1 <- a1[2, c(9, 3:7), 2, -4]
     M1a <- A1[2, c(9, 3:7), 2, -4]
     expect_identical(m1, as.matrix(M1a))
 
-    M1b <- DelayedArray:::realize(m1)
+    M1b <- DelayedArray::DelayedArray(DelayedArray::realize(m1))
     expect_identical(m1, as.matrix(M1b))
 
     tm1 <- t(m1)
