@@ -144,7 +144,7 @@ static int get_matrix_nrow_ncol(SEXP m, int *nrow, int *ncol)
 		*nrow = 1;
 		len = XLENGTH(m);
 		if (len > INT_MAX)
-			error("too many dimensions");
+		  error("%s", "too many dimensions");
 		*ncol = (int) len;
 		return 0;
 	}
@@ -166,11 +166,11 @@ static long long int safe_dim_prod(const int *dim, int ndim)
 	for (i = 0; i < ndim; i++) {
 		d = dim[i];
 		if (d == NA_INTEGER || d < 0)
-			error("'dim' cannot contain NAs or negative values");
+		  error("%s", "'dim' cannot contain NAs or negative values");
 		prod = safe_llint_mult(prod, (long long int) d);
 	}
 	if (get_ovflow_flag())
-		error("dimensions are too big");
+	  error("%s", "dimensions are too big");
 	return prod;
 }
 
@@ -329,19 +329,19 @@ SEXP C_Lindex2Mindex(SEXP Lindex, SEXP dim, SEXP use_names)
 	/* Check 'dim'. */
 	ret = get_matrix_nrow_ncol(dim, &dim_nrow, &dim_ncol);
 	if (ret < 0)
-		error("'dim' must be an integer vector (or matrix)");
+	  error("%s", "'dim' must be an integer vector (or matrix)");
 
 	/* Check 'Lindex'. */
 	if (!(IS_INTEGER(Lindex) || IS_NUMERIC(Lindex)))
-		error("'Lindex' must be an integer (or numeric) vector");
+	  error("%s", "'Lindex' must be an integer (or numeric) vector");
 	Lindex_len = XLENGTH(Lindex);
 	/* R does not support matrices with dimensions > INT_MAX yet (as
 	   of April 2020) which means that we cannot support a long linear
 	   index. */
 	if (Lindex_len > INT_MAX)
-		error("'Lindex' is too long");
+	  error("%s", "'Lindex' is too long");
 	if (dim_nrow != 1 && dim_nrow != Lindex_len)
-		error("'dim' must have a single row or "
+	  error("%s", "'dim' must have a single row or "
 		      "one row per element in 'Lindex'");
 
 	ans = PROTECT(allocMatrix(INTSXP, (int) Lindex_len, dim_ncol));
@@ -349,7 +349,7 @@ SEXP C_Lindex2Mindex(SEXP Lindex, SEXP dim, SEXP use_names)
 	ret = L2M(INTEGER(dim), dim_ncol, dim_nrow, Lindex, INTEGER(ans));
 	if (ret < 0) {
 		UNPROTECT(1);
-		error(errmsg_buf());
+		error("%s", errmsg_buf());
 	}
 
 	if (LOGICAL(use_names)[0])
@@ -370,24 +370,24 @@ SEXP C_Mindex2Lindex(SEXP Mindex, SEXP dim, SEXP use_names, SEXP as_integer)
 	/* Check 'dim'. */
 	ret = get_matrix_nrow_ncol(dim, &dim_nrow, &dim_ncol);
 	if (ret < 0)
-		error("'dim' must be an integer vector (or matrix)");
+	  error("%s", "'dim' must be an integer vector (or matrix)");
 
 	/* Check 'Mindex'. */
 	ret = get_matrix_nrow_ncol(Mindex, &Mindex_nrow, &Mindex_ncol);
 	if (ret < 0)
-		error("'Mindex' must be an integer matrix (or vector)");
+	  error("%s", "'Mindex' must be an integer matrix (or vector)");
 	if (Mindex_ncol != dim_ncol) {
 		if (GET_DIM(Mindex) != R_NilValue)
-			error("'Mindex' must be a matrix with one "
-			      "column per dimension in the array\n"
-			      "  to subset/subassign");
-		error("when supplied as a vector, 'Mindex' must have "
+		  error("%s", "'Mindex' must be a matrix with one "
+			"column per dimension in the array\n"
+			"  to subset/subassign");
+		error("%s", "when supplied as a vector, 'Mindex' must have "
 		      "one element per dimension\n  in the array to "
 		      "subset/subassign");
 	}
 	if (dim_nrow != 1 && dim_nrow != Mindex_nrow)
-		error("'dim' must have a single row or "
-		      "the same number of rows as 'Mindex'");
+	  error("%s", "'dim' must have a single row or "
+		"the same number of rows as 'Mindex'");
 
 	/* Determine the type of the linear index (integer or numeric). */
 	if (LOGICAL(as_integer)[0]) {
@@ -413,7 +413,7 @@ SEXP C_Mindex2Lindex(SEXP Mindex, SEXP dim, SEXP use_names, SEXP as_integer)
 		  INTEGER(Mindex), Mindex_nrow, ans);
 	if (ret < 0) {
 		UNPROTECT(1);
-		error(errmsg_buf());
+		error("%s", errmsg_buf());
 	}
 
 	if (LOGICAL(use_names)[0])

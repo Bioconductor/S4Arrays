@@ -18,8 +18,8 @@ static R_xlen_t get_xnum_length(SEXP x)
 	if (IS_INTEGER(x) || IS_NUMERIC(x))
 		return XLENGTH(x);
 	if (!is_LLint(x))
-		error("error in get_xnum_length(): "
-		      "'x' must be an \"extended numeric\" vector");
+	  error("%s", "error in get_xnum_length(): "
+		"'x' must be an \"extended numeric\" vector");
 	return get_LLint_length(x);
 }
 
@@ -32,12 +32,12 @@ static long long int get_xnum_val(SEXP x, R_xlen_t i)
 	if (is_LLint(x))
 		return get_LLint_dataptr(x)[i];
 	if (!IS_NUMERIC(x))
-		error("error in get_xnum_val(): "
-		      "'x' must be an \"extended numeric\" vector");
+	  error("%s", "error in get_xnum_val(): "
+		"'x' must be an \"extended numeric\" vector");
 	x_elt = REAL(x)[i];
 	if (x_elt > (double) LLONG_MAX || x_elt < (double) -LLONG_MAX)
-		error("error in get_xnum_val(): "
-		      "'x[i]' not in the long long int range");
+	  error("%s", "error in get_xnum_val(): "
+		"'x[i]' not in the long long int range");
 	return (long long int) x_elt;
 }
 
@@ -56,15 +56,15 @@ SEXP C_abind(SEXP objects, SEXP nblock, SEXP ans_dim)
 	SEXP object, ans, dim;
 
 	if (!isVectorList(objects))  // IS_LIST() is broken
-		error("'objects' must be a list");
+	  error("%s", "'objects' must be a list");
 	nobject = LENGTH(objects);
 	if (nobject == 0)
-		error("'objects' must contain at least one object");
+	  error("%s", "'objects' must contain at least one object");
         if (get_xnum_length(nblock) != 1)
-		error("'nblock' must be a single number");
+	  error("%s", "'nblock' must be a single number");
 	nblock0 = get_xnum_val(nblock, 0);
 	if (nblock0 <= 0)
-		error("'nblock' must be > 0");
+	  error("%s", "'nblock' must be > 0");
 
 	/* Determine 'ans_len' and 'ans_type'. */
 	ans_type = NILSXP;  // avoid gcc maybe-uninitialized warning
@@ -74,12 +74,12 @@ SEXP C_abind(SEXP objects, SEXP nblock, SEXP ans_dim)
 		if (i == 0) {
 			ans_type = TYPEOF(object);
 		} else if (TYPEOF(object) != ans_type) {
-			error("the arrays to bind must have the same type");
+		  error("%s", "the arrays to bind must have the same type");
 		}
 		object_len = XLENGTH(object);
 		if (object_len % nblock0 != 0)
-			error("the arrays to bind must have a length that "
-			      "is a multiple of 'nblock'");
+		  error("%s", "the arrays to bind must have a length that "
+			"is a multiple of 'nblock'");
 		ans_len += object_len;
 	}
 	ans_block_nelt = ans_len / nblock0;

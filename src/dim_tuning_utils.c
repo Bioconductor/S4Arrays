@@ -66,10 +66,10 @@ static int validate_dim_tuner(const int *ops, int nops,
 			continue;
 		}
 		if (along1 >= ndim)
-			error("S4Arrays internal error in "
-			      "validate_dim_tuner():\n"
-			      "    number of 0 (KEEP) or -1 (DROP) values "
-			      "in 'dim_tuner' is > 'length(dim(x))'");
+		  error("%s", "S4Arrays internal error in "
+			"validate_dim_tuner():\n"
+			"    number of 0 (KEEP) or -1 (DROP) values "
+			"in 'dim_tuner' is > 'length(dim(x))'");
 		if (op == KEEP_DIM) {
 			along2++;
 			nkept++;
@@ -77,28 +77,28 @@ static int validate_dim_tuner(const int *ops, int nops,
 			continue;
 		}
 		if (op != DROP_DIM)
-			error("S4Arrays internal error in "
-			      "validate_dim_tuner():\n"
-			      "    'dim_tuner' can only contain 0 (KEEP), "
-			      "-1 (DROP), or 1 (ADD) values");
+		  error("%s", "S4Arrays internal error in "
+			"validate_dim_tuner():\n"
+			"    'dim_tuner' can only contain 0 (KEEP), "
+			"-1 (DROP), or 1 (ADD) values");
 		if (dims[along1] != 1)
-			error("S4Arrays internal error in "
-			      "validate_dim_tuner():\n"
-			      "    'dim_tuner[%d]' (= -1) is "
-			      "mapped to 'dim(x)[%d]' (= %d)\n"
-			      "    which cannot be dropped",
-			      r + 1, along1 + 1, dims[along1]);
+		  error("%s", "S4Arrays internal error in "
+			"validate_dim_tuner():\n"
+			"    'dim_tuner[%d]' (= -1) is "
+			"mapped to 'dim(x)[%d]' (= %d)\n"
+			"    which cannot be dropped",
+			r + 1, along1 + 1, dims[along1]);
 		along1++;
 	}
 	if (along1 < ndim)
-		error("S4Arrays internal error in "
-		      "validate_dim_tuner():\n"
-		      "    number of 0 (KEEP) or -1 (DROP) values "
-		      "in 'dim_tuner' is < 'length(dim(x))'");
+	  error("%s", "S4Arrays internal error in "
+		"validate_dim_tuner():\n"
+		"    number of 0 (KEEP) or -1 (DROP) values "
+		"in 'dim_tuner' is < 'length(dim(x))'");
 	if (nkept == 0)
-		error("S4Arrays internal error in "
-		      "validate_dim_tuner():\n"
-		      "    'dim_tuner' must contain at least one 0");
+	  error("%s", "S4Arrays internal error in "
+		"validate_dim_tuner():\n"
+		"    'dim_tuner' must contain at least one 0");
 	return along2;
 }
 
@@ -186,10 +186,10 @@ static int compute_tuned_dimnames_length(SEXP dimnames,
 			continue;
 		}
 		if (along1 >= ndim)
-			error("S4Arrays internal error in "
-			      "compute_tuned_dimnames_length():\n"
-			      "    number of 0 (KEEP) or -1 (DROP) values "
-			      "in 'dim_tuner' is > 'length(dim(x))'");
+		  error("%s", "S4Arrays internal error in "
+			"compute_tuned_dimnames_length():\n"
+			"    number of 0 (KEEP) or -1 (DROP) values "
+			"in 'dim_tuner' is > 'length(dim(x))'");
 		if (op == KEEP_DIM) {
 			if (VECTOR_ELT(dimnames, along1) != R_NilValue)
 				any_retained = 1;
