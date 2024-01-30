@@ -9,7 +9,7 @@
 
 ### Perform 'extract_array(x, list(integer(0), ..., integer(0)))'.
 ### 'x' is **trusted** to be an array-like object.
-.extract_empty_array <- function(x)
+extract_empty_array <- function(x)
 {
     index <- rep.int(list(integer(0)), length(dim(x)))
     extract_array(x, index)
@@ -25,7 +25,7 @@ setMethod("type", "ANY",
         if (is.null(x_dim))
             stop(wmsg("the default type() method only supports ",
                       "array-like objects"))
-        type(.extract_empty_array(x))
+        type(extract_empty_array(x))
     }
 )
 
