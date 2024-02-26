@@ -7,7 +7,7 @@
 
 
 ### TODO: Move this to S4Vectors (or BiocBaseUtils).
-load_package_with_graceful_failure <- function(package, ...)
+load_package_gracefully <- function(package, ...)
 {
     if (!requireNamespace(package, quietly=TRUE))
         stop("Could not load package ", package, ". Is it installed?\n\n  ",

@@ -39,8 +39,7 @@ setMethod("read_block_as_dense", "ANY",
 ### --- OLD read_block() behavior (BioC <= 3.17) ---
 
 .load_DelayedArray_for_read_block <- function(...)
-    load_package_with_graceful_failure("DelayedArray",
-                                       "calling read_block() ", ...)
+    load_package_gracefully("DelayedArray", "calling read_block() ", ...)
 
 ### Provides the old read_block() behavior (used in BioC <= 3.17) where
 ### a sparse block gets returned as a SparseArraySeed object from the
@@ -67,8 +66,7 @@ setMethod("read_block_as_dense", "ANY",
 ### --- NEW read_block() behavior (BioC >= 3.18) ---
 
 .load_SparseArray_for_read_block <- function(...)
-    load_package_with_graceful_failure("SparseArray",
-                                       "calling read_block() ", ...)
+    load_package_gracefully("SparseArray", "calling read_block() ", ...)
 
 ### Provides the new read_block() behavior (used in BioC >= 3.18) where
 ### a sparse block gets returned as a SparseArray object from the
