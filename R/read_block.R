@@ -36,21 +36,11 @@ setMethod("read_block_as_dense", "ANY",
 ### read_block()
 ###
 
-### TODO: Move this to S4Vectors (or BiocBaseUtils).
-.load_package_with_graceful_failure <- function(package, ...)
-{
-    if (!requireNamespace(package, quietly=TRUE))
-        stop("Couldn't load the ", package, " package.\n\n  ",
-             wmsg("Note that ", ..., " requires the ", package, " package. ",
-                  "Please install it with:"),
-             "\n\n    BiocManager::install(\"", package, "\")")
-}
-
 ### --- OLD read_block() behavior (BioC <= 3.17) ---
 
 .load_DelayedArray_for_read_block <- function(...)
-    .load_package_with_graceful_failure("DelayedArray",
-                                        "calling read_block() ", ...)
+    load_package_with_graceful_failure("DelayedArray",
+                                       "calling read_block() ", ...)
 
 ### Provides the old read_block() behavior (used in BioC <= 3.17) where
 ### a sparse block gets returned as a SparseArraySeed object from the
@@ -77,8 +67,8 @@ setMethod("read_block_as_dense", "ANY",
 ### --- NEW read_block() behavior (BioC >= 3.18) ---
 
 .load_SparseArray_for_read_block <- function(...)
-    .load_package_with_graceful_failure("SparseArray",
-                                        "calling read_block() ", ...)
+    load_package_with_graceful_failure("SparseArray",
+                                       "calling read_block() ", ...)
 
 ### Provides the new read_block() behavior (used in BioC >= 3.18) where
 ### a sparse block gets returned as a SparseArray object from the

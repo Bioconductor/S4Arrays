@@ -6,6 +6,16 @@
 ###
 
 
+### TODO: Move this to S4Vectors (or BiocBaseUtils).
+load_package_with_graceful_failure <- function(package, ...)
+{
+    if (!requireNamespace(package, quietly=TRUE))
+        stop("Could not load package ", package, ". Is it installed?\n\n  ",
+             wmsg("Note that ", ..., " requires the ", package, " package. ",
+                  "Please install it with:"),
+             "\n\n    BiocManager::install(\"", package, "\")")
+}
+
 ### TODO: This should probably go to S4Vectors (but maybe find a better name
 ### for it first).
 seq2 <- function(to, by)
