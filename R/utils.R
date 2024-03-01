@@ -56,6 +56,10 @@ bplapply2 <- function(X, FUN, ..., BPPARAM=NULL)
     #    Sys.setenv(HDF5_USE_FILE_LOCKING="FALSE")
     #    on.exit(Sys.unsetenv("HDF5_USE_FILE_LOCKING"))
     #}
+    if (!is(BPPARAM, "BiocParallelParam"))
+        stop(wmsg("'BPPARAM' must be a BiocParallelParam derivative"))
+    if (BiocParallel::bpnworkers(BPPARAM) <= 1L)
+        return(lapply(X, FUN, ...))
     BiocParallel::bplapply(X, FUN, ..., BPPARAM=BPPARAM)
 }
 
