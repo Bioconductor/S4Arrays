@@ -32,7 +32,7 @@ seq2 <- function(to, by)
 ### bplapply2()
 ###
 ### A simple wrapper to BiocParallel::bplapply() that falls back to lapply()
-### if 'BPPARAM' is NULL.
+### if 'length(X)' <= 1 or 'BPPARAM' is NULL or 'bpnworkers(BPPARAM)' <= 1.
 ###
 ### Also disable HDF5 file locking for the duration of the bplapply() loop,
 ### just in case the user is dealing with HDF5-backed DelayedArray objects
@@ -44,7 +44,7 @@ seq2 <- function(to, by)
 
 bplapply2 <- function(X, FUN, ..., BPPARAM=NULL)
 {
-    if (is.null(BPPARAM))
+    if (length(X) <= 1L || is.null(BPPARAM))
         return(lapply(X, FUN, ...))
     if (!requireNamespace("BiocParallel", quietly=TRUE))
         stop(wmsg("Couldn't load the BiocParallel package. Please ",
