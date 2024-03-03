@@ -91,6 +91,11 @@ tune_dimnames <- function(dimnames, dim_tuner)
 ### only if 'x' has at most one effective dimension.
 .drop_Array <- function(x)
 {
+    if (!isS4(x)) {
+        ## Avoid S4 dispatch on Array objects that are not S4 objects (e.g.
+        ## Array objects from the arrow package).
+        return(base::drop(x))
+    }
     is_effective <- dim(x) != 1L
     if (sum(is_effective) <= 1L)
         return(drop(as.array(x)))  # ordinary vector

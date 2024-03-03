@@ -188,6 +188,18 @@ extract_array_by_Nindex <- function(x, Nindex)
 ### object back into an ordinary array.
 .from_Array_to_array <- function(x, drop=FALSE)
 {
+    if (!isS4(x)) {
+        ## The arrow package does not define any as.array method for
+        ## arrow::Array objects (or their ancestors) at the moment, so this is
+        ## a preventive hack only. See as.vector.Array below for the details.
+        x_class <- class(x)
+        if (length(x_class) >= 2L) {
+            ## Call "next" S3 as.array method.
+            class(x) <- tail(x_class, n=-1L)
+            on.exit(class(x) <- x_class)
+            return(base::as.array(x))
+        }
+    }
     if (!isTRUEorFALSE(drop))
         stop("'drop' must be TRUE or FALSE")
     index <- vector("list", length=length(dim(x)))
@@ -211,39 +223,169 @@ setMethod("as.array", "Array", .from_Array_to_array)
 
 ### S3/S4 combo for as.data.frame.Array
 as.data.frame.Array <- function(x, row.names=NULL, optional=FALSE, ...)
+{
+    if (!isS4(x)) {
+        ## The arrow package does not define any as.data.frame method for
+        ## arrow::Array objects (or their ancestors) at the moment, so this is
+        ## a preventive hack only. See as.vector.Array below for the details.
+        x_class <- class(x)
+        if (length(x_class) >= 2L) {
+            ## Call "next" as.data.frame S3 method.
+            class(x) <- tail(x_class, n=-1L)
+            on.exit(class(x) <- x_class)
+            return(base::as.data.frame(x, row.names=row.names,
+                                          optional=optional, ...))
+        }
+    }
     as.data.frame(as.array(x, drop=TRUE),
                   row.names=row.names, optional=optional, ...)
+}
 setMethod("as.data.frame", "Array", as.data.frame.Array)
 
 ### S3/S4 combo for as.vector.Array
+### Note that without the hack below this method breaks as.vector() on an
+### Array object (R6 object) from the arrow package. See
+### https://github.com/Bioconductor/DelayedArray/issues/114 for the details.
 as.vector.Array <- function(x, mode="any")
 {
+    if (!isS4(x)) {
+        ## Ugly hack to accomodate Array objects (R6 objects) from the arrow
+        ## package. For these objects, class() returns the following:
+        ##   > library(arrow)
+        ##   > my_array <- Array$create(1:10)
+        ##   > class(my_array)
+        ##   [1] "Array"       "ArrowDatum"  "ArrowObject" "R6"
+        ## Note that the arrow package does NOT define the as.vector.Arrow
+        ## method. Instead it defines the as.vector.ArrowDatum method which
+        ## is what we must call here. However, we don't call
+        ## arrow:::as.vector.ArrowDatum explicitly to avoid introducing a
+        ## dependency on the arrow package, and also to make the hack a little
+        ## bit more generic.
+        x_class <- class(x)
+        if (length(x_class) >= 2L) {
+            ## Call "next" as.vector S3 method (will be as.vector.ArrowDatum
+            ## if 'x' is an arrow::Array object).
+            class(x) <- tail(x_class, n=-1L)
+            on.exit(class(x) <- x_class)
+            return(base::as.vector(x, mode))
+        }
+    }
     ans <- as.array(x, drop=TRUE)
     as.vector(ans, mode=mode)
 }
 setMethod("as.vector", "Array", as.vector.Array)
 
 ### S3/S4 combo for as.logical.Array
-as.logical.Array <- function(x, ...) as.vector(x, mode="logical", ...)
+as.logical.Array <- function(x, ...)
+{
+    if (!isS4(x)) {
+        ## The arrow package does not define any as.logical method for
+        ## arrow::Array objects (or their ancestors) at the moment, so this is
+        ## a preventive hack only. See as.vector.Array above for the details.
+        x_class <- class(x)
+        if (length(x_class) >= 2L) {
+            ## Call "next" as.logical S3 method.
+            class(x) <- tail(x_class, n=-1L)
+            on.exit(class(x) <- x_class)
+            return(base::as.logical(x, ...))
+        }
+    }
+    as.vector(x, mode="logical", ...)
+}
 setMethod("as.logical", "Array", as.logical.Array)
 
 ### S3/S4 combo for as.integer.Array
-as.integer.Array <- function(x, ...) as.vector(x, mode="integer", ...)
+as.integer.Array <- function(x, ...)
+{
+    if (!isS4(x)) {
+        ## Ugly hack to accomodate Array objects (R6 objects) from the arrow
+        ## package. See as.vector.Array above for the details.
+        x_class <- class(x)
+        if (length(x_class) >= 2L) {
+            ## Call "next" as.integer S3 method (will be
+            ## arrow:::as.integer.ArrowDatum if 'x' is an arrow::Array object).
+            class(x) <- tail(x_class, n=-1L)
+            on.exit(class(x) <- x_class)
+            return(base::as.integer(x, ...))
+        }
+    }
+    as.vector(x, mode="integer", ...)
+}
 setMethod("as.integer", "Array", as.integer.Array)
 
 ### S3/S4 combo for as.numeric.Array
-as.numeric.Array <- function(x, ...) as.vector(x, mode="numeric", ...)
+as.numeric.Array <- function(x, ...)
+{
+    if (!isS4(x)) {
+        ## The arrow package does not define any as.numeric method for
+        ## arrow::Array objects (or their ancestors) at the moment, so this is
+        ## a preventive hack only. See as.vector.Array above for the details.
+        x_class <- class(x)
+        if (length(x_class) >= 2L) {
+            ## Call "next" as.numeric S3 method.
+            class(x) <- tail(x_class, n=-1L)
+            on.exit(class(x) <- x_class)
+            return(base::as.numeric(x, ...))
+        }
+    }
+    as.vector(x, mode="numeric", ...)
+}
 setMethod("as.numeric", "Array", as.numeric.Array)
 
 ### S3/S4 combo for as.complex.Array
-as.complex.Array <- function(x, ...) as.vector(x, mode="complex", ...)
+as.complex.Array <- function(x, ...)
+{
+    if (!isS4(x)) {
+        ## The arrow package does not define any as.complex method for
+        ## arrow::Array objects (or their ancestors) at the moment, so this is
+        ## a preventive hack only. See as.vector.Array above for the details.
+        x_class <- class(x)
+        if (length(x_class) >= 2L) {
+            ## Call "next" as.complex S3 method.
+            class(x) <- tail(x_class, n=-1L)
+            on.exit(class(x) <- x_class)
+            return(base::as.complex(x, ...))
+        }
+    }
+    as.vector(x, mode="complex", ...)
+}
 setMethod("as.complex", "Array", as.complex.Array)
 
 ### S3/S4 combo for as.character.Array
-as.character.Array <- function(x, ...) as.vector(x, mode="character", ...)
+as.character.Array <- function(x, ...)
+{
+    if (!isS4(x)) {
+        ## Ugly hack to accomodate Array objects (R6 objects) from the arrow
+        ## package. See as.vector.Array above for the details.
+        x_class <- class(x)
+        if (length(x_class) >= 2L) {
+            ## Call "next" as.character S3 method (will be
+            ## as.character.ArrowDatum if 'x' is an arrow::Array object).
+            class(x) <- tail(x_class, n=-1L)
+            on.exit(class(x) <- x_class)
+            return(base::as.character(x, ...))
+        }
+    }
+    as.vector(x, mode="character", ...)
+}
 setMethod("as.character", "Array", as.character.Array)
 
 ### S3/S4 combo for as.raw.Array
-as.raw.Array <- function(x) as.vector(x, mode="raw")
+as.raw.Array <- function(x)
+{
+    if (!isS4(x)) {
+        ## The arrow package does not define any as.raw method for
+        ## arrow::Array objects (or their ancestors) at the moment, so this is
+        ## a preventive hack only. See as.vector.Array above for the details.
+        x_class <- class(x)
+        if (length(x_class) >= 2L) {
+            ## Call "next" as.raw S3 method.
+            class(x) <- tail(x_class, n=-1L)
+            on.exit(class(x) <- x_class)
+            return(base::as.raw(x))
+        }
+    }
+    as.vector(x, mode="raw")
+}
 setMethod("as.raw", "Array", as.raw.Array)
 
