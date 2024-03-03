@@ -78,6 +78,19 @@ setMethod("[[", "Array",
 
 .from_Array_to_matrix <- function(x)
 {
+    if (!isS4(x)) {
+        ## The arrow package does not define any as.matrix method for
+        ## arrow::Array objects (or their ancestors) at the moment, so this is
+        ## a preventive hack only. See as.vector.Array in the extract_array.R
+        ## file for the details.
+        x_class <- class(x)
+        if (length(x_class) >= 2L) {
+            ## Call "next" S3 as.matrix method.
+            class(x) <- tail(x_class, n=-1L)
+            on.exit(class(x) <- x_class)
+            return(base::as.matrix(x))
+        }
+    }
     x_dim <- dim(x)
     if (sum(x_dim != 1L) > 2L)
         stop(wmsg(class(x), " object has more than 2 effective dimensions ",
@@ -100,6 +113,19 @@ setMethod("as.matrix", "Array", .from_Array_to_matrix)
 ### t() will work out-of-the-box on any Array derivative that supports aperm().
 t.Array <- function(x)
 {
+    if (!isS4(x)) {
+        ## The arrow package does not define any t method for
+        ## arrow::Array objects (or their ancestors) at the moment, so this is
+        ## a preventive hack only. See as.vector.Array in the extract_array.R
+        ## file for the details.
+        x_class <- class(x)
+        if (length(x_class) >= 2L) {
+            ## Call "next" S3 t method.
+            class(x) <- tail(x_class, n=-1L)
+            on.exit(class(x) <- x_class)
+            return(base::t(x))
+        }
+    }
     if (length(dim(x)) != 2L)
         stop(wmsg("the ", class(x), " object to transpose ",
                   "must have exactly 2 dimensions"))
