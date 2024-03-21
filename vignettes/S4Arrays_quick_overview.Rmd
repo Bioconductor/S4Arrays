@@ -32,9 +32,9 @@ if (!requireNamespace("BiocManager", quietly = TRUE))
     install.packages("BiocManager")
 BiocManager::install("S4Arrays")
 ```
-However, note that `r Biocpkg("S4Arrays")` will usually get automatically
-installed as a dependency of other Bioconductor packages, so explicitly
-installing the package is usually not needed.
+However, note that `r Biocpkg("S4Arrays")` will typically get automatically
+installed as a dependency of other Bioconductor packages, so explicit
+installation of the package is usually not needed.
 
 
 # The Array virtual class
