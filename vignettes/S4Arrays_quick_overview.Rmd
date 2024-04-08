@@ -3,7 +3,7 @@ title: "A quick overview of the _S4Arrays_ package"
 author:
 - name: Hervé Pagès
   affiliation: Fred Hutchinson Cancer Research Center, Seattle, WA
-date: "Compiled `r doc_date()`;  Modified 24 July 2023"
+date: "Compiled `r doc_date()`;  Modified 8 April 2024"
 package: S4Arrays
 vignette: |
   %\VignetteIndexEntry{A quick overview of the S4Arrays package}
@@ -28,7 +28,7 @@ the package is not intended to be used directly by the end user.
 Like any other Bioconductor package, `r Biocpkg("S4Arrays")` should always
 be installed with `BiocManager::install()`:
 ```{r, eval=FALSE}
-if (!requireNamespace("BiocManager", quietly = TRUE))
+if (!require("BiocManager", quietly=TRUE))
     install.packages("BiocManager")
 BiocManager::install("S4Arrays")
 ```
