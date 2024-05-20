@@ -1,0 +1,5 @@
+- Import ngCMatrix/ngRMatrix classes from Matrix and define is_sparse() methods
+  for them. Make sure that extract_array() and extract_sparse_array() work
+  properly on these objects (like they do on [d|l]gCMatrix and [d|l]gRMatrix
+  objects).
+

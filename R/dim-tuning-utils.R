@@ -10,7 +10,7 @@
 ### See src/dim_tuning_utils.c for additional information.
 
 
-### NOT exported but used in the DelayedArray packages!
+### NOT exported but used in the DelayedArray package!
 normalize_dim_replacement_value <- function(value, x_dim)
 {
     if (is.null(value))
@@ -85,7 +85,18 @@ tune_dimnames <- function(dimnames, dim_tuner)
 ### drop() method
 ###
 
-### Expected to be semantically equivalent to 'drop(as.array(x))'.
+### base::drop() is kind of messed up in the 1D case. This is a replacement
+### that does the right thing.
+### NOT exported but used in the SparseArray package!
+drop_even_if_1D <- function(a)
+{
+    stopifnot(is.array(a) || is.vector(a))
+    if (length(dim(a)) != 1L)
+        return(base::drop(a))
+    setNames(as.vector(a), names(a))
+}
+
+### Expected to be semantically equivalent to 'drop_even_if_1D(as.array(x))'.
 ### Will work out-of-the-box on any Array derivative that supports
 ### tune_Array_dims() and as.array(). Note that the latter is used
 ### only if 'x' has at most one effective dimension.
@@ -98,7 +109,7 @@ tune_dimnames <- function(dimnames, dim_tuner)
     }
     is_effective <- dim(x) != 1L
     if (sum(is_effective) <= 1L)
-        return(drop(as.array(x)))  # ordinary vector
+        return(drop_even_if_1D(as.array(x)))  # ordinary vector
     dim_tuner <- -as.integer(!is_effective)
     tune_Array_dims(x, dim_tuner)
 }
