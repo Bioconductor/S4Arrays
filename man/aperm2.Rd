@@ -22,7 +22,7 @@ aperm2(a, perm)
 
 \arguments{
   \item{a}{
-    An array.
+    An ordinary array.
   }
   \item{perm}{
     An integer vector, possibly containing \code{NA}s, indicating how
@@ -87,8 +87,10 @@ dimensions} from/to the input \link[DelayedArray]{DelayedArray} object.
     \item \code{\link[BiocGenerics]{aperm}} in the \pkg{BiocGenerics}
           package for the \code{aperm} \emph{S4 generic function}.
 
-    \item \link[DelayedArray]{aperm,DelayedArray-method} in the
-          \pkg{DelayedArray} package for an \code{aperm()} method
+    \item \link[SparseArray]{aperm,SVT_SparseArray-method} in the
+          \pkg{SparseArray} package and
+          \link[DelayedArray]{aperm,DelayedArray-method} in the
+          \pkg{DelayedArray} package for \code{aperm()} methods
           that implements the "\code{aperm2} semantic".
   }
 }

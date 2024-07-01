@@ -3,6 +3,12 @@
 ### -------------------------------------------------------------------------
 ###
 
+### Note that Lindex2Mindex() and Mindex2Lindex() do not allow NAs at the
+### moment (they trigger an error) even though R base allows them in matrix
+### subsripts.
+### TODO: Allow NAs in the input of Lindex2Mindex() and Mindex2Lindex().
+### We could either always allow them or add an argument (e.g. 'allowNAs')
+### that the user would set to TRUE to allow them.
 
 ### Like base::arrayInd() but faster and accepts a matrix for 'dim' (with 1
 ### row per element in 'Lindex').

@@ -95,11 +95,10 @@ Mindex2Lindex(Mindex, dim, use.names=FALSE, as.integer=FALSE)
 
   \enumerate{
     \item \emph{Linear index} (or \emph{L-index} or \emph{Lindex}):
-          A numeric vector with no NAs where each value is >= 1 and <=
-          the length of the array-like object.
-          When using an L-index to subset an array-like object, the returned
-          value is a vector-like object (i.e. no dimensions) of the same
-          length as the L-index.
+          A numeric vector where each value is >= 1 and <= the length
+          of the array-like object. When using an L-index to subset an
+          array-like object, the returned value is a vector-like object
+          (i.e. no dimensions) of the same length as the L-index.
 
           Example:
           \preformatted{
@@ -110,9 +109,9 @@ Mindex2Lindex(Mindex, dim, use.names=FALSE, as.integer=FALSE)
 
     \item \emph{Matrix index} (or \emph{M-index} or \emph{Mindex}):
           An integer matrix with one column per dimension in the array-like
-          object and one row per array element in the selection. No NAs.
-          The values in each column must be >= 1 and <= the extent of the
-          array-like object along the corresponding dimension.
+          object and one row per array element in the selection.
+          The values in each column must be >= 1 and <= the extent
+          of the array-like object along the corresponding dimension.
           When using an M-index to subset an array-like object, the returned
           value is a vector-like object (i.e. no dimensions) of length the
           number of rows in the M-index.
@@ -149,7 +148,8 @@ Mindex2Lindex(Mindex, dim, use.names=FALSE, as.integer=FALSE)
           \preformatted{
             a <- array(101:124, 4:2)
 
-            ## Normalized N-index:
+            ## Normalized N-index (i.e. non-NULL subscripts are integer
+            ## vectors with positive values only):
 
             Nindex <- list(c(1, 4, 1), NULL, 1)
             ## Same as a[c(1, 4, 1), , 1, drop=FALSE]:
@@ -161,7 +161,7 @@ Mindex2Lindex(Mindex, dim, use.names=FALSE, as.integer=FALSE)
 
             ## Non-normalized N-index:
 
-            Nindex <- list(-3, NULL, 1)
+            Nindex <- list(-3, NULL, c(TRUE, FALSE, FALSE))
             Nindex <- S4Arrays:::normalize_Nindex(Nindex, a)
             ## Same as a[-3, , 1, drop=FALSE]:
             S4Arrays:::subset_by_Nindex(a, Nindex)

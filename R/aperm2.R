@@ -7,6 +7,7 @@
 ### Like base::aperm(), aperm2() preserves the length of input array 'a'.
 ###
 
+
 ### Normalize 'perm' argument of extended aperm().
 ### Only performs a shallow check of 'perm' e.g. won't say anything if 'perm'
 ### contains values > length(a_dim) or duplicates. Use validate_perm() defined
@@ -50,29 +51,53 @@ validate_perm <- function(perm, a_dim)
     TRUE
 }
 
-### Supports dropping and/or adding ineffective dimensions.
-aperm2 <- function(a, perm)
+### 'APERM.FUN' is the function that will actually take care of permuting
+### the dimensions. It only needs to know how to handle "clean" permutations
+### i.e. permutation vectors like those handled by base::aperm().
+### The current implementation assumes that array-like object 'a' supports
+### set_dim() and set_dimnames().
+### NOT exported but used in the SparseArray package!
+extended_aperm <- function(a, perm, APERM.FUN)
 {
-    if (!is.array(a))
-        stop(wmsg("'a' must be an array"))
     a_dim <- dim(a)
     a_dimnames <- dimnames(a)
     perm <- normarg_perm(perm, a_dim)
     msg <- validate_perm(perm, a_dim)
     if (!isTRUE(msg))
         stop(wmsg(msg))
+
     nonNA_idx <- which(!is.na(perm))
     perm0 <- perm[nonNA_idx]
-    ## We drop the dimensions not present in 'perm0'. Even though the
-    ## dimensions to drop are guaranteed to have an extent of 1, we should
-    ## not use drop() for this because this would drop **all** the dimensions
-    ## with an extent of 1, including some of the dimensions to keep (those
-    ## can also have an extent of 1).
-    dim(a) <- a_dim[sort(perm0)]
-    ans <- base::aperm(a, perm=rank(perm0))
+
+    ## 1. Drop the dimensions not present in 'perm0'. Even though the
+    ##    dimensions to drop are guaranteed to have an extent of 1, we should
+    ##    not use drop() for this because this would drop **all** the
+    ##    dimensions with an extent of 1, including some of the dimensions
+    ##    to keep (those can also have an extent of 1).
+    ans <- set_dim(a, a_dim[sort(perm0)])
+
+    ## 2. Permute the remaining dimensions.
+    ##    Note that by default rank() returns a numeric vector so we
+    ##    use 'ties.method="first"' to get an integer vector (even
+    ##    though 'perm0' will never contain duplicates).
+    ans <- APERM.FUN(ans, perm=rank(perm0, ties.method="first"))
+
+    ## 3. Add ineffective dimensions corresponding to NAs in 'perm'.
     ans_dim <- rep.int(1L, length(perm))
     ans_dim[nonNA_idx] <- dim(ans)
     ans <- set_dim(ans, ans_dim)
-    set_dimnames(ans, simplify_NULL_dimnames(a_dimnames[perm]))
+
+    ## 4. Take care of the dimnames.
+    if (!is.null(a_dimnames))
+        ans <- set_dimnames(ans, simplify_NULL_dimnames(a_dimnames[perm]))
+    ans
+}
+
+### Supports dropping and/or adding ineffective dimensions.
+aperm2 <- function(a, perm)
+{
+    if (!is.array(a))
+        stop(wmsg("'a' must be an array"))
+    extended_aperm(a, perm, base::aperm)
 }
 

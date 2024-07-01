@@ -13,24 +13,23 @@
   special forms are particularly useful and extensively used thoughout
   the S4Arrays/SparseArray/DelayedArray framework:
 
-  1. Linear index (also called "Lindex"): A numeric vector with no NAs
-     where each value is >= 1 and <= the length of the array-like object.
-     When using an Lindex to subset an array-like object, the returned
-     value is a vector-like object (i.e. no dimensions) of the same length
-     as the Lindex.
+  1. Linear index (also called "L-index"): A numeric vector where each
+     value is >= 1 and <= the length of the array-like object. When using
+     an L-index to subset an array-like object, the returned value is a
+     vector-like object (i.e. no dimensions) of the same length as the L-index.
 
        Example:
          a <- array(101:124, 4:2)
          Lindex <- c(7, 2, 24, 2)
          a[Lindex]
 
-  2. Matrix index (also called "Mindex"): An integer matrix with one column
+  2. Matrix index (also called "M-index"): An integer matrix with one column
      per dimension in the array-like object and one row per array element
-     in the selection. No NAs. The values in each column must be >= 1 and
-     <= the extent of the array-like object along the corresponding dimension.
-     When using an Mindex to subset an array-like object, the returned
+     in the selection. The values in each column must be >= 1 and <= the
+     extent of the array-like object along the corresponding dimension.
+     When using an M-index to subset an array-like object, the returned
      value is a vector-like object (i.e. no dimensions) of length the
-     number of rows in the Mindex.
+     number of rows in the M-index.
 
        Example:
          a <- array(101:124, 4:2)
@@ -40,24 +39,25 @@
                          c(2, 1, 1))
          a[Mindex]
 
-  3. N-dimensional index (also called "Nindex"): A list with one list element
+  3. N-dimensional index (also called "N-index"): A list with one list element
      per dimension in the array-like object. Each list element must be a
      subscript describing the selection along the corresponding dimension
      of the array-like object.
      IMPORTANT: A NULL subscript is interpreted as a missing subscript,
      that is, as a subscript that runs along the full extend of the
      corresponding dimension of the array-like object. This means that
-     before an Nindex can be used in a call to `[`, `[<-`, `[[` or `[[<-`,
+     before an N-index can be used in a call to `[`, `[<-`, `[[` or `[[<-`,
      the NULL list elements in it must be replaced with objects of
      class "name".
-     When using an Nindex to subset an array-like object, the returned value
+     When using an N-index to subset an array-like object, the returned value
      is an array-like object of dimensions the lengths of the selections
      along each dimensions.
 
        Examples:
          a <- array(101:124, 4:2)
 
-         ## Normalized Nindex:
+         ## Normalized N-index (non-NULL subscripts are integer vectors
+         ## with positive values only):
 
          Nindex <- list(c(1, 4, 1), NULL, 1)
          ## Same as a[c(1, 4, 1), , 1, drop=FALSE]:
@@ -67,9 +67,9 @@
          ## Same as a[integer(0), , 1, drop=FALSE]:
          S4Arrays:::subset_by_Nindex(a, Nindex)
 
-         ## Non-normalized Nindex:
+         ## Non-normalized N-index:
 
-         Nindex <- list(-3, NULL, 1)
+         Nindex <- list(-3, NULL, c(TRUE, FALSE, FALSE))
          Nindex <- S4Arrays:::normalize_Nindex(Nindex, a)
          ## Same as a[-3, , 1, drop=FALSE]:
          S4Arrays:::subset_by_Nindex(a, Nindex)
@@ -204,7 +204,7 @@ static void set_rownames(SEXP m, SEXP rownames)
 
 
 /****************************************************************************
- * Convert back and forth between Lindex and Mindex
+ * Convert back and forth between L-index and M-index
  */
 
 static int L2M(const int *dim, int ndim, int dim_nrow, SEXP L, int *M)
