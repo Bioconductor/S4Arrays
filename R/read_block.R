@@ -36,12 +36,12 @@ setMethod("read_block_as_dense", "ANY",
 ### read_block()
 ###
 
-### --- OLD read_block() behavior (BioC <= 3.17) ---
+### --- OLD read_block() behavior (BioC < 3.19) ---
 
 .load_DelayedArray_for_read_block <- function(...)
     load_package_gracefully("DelayedArray", "calling read_block() ", ...)
 
-### Provides the old read_block() behavior (used in BioC <= 3.17) where
+### Provides the old read_block() behavior (used in BioC < 3.20) where
 ### a sparse block gets returned as a SparseArraySeed object from the
 ### DelayedArray package.
 .OLD_read_block <- function(x, viewport, as.sparse=NA)
@@ -63,12 +63,12 @@ setMethod("read_block_as_dense", "ANY",
     ans
 }
 
-### --- NEW read_block() behavior (BioC >= 3.18) ---
+### --- NEW read_block() behavior (BioC >= 3.20) ---
 
 .load_SparseArray_for_read_block <- function(...)
     load_package_gracefully("SparseArray", "calling read_block() ", ...)
 
-### Provides the new read_block() behavior (used in BioC >= 3.18) where
+### Provides the new read_block() behavior (used in BioC >= 3.20) where
 ### a sparse block gets returned as a SparseArray object from the
 ### new SparseArray package. Note that this new behavior makes use of
 ### the new SparseArray::read_block_as_sparse() generic (replaces
@@ -106,7 +106,7 @@ setMethod("read_block_as_dense", "ANY",
 ### Using 'as.sparse=NA' (the default) is equivalent to
 ### using 'as.sparse=is_sparse(x)'. This is the most efficient way to read
 ### a block.
-### Propagate the dimnames.
+### Propagates the dimnames.
 read_block <- function(x, viewport, as.sparse=NA)
 {
     x_dim <- dim(x)
@@ -118,14 +118,8 @@ read_block <- function(x, viewport, as.sparse=NA)
               is.logical(as.sparse),
               length(as.sparse) == 1L)
 
-    ## IMPORTANT NOTE: We temporarily preserve the old read_block() behavior
-    ## for backward compatibility. See comments for .OLD_read_block()
-    ## and .NEW_read_block() above for additional details.
-    ## TODO: In BioC 3.18, the plan is to switch to the new behavior, and
-    ## to update man/read_block.Rd accordingly. See TODO file in DelayedArray
-    ## for the details.
-    ans <- .OLD_read_block(x, viewport, as.sparse=as.sparse)
-    #ans <- .NEW_read_block(x, viewport, as.sparse=as.sparse)
+    #ans <- .OLD_read_block(x, viewport, as.sparse=as.sparse)
+    ans <- .NEW_read_block(x, viewport, as.sparse=as.sparse)
 
     ## Individual read_block_as_dense() and read_block_as_sparse() methods
     ## are not expected to propagate the dimnames so we take care of this
