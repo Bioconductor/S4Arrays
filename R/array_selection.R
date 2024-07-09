@@ -42,3 +42,11 @@ Mindex2Lindex <- function(Mindex, dim, use.names=FALSE, as.integer=FALSE)
                               as.integer, PACKAGE="S4Arrays")
 }
 
+### NOT exported but used in the SparseArray and DelayedArray packages!
+Mindex_order <- function(Mindex)
+{
+    stopifnot(is.matrix(Mindex), ncol(Mindex) != 0L)
+    cols <- lapply(ncol(Mindex):1, function(j) Mindex[ , j])
+    do.call(order, cols)
+}
+
