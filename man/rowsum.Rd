@@ -3,6 +3,7 @@
 \alias{rowsum}
 \alias{colsum}
 \alias{colsum,ANY-method}
+\alias{colsum,matrix-method}
 
 \title{Compute column/row sums of a matrix-like object, for groups
        of rows/columns}
@@ -70,11 +71,12 @@ colsum(x, group, reorder=TRUE, ...)
 \examples{
 rowsum  # note the dispatch on the 'x' arg only
 showMethods("rowsum")
-selectMethod("rowsum", "ANY")  # the default rowsum() method
+selectMethod("rowsum", "ANY")     # the default rowsum() method
 
 colsum  # note the dispatch on the 'x' arg only
 showMethods("colsum")
-selectMethod("colsum", "ANY")  # the default colsum() method
+selectMethod("colsum", "ANY")     # the default colsum() method
+selectMethod("colsum", "matrix")  # colsum() method for ordinary matrices
 }
 
 \keyword{methods}

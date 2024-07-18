@@ -1,5 +1,6 @@
 #include <R_ext/Rdynload.h>
 
+#include "rowsum.h"
 #include "abind.h"
 #include "array_selection.h"
 #include "dim_tuning_utils.h"
@@ -7,6 +8,10 @@
 #define CALLMETHOD_DEF(fun, numArgs) {#fun, (DL_FUNC) &fun, numArgs}
 
 static const R_CallMethodDef callMethods[] = {
+
+/* rowsum.c */
+	CALLMETHOD_DEF(C_rowsum, 4),
+	CALLMETHOD_DEF(C_colsum, 4),
 
 /* abind.c */
 	CALLMETHOD_DEF(C_abind, 3),
