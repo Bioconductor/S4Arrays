@@ -68,15 +68,11 @@ setGeneric("colsum", signature="x",
 
 setMethod("colsum", "ANY",
     function(x, group, reorder=TRUE, ...)
-    {
         t(rowsum(t(x), group, reorder=reorder, ...))
-    }
 )
 
 setMethod("colsum", "matrix",
     function(x, group, reorder=TRUE, ...)
-    {
         .fast_colsum(x, group, reorder=reorder, ...)
-    }
 )
 

@@ -1,5 +1,5 @@
 /****************************************************************************
- *                                C_rowsum()                                *
+ *                        C_rowsum() and C_colsum()                         *
  ****************************************************************************/
 #include "rowsum.h"
 
@@ -15,7 +15,7 @@ static void check_group(SEXP group, int x_nrow, int ngroup)
 		      "an integer vector or factor");
 	if (LENGTH(group) != x_nrow)
 		error("the grouping vector must have one element "
-		      "per row in 'x' for rowsum() and one element "
+		      "per row in 'x' for rowsum()\n  and one element "
 		      "per column in 'x' for colsum()");
 	for (int i = 0; i < x_nrow; i++) {
 		int g = INTEGER(group)[i];
@@ -58,13 +58,12 @@ static void compute_colsum_double(const double *x, int x_nrow, int x_ncol,
 			g = out_ncol;
 		g--;  // from 1-base to 0-base
 		double *out_p = out + g * x_nrow;
-		for (int i = 0; i < x_nrow; i++) {
+		for (int i = 0; i < x_nrow; i++, x++, out_p++) {
 			/* ISNAN(): True for *both* NA and NaN.
 			   See <R_ext/Arith.h> */
-			if (!(narm && ISNAN(*x)))
-				*out_p += *x;
-			x++;
-			out_p++;
+			if (narm && ISNAN(*x))
+				continue;
+			*out_p += *x;
 		}
 	}
 	return;
@@ -81,22 +80,21 @@ static void compute_colsum_int(const int *x, int x_nrow, int x_ncol,
 			g = out_ncol;
 		g--;  // from 1-base to 0-base
 		int *out_p = out + g * x_nrow;
-		for (int i = 0; i < x_nrow; i++) {
+		for (int i = 0; i < x_nrow; i++, x++, out_p++) {
+			if (*out_p == NA_INTEGER)
+				continue;
 			if (*x == NA_INTEGER) {
 				if (!narm)
 					*out_p = NA_INTEGER;
-			} else if (*out_p != NA_INTEGER) {
-				//*out_p = safe_int_add(*out_p, *x);
-				double y = (double) *out_p + *x;
-				if (-INT_MAX <= y && y <= INT_MAX) {
-					*out_p = (int) y;
-				} else {
-					overflow = 1;
-					*out_p = NA_INTEGER;
-				}
+				continue;
 			}
-			x++;
-			out_p++;
+			double y = (double) *out_p + *x;
+			if (-INT_MAX <= y && y <= INT_MAX) {
+				*out_p = (int) y;
+			} else {
+				overflow = 1;
+				*out_p = NA_INTEGER;
+			}
 		}
 	}
 	if (overflow)
