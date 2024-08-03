@@ -156,13 +156,20 @@ export(
 
 export(
     ## rowsum.R:
-    rowsum, colsum,
+    rowsum,            # no rowsum() method defined in S4Arrays!
+    colsum,
 
     ## abind.R:
     abind, arbind, acbind,
 
     ## dim-tuning-utils.R:
-    tune_Array_dims,
+    tune_Array_dims,   # no tune_Array_dims() method defined in S4Arrays!
+
+    ## Array-subassignment.R:
+    subassign_Array_by_logical_array,
+    subassign_Array_by_Lindex,
+    subassign_Array_by_Mindex,
+    subassign_Array_by_Nindex,
 
     ## ArrayGrid-class.R:
     refdim, maxlength, downsample,
@@ -174,7 +181,8 @@ export(
     extract_array,
 
     ## is_sparse.R:
-    is_sparse, "is_sparse<-",
+    is_sparse,
+    "is_sparse<-",     # no "is_sparse<-" method defined in S4Arrays!
 
     ## read_block.R:
     read_block_as_dense,
@@ -185,13 +193,16 @@ export(
 
 ### Same list as above.
 exportMethods(
-    colsum,          # no rowsum() method defined in S4Arrays!
+    colsum,
     abind, arbind, acbind,
+    subassign_Array_by_logical_array,
+    subassign_Array_by_Lindex,
+    subassign_Array_by_Mindex,
+    subassign_Array_by_Nindex,
     refdim, maxlength, downsample,
     mapToGrid, mapToRef,
     extract_array,
     is_sparse,
-    #"is_sparse<-",  # no methods defined in S4Arrays!
     read_block_as_dense,
     write_block
 )

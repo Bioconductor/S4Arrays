@@ -47,4 +47,7 @@
 \examples{
 showClass("Array")  # virtual class with no slots
 }
-\keyword{internal}
+
+\keyword{methods}
+\keyword{classes}
+\keyword{array}
