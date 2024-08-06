@@ -6,13 +6,13 @@
     tm <- t(m)
 
     check_result <- function(current, expected) {
-        #expect_true(is.matrix(current))
-        #expect_identical(typeof(current), typeof(expected))
-        #if (typeof(expected) == "double") {
-        #    expect_equal(current, expected)
-        #} else {
+        expect_true(is.matrix(current))
+        expect_identical(typeof(current), typeof(expected))
+        if (typeof(expected) == "double") {
+            expect_equal(current, expected)
+        } else {
             expect_identical(current, expected)
-        #}
+        }
     }
 
     current <- fast_colsum(m, group)
