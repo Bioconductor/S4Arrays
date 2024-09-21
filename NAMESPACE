@@ -165,6 +165,12 @@ export(
     ## dim-tuning-utils.R:
     tune_Array_dims,   # no tune_Array_dims() method defined in S4Arrays!
 
+    ## Array-subsetting.R:
+    subset_Array_by_logical_array,
+    subset_Array_by_Lindex,
+    subset_Array_by_Mindex,
+    subset_Array_by_Nindex,
+
     ## Array-subassignment.R:
     subassign_Array_by_logical_array,
     subassign_Array_by_Lindex,
@@ -195,6 +201,10 @@ export(
 exportMethods(
     colsum,
     abind, arbind, acbind,
+    subset_Array_by_logical_array,
+    subset_Array_by_Lindex,
+    subset_Array_by_Mindex,
+    subset_Array_by_Nindex,
     subassign_Array_by_logical_array,
     subassign_Array_by_Lindex,
     subassign_Array_by_Mindex,

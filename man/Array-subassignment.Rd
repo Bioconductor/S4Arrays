@@ -14,11 +14,12 @@
 
 \alias{[<-,Array,ANY,ANY,ANY-method}
 
-\title{Low-level generics used in subassignment of Array derivatives}
+\title{Low-level internal generics involved in subassignment of Array derivatives}
 
 \description{
   The \pkg{S4Arrays} package defines a small set of low-level generic
-  functions to support subassignment of \link{Array} derivatives.
+  functions that are involved in subassignment operations on \link{Array}
+  derivatives.
   They are not intended to be used directly by the end user.
 }
 
