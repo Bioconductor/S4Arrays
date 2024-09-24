@@ -190,7 +190,13 @@ set_dim <- function(x, value)
     x_dim <- dim(x)
     if (identical(x_dim, value))
         return(x)
-    x_dimnames <- dimnames(x)
+
+    ## Treat vector as 1D array.
+    if (is.null(x_dim)) {
+        x <- as.array(x)
+        x_dim <- dim(x)
+    }
+    x_dimnames <- simplify_NULL_dimnames(dimnames(x))
     dim(x) <- value
     if (!is.null(x_dimnames)) {
         old_ndim <- length(x_dim)
