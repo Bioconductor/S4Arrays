@@ -52,8 +52,10 @@ Mindex_order <- function(Mindex)
 }
 
 ### NOT exported but used in the SparseArray package!
-### Same semantic as Unix uniq command i.e. reports repeated
-### consecutive matrix rows.
+### Semantic is similar to Unix uniq command (i.e. it reports consecutive
+### repeated rows in matrix 'Mindex'). Note that it conceptually walks down
+### the rows from last to first. Concretely this means that all the rows in
+### a group of repeated rows are considered repeated except the last one.
 ### Returns a logical vector with one element per row in 'Mindex'.
 Mindex_row_is_repeated <- function(Mindex)
 {
@@ -63,6 +65,6 @@ Mindex_row_is_repeated <- function(Mindex)
         return(logical(Mindex_nrow))
     m1 <- Mindex[         -1L, , drop=FALSE]
     m2 <- Mindex[-Mindex_nrow, , drop=FALSE]
-    c(FALSE, rowSums(m1 == m2) == ncol(Mindex))
+    c(rowSums(m1 == m2) == ncol(Mindex), FALSE)
 }
 
