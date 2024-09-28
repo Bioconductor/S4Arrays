@@ -55,7 +55,7 @@ Mindex_order <- function(Mindex)
 ### Same semantic as Unix uniq command i.e. reports repeated
 ### consecutive matrix rows.
 ### Returns a logical vector with one element per row in 'Mindex'.
-Mindex_uniq <- function(Mindex)
+Mindex_row_is_repeated <- function(Mindex)
 {
     stopifnot(is.matrix(Mindex), ncol(Mindex) != 0L)
     Mindex_nrow <- nrow(Mindex)
