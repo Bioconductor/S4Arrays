@@ -43,10 +43,26 @@ Mindex2Lindex <- function(Mindex, dim, use.names=FALSE, as.integer=FALSE)
 }
 
 ### NOT exported but used in the SparseArray and DelayedArray packages!
+### Returns an integer vector with one element per row in 'Mindex'.
 Mindex_order <- function(Mindex)
 {
     stopifnot(is.matrix(Mindex), ncol(Mindex) != 0L)
     cols <- lapply(ncol(Mindex):1, function(j) Mindex[ , j])
     do.call(order, cols)
+}
+
+### NOT exported but used in the SparseArray package!
+### Same semantic as Unix uniq command i.e. reports repeated
+### consecutive matrix rows.
+### Returns a logical vector with one element per row in 'Mindex'.
+Mindex_uniq <- function(Mindex)
+{
+    stopifnot(is.matrix(Mindex), ncol(Mindex) != 0L)
+    Mindex_nrow <- nrow(Mindex)
+    if (Mindex_nrow <= 1L)
+        return(logical(Mindex_nrow))
+    m1 <- Mindex[         -1L, , drop=FALSE]
+    m2 <- Mindex[-Mindex_nrow, , drop=FALSE]
+    c(FALSE, rowSums(m1 == m2) == ncol(Mindex))
 }
 
