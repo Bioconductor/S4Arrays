@@ -1,12 +1,12 @@
 \name{is_sparse}
 
 \alias{is_sparse}
-\alias{is_sparse<-}
 \alias{is_sparse,ANY-method}
-\alias{is_sparse,dgCMatrix-method}
-\alias{is_sparse,lgCMatrix-method}
-\alias{is_sparse,dgRMatrix-method}
-\alias{is_sparse,lgRMatrix-method}
+\alias{is_sparse,CsparseMatrix-method}
+\alias{is_sparse,RsparseMatrix-method}
+\alias{is_sparse,TsparseMatrix-method}
+
+\alias{is_sparse<-}
 
 \title{Check for sparse representation}
 
