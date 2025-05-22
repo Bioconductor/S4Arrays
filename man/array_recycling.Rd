@@ -88,7 +88,7 @@ stopifnot(identical(m0 * t, t(t(m0) * x)))
 cs0 <- colSums(m0)
 m <- m0 / as_tile(cs0, along=2)
 
-stopifnot(all(colSums(m) == 1))  # sanity check
+stopifnot(all.equal(colSums(m), rep(1, ncol(m))))  # sanity check
 
 ## Using an arbitrary 2D tile:
 
@@ -121,7 +121,7 @@ cs2  # vector of length 6 (one value per 2D slice)
 t <- as_tile(cs2, along=3)
 a / t
 
-stopifnot(all(colSums(a / t, dims=2) == 1))  # sanity check
+stopifnot(all.equal(colSums(a / t, dims=2), rep(1, dim(a)[3])))  # sanity check
 
 ## By default (i.e. when 'dims=1') the array is considered to be made
 ## of 5*6 columns of length 10.
@@ -131,7 +131,7 @@ cs1  # 5 x 6 matrix
 t <- as_tile(cs1, dim=c(1L, dim(cs1)))
 a / t
 
-stopifnot(all(colSums(a / t) == 1))  # sanity check
+stopifnot(all.equal(colSums(a / t), matrix(1, dim(a)[2], dim(a)[3])))  # sanity check
 }
 \keyword{array}
 \keyword{methods}
