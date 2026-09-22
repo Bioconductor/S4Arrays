@@ -89,14 +89,11 @@ combine_dimnames_along <- function(objects, dims, along)
               isSingleInteger(along), along >= 1L, along <= nrow(dims))
     dimnames <- .combine_dimnames(objects)
     along_names <- lapply(objects, function(object) dimnames(object)[[along]])
-    along_names_lens <- lengths(along_names)
-    if (any(along_names_lens != 0L)) {
-        fix_idx <- which(along_names_lens != dims[along, ])
+    if (!all(S4Vectors:::sapply_isNULL(along_names))) {
+        fix_idx <- which(lengths(along_names) != dims[along, ])
         along_names[fix_idx] <- lapply(dims[along, fix_idx], character)
+        dimnames[[along]] <- unlist(along_names, use.names=FALSE)
     }
-    along_names <- unlist(along_names, use.names=FALSE)
-    if (!is.null(along_names))
-        dimnames[[along]] <- along_names
     simplify_NULL_dimnames(dimnames)
 }
 
@@ -395,4 +392,38 @@ setGeneric("acbind", function(...) standardGeneric("acbind"))
 
 setMethod("arbind", "ANY", function(...) abind(..., along=1L))
 setMethod("acbind", "ANY", function(...) abind(..., along=2L))
+
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### rbind(), cbind()
+###
+
+### S3/S4 combo for rbind.Array
+rbind.Array <- function(..., deparse.level=1)
+{
+    if (!identical(deparse.level, 1))
+        warning(wmsg("the rbind() method for Array objects ",
+                     "ignores the 'deparse.level' argument"))
+    arbind(...)
+}
+setMethod("rbind", "Array", rbind.Array)
+
+### S3/S4 combo for cbind.Array
+cbind.Array <- function(..., deparse.level=1)
+{
+    if (!identical(deparse.level, 1))
+        warning(wmsg("the cbind() method for Array objects ",
+                     "ignores the 'deparse.level' argument"))
+    acbind(...)
+}
+setMethod("cbind", "Array", cbind.Array)
+
+### Arguments 'use.names', 'ignore.mcols', and 'check' are ignored.
+setMethod("bindROWS", "Array",
+    function(x, objects=list(), use.names=TRUE, ignore.mcols=FALSE, check=TRUE)
+    {
+        args <- c(list(x), unname(objects))
+        do.call(rbind, args)
+    }
+)
 
