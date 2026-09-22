@@ -59,6 +59,10 @@ S3method(as.raw, Array)
 
 S3method(as.vector, Array)
 
+S3method(cbind, Array)
+
+S3method(rbind, Array)
+
 S3method(t, Array)
 
 ### We also export them thru the export() directive so that (a) they can be
@@ -91,6 +95,10 @@ export(
 
     as.vector.Array,
 
+    cbind.Array,
+
+    rbind.Array,
+
     t.Array
 )
 
@@ -122,7 +130,7 @@ exportMethods(
     kronecker,
 
     ## Methods for generics defined in the BiocGenerics package:
-    cbind, rbind,
+    rbind, cbind,
     t, aperm,
     dims,
     type,

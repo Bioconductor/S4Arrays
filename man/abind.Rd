@@ -11,6 +11,11 @@
 \alias{arbind,ANY-method}
 \alias{acbind,ANY-method}
 
+\alias{rbind.Array}
+\alias{rbind,Array-method}
+\alias{cbind.Array}
+\alias{cbind,Array-method}
+\alias{bindROWS,Array-method}
 
 \title{Combine multidimensional array-like objects}
 
