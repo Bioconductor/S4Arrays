@@ -1,0 +1,6 @@
+
+- Move from the DelayedArray package to the S4Arrays package:
+  o makeCappedVolumeBox() and related
+  o isLinear() generic and methods
+  o blockApply() and family
+

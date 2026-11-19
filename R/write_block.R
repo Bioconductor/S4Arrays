@@ -58,3 +58,55 @@ setMethod("write_block", "ANY",
     }
 )
 
+
+### - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+### Low-level helpers used by some write_block() method in other packages
+###
+
+### NOT exported but used in the HDF5Array and ZarrArray packages!
+stop_if_viewport_on_2D_sink_is_not_full_height <- function(sink, viewport)
+{
+    sink_dim <- dim(sink)
+    stopifnot(length(sink_dim) == 2L,
+              is(viewport, "ArrayViewport"),
+              identical(refdim(viewport), sink_dim))
+
+    if (identical(nrow(viewport), nrow(sink)))
+        return(invisible(NULL))
+
+    s <- make_string_from_ArrayViewport(viewport, with.brackets=TRUE)
+    stop(wmsg("Invalid viewport passed to write_block(): ", s),
+         "\n\n  ",
+         wmsg("The write_block() method for ", class(sink)[[1L]], " objects ",
+              "can only be used to write a block to a viewport that ",
+              "spans full columns, that is, to a viewport for which ",
+              "'nrow(viewport)' is equal to 'nrow(sink)'."))
+}
+
+### NOT exported but used in the HDF5Array and ZarrArray packages!
+stop_if_viewport_on_2D_sink_is_not_adj_to_prev <- function(sink, viewport,
+                                                           expected_start_col)
+{
+    sink_dim <- dim(sink)
+    stopifnot(length(sink_dim) == 2L,
+              is(viewport, "ArrayViewport"),
+              identical(refdim(viewport), sink_dim),
+              isSingleInteger(expected_start_col))
+
+    if (identical(start(viewport)[[2L]], expected_start_col))
+        return(invisible(NULL))
+
+    s <- make_string_from_ArrayViewport(viewport, with.brackets=TRUE)
+    stop(wmsg("Invalid viewport passed to write_block(): ", s),
+         "\n\n  ",
+         wmsg("The block to write must start at the beginning of the ",
+              "sink or be adjacent to the previously written block."),
+         "\n\n  ",
+         wmsg("The write_block() method for ", class(sink)[[1L]], " objects ",
+              "can only be used in \"append block mode\", that is, the ",
+              "first block written to the sink must be written at the ",
+              "beginning of the sink and any subsequent block must be ",
+              "written to a viewport that is adjacent to the viewport ",
+              "where the previous block was written."))
+}
+

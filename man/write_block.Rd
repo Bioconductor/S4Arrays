@@ -47,7 +47,7 @@ write_block(sink, viewport, block)
 
 \seealso{
   \itemize{
-    \item \link{ArrayGrid} for ArrayGrid and ArrayViewport objects.
+    \item \link{ArrayViewport} objects.
 
     \item \link[SparseArray]{SparseArray} objects implemented in the
           \pkg{SparseArray} package.

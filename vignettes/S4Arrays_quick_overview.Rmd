@@ -27,7 +27,7 @@ the package is not intended to be used directly by the end user.
 
 Like any other Bioconductor package, `r Biocpkg("S4Arrays")` should always
 be installed with `BiocManager::install()`:
-```{r, eval=FALSE}
+```{r install, eval=FALSE}
 if (!require("BiocManager", quietly=TRUE))
     install.packages("BiocManager")
 BiocManager::install("S4Arrays")
@@ -53,7 +53,7 @@ semantic. Examples of such classes are:
 
 Note that Array is a virtual class with no slots:
 
-```{r, message=FALSE}
+```{r showClass, message=FALSE}
 library(S4Arrays)
 
 showClass("Array")
@@ -125,7 +125,7 @@ the following functionalities:
 
 # Session information
 
-```{r}
+```{r sessionInfo}
 sessionInfo()
 ```
 

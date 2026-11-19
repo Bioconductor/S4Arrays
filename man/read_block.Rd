@@ -28,7 +28,7 @@ read_block_as_dense(x, viewport)
     An array-like object.
 
     This can be an ordinary array, a \link[SparseArray]{SparseArray}
-    object from the \pkg{SparseArray} package, a \linkS4class{dgCMatrix}
+    object from the \pkg{SparseArray} package, a \link[Matrix]{dgCMatrix-class}
     object from the \pkg{Matrix} package, a \link[DelayedArray]{DelayedArray}
     object from the \pkg{DelayedArray} package, or any object with an array
     semantic (i.e. an object for which \code{dim(x)} is not \code{NULL}).
@@ -99,7 +99,7 @@ read_block_as_dense(x, viewport)
 
 \seealso{
   \itemize{
-    \item \link{ArrayGrid} for ArrayGrid and ArrayViewport objects.
+    \item \link{ArrayViewport} objects.
 
     \item \code{\link{is_sparse}} to check whether an object uses a
           sparse representation of the data or not.
@@ -122,8 +122,8 @@ read_block_as_dense(x, viewport)
           \pkg{DelayedArray} package, for convenient block processing
           of an array-like object.
 
-    \item \linkS4class{dgCMatrix} and \linkS4class{lgCMatrix} objects
-          implemented in the \pkg{Matrix} package.
+    \item \link[Matrix]{dgCMatrix-class} and \link[Matrix]{lgCMatrix-class}
+          objects implemented in the \pkg{Matrix} package.
 
     \item \link[DelayedArray]{DelayedArray} objects implemented in the
           \pkg{DelayedArray} package.

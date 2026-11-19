@@ -89,8 +89,7 @@ mapToRef(major, minor, grid, linear=FALSE)
 
 \seealso{
   \itemize{
-    \item \link{ArrayGrid} for the formal representation of grids and
-          viewports.
+    \item The \link{ArrayGrid} class for the formal representation of grids.
 
     \item \code{\link{Lindex2Mindex}} and \code{\link{Mindex2Lindex}}
           for converting back and forth between \emph{linear indices}

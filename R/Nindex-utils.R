@@ -123,7 +123,6 @@ extract_Nindex_from_syscall <- function(call, eframe)
     Nindex
 }
 
-### Used in HDF5Array!
 expand_Nindex_RangeNSBS <- function(Nindex)
 {
     stopifnot(is.list(Nindex))

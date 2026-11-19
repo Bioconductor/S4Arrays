@@ -24,8 +24,10 @@ exportClasses(
     ## Array-class.R:
     Array,
 
-    ## ArrayGrid-class.R:
+    ## ArrayViewport-class.R:
     ArrayViewport, DummyArrayViewport, SafeArrayViewport,
+
+    ## ArrayGrid-class.R:
     ArrayGrid, DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid
 )
 
@@ -158,8 +160,10 @@ export(
     ## array_recycling.R:
     as_tile,
 
-    ## ArrayGrid-class.R:
+    ## ArrayViewport-class.R:
     DummyArrayViewport, ArrayViewport, makeNindexFromArrayViewport,
+
+    ## ArrayGrid-class.R:
     DummyArrayGrid, ArbitraryArrayGrid, RegularArrayGrid,
 
     ## read_block.R:
@@ -197,8 +201,11 @@ export(
     subassign_Array_by_Mindex,
     subassign_Array_by_Nindex,
 
+    ## ArrayViewport-class.R:
+    refdim,
+
     ## ArrayGrid-class.R:
-    refdim, maxlength, downsample,
+    maxlength, downsample,
 
     ## mapToGrid.R:
     mapToGrid, mapToRef,
@@ -232,7 +239,8 @@ exportMethods(
     subassign_Array_by_Lindex,
     subassign_Array_by_Mindex,
     subassign_Array_by_Nindex,
-    refdim, maxlength, downsample,
+    refdim,
+    maxlength, downsample,
     mapToGrid, mapToRef,
     extract_array,
     is_sparse,

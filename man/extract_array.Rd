@@ -59,7 +59,7 @@ extract_array(x, index)
     An array-like object.
 
     This can be an ordinary array, a \link[SparseArray]{SparseArray}
-    object from the \pkg{SparseArray} package, a \linkS4class{dgCMatrix}
+    object from the \pkg{SparseArray} package, a \link[Matrix]{dgCMatrix-class}
     object from the \pkg{Matrix} package, a \link[DelayedArray]{DelayedArray}
     object from the \pkg{DelayedArray} package, or any object with an array
     semantic (i.e. an object for which \code{dim(x)} is not NULL).

@@ -1,32 +1,6 @@
 \name{ArrayGrid-class}
 \docType{class}
 
-\alias{class:ArrayViewport}
-\alias{ArrayViewport-class}
-\alias{ArrayViewport}
-
-\alias{class:DummyArrayViewport}
-\alias{DummyArrayViewport-class}
-\alias{DummyArrayViewport}
-
-\alias{class:SafeArrayViewport}
-\alias{SafeArrayViewport-class}
-\alias{SafeArrayViewport}
-
-\alias{refdim}
-\alias{refdim,ArrayViewport-method}
-\alias{ranges,DummyArrayViewport-method}
-\alias{ranges,SafeArrayViewport-method}
-\alias{start,ArrayViewport-method}
-\alias{width,ArrayViewport-method}
-\alias{end,ArrayViewport-method}
-\alias{dim,ArrayViewport-method}
-
-\alias{classNameForDisplay,ArrayViewport-method}
-\alias{show,ArrayViewport-method}
-
-\alias{makeNindexFromArrayViewport}
-
 \alias{class:ArrayGrid}
 \alias{ArrayGrid-class}
 \alias{ArrayGrid}
@@ -72,16 +46,21 @@
 \alias{downsample,ArbitraryArrayGrid-method}
 \alias{downsample,RegularArrayGrid-method}
 
-\title{ArrayGrid and ArrayViewport objects}
+\title{ArrayGrid objects}
 
 \description{
-  A \emph{grid} is a partitioning of an array-like object into block-shaped
-  regions called \emph{viewports}.
+  In the context of the \pkg{S4Arrays} package, a \emph{grid} is a
+  partitioning of a multidimensional array into block-shaped regions
+  called \emph{viewports}.
 
-  The \pkg{S4Arrays} package defines two S4 classes to formally represent
-  grids and viewports: the ArrayGrid and ArrayViewport classes.
-  Note that ArrayGrid and ArrayViewport objects are used extensively in
-  the context of block processing of array-like objects.
+  The array on top of which the grid is defined is referred to as
+  \emph{the reference array}.
+
+  The \pkg{S4Arrays} package defines the ArrayGrid class to formally
+  represent a grid.
+
+  ArrayGrid and \link{ArrayViewport} objects are primarily used in the
+  context of block processing of array-like objects.
 
   There are two variants of ArrayGrid objects:
   \itemize{
@@ -127,9 +106,11 @@ downsample(x, ratio=1L)
   RegularArrayGrid and ArbitraryArrayGrid are concrete subclasses of
   ArrayGrid, which itself is a virtual class.
 
-  Note that an ArrayGrid or ArrayViewport object doesn't store any array
-  data, only the geometry of the grid or viewport. This makes these objects
-  extremely light-weight, even for grids made of millions of blocks.
+  Note that an ArrayGrid object only stores the geometry of the grid.
+  In particular, it doesn't store any array data, or any details about
+  the class or data type of the reference array. This makes an ArrayGrid
+  object extremely light-weight, even for representing a grid made of
+  millions of blocks.
 }
 
 \value{
@@ -143,8 +124,7 @@ downsample(x, ratio=1L)
 
 \seealso{
   \itemize{
-    \item \code{\link{read_block}} to read a block of data from an
-          array-like object.
+    \item \link{ArrayViewport} objects.
 
     \item \code{\link[DelayedArray]{blockApply}} and family, in the
           \pkg{DelayedArray} package, for convenient block processing
@@ -226,7 +206,7 @@ stopifnot(identical(dim(Lgrid[[1L]]), refdim(Lgrid)))
 stopifnot(identical(dims(Lgrid), matrix(refdim(Lgrid), nrow=1)))
 
 ## ---------------------------------------------------------------------
-## B. ArrayViewport OBJECTS
+## B. DOUBLE-BRACKET SUBSETTING OF AN ArrayGrid OBJECT
 ## ---------------------------------------------------------------------
 
 ## Grid elements are ArrayViewport objects:
@@ -235,16 +215,6 @@ stopifnot(is(grid1[[1L]], "ArrayViewport"))
 grid1[[2L]]
 grid1[[2L, 1L, 1L]]
 grid1[[15L, 1L, 4L]]
-
-## Construction of a standalong ArrayViewport object:
-m0 <- matrix(1:30, ncol=5)
-block_dim <- c(4, 3)
-viewport1 <- ArrayViewport(dim(m0), IRanges(c(3, 2), width=block_dim))
-viewport1
-
-dim(viewport1)     # 'block_dim'
-length(viewport1)  # number of array elements in the viewport
-ranges(viewport1)
 
 ## ---------------------------------------------------------------------
 ## C. GRIDS CAN BE TRANSPOSED
