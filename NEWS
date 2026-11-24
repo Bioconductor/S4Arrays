@@ -1,3 +1,15 @@
+VERSION 1.14.0
+--------------
+
+NEW FEATURES
+
+    o Default abind() method now handles heterogeneity
+      The default abind() method now accepts an heterogeneous mix of objects
+      like any combination of ordinary arrays, Matrix/sparseMatrix derivatives,
+      SparseArray derivatives, and DelayedArray derivatives.
+      As a consequence rbind() and cbind() now also handles heterogeneity.
+
+
 VERSION 1.12.0
 --------------
 
